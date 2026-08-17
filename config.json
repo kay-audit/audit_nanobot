@@ -3,8 +3,8 @@
     "defaults": {
       "workspace": "~/.nanobot/workspace",
       "modelPreset": null,
-      "model": "MiniMax-M3",
-      "provider": "minimax",
+      "model": "hy3-free",
+      "provider": "opencode",
       "maxTokens": 8192,
       "contextWindowTokens": 65536,
       "contextBlockLimit": null,
@@ -35,6 +35,17 @@
     }
   },
   "channels": {
+    "postgres": {
+      "enabled": true,
+      "dsn": "postgresql://postgres:postgres@127.0.0.1:5433/act_constructor",
+      "schema": "public",
+      "table_name": "agent_conversation_messages",
+      "poll_interval": 2.0,
+      "flush_interval": 2.0,
+      "max_concurrent": 1,
+      "processing_timeout": 600,
+      "allow_from": ["*"]
+    },
     "sendProgress": true,
     "sendToolHints": false,
     "showReasoning": true,
@@ -615,8 +626,8 @@
       "thinkingStyle": null
     },
     "opencode": {
-      "apiKey": null,
-      "apiBase": null,
+      "apiKey": "sk-uBUZHdRd0jJoqQcdlejn6vvhpFuQuhQNA87nwOPotsbRsKWPGMiRb0JXWkgJHpGy",
+      "apiBase": "https://opencode.ai/zen/v1",
       "apiType": "auto",
       "extraHeaders": null,
       "extraBody": null,
