@@ -4,7 +4,7 @@ Information about the user to help personalize interactions.
 
 ## Basic Information
 
-- **Name**: Алексей
+- **Name**: Коллега
 - **Timezone**: (your timezone, e.g., UTC+3)
 - **Language**: Russian, English
 - **Operating System**: Windows
@@ -13,17 +13,17 @@ Information about the user to help personalize interactions.
 
 ### Communication Style
 
-- [x] Technical
+- [ ] Technical
 - [ ] Casual
-- [ ] Professional
+- [x] Professional
 - Prefers **direct file modifications without previewing code first**
 - Prefers **command-style interaction (direct instructions)**
 
 ### Response Length
 
-- [x] Brief and concise
+- [ ] Brief and concise
 - [ ] Detailed explanations
-- [ ] Adaptive based on question
+- [x] Adaptive based on question
 
 ### Technical Level
 
@@ -42,7 +42,6 @@ Information about the user to help personalize interactions.
 
 - **Primary Role**: Developer
 - **Current Project**: Folder Analyzer Skill (file/folder analysis with Pandas support)
-- **Working Directory**: `C:\Users\Алексей\.nanobot\workspace\skills\folder-analyzer\`
 - **Tools You Use**: Python, Pandas, command line, Windows console
 - **Script Management**: Generates reusable Python scripts from templates (e.g., `structured.py`)
 - **Script Storage**: Stores generated scripts in `scripts/generated/`

@@ -1,14 +1,16 @@
 # Long-term Memory
 
-This file stores important information that should persist across sessions.
+## Каналы и инфраструктура
+- Канал обмена по умолчанию: postgres (таблица public.agent_conversation_messages)
+- Пользователь идентифицируется абстрактно как «Коллега»
 
-## Project Context
+## Поведенческие правила
+- Всегда писать reasoning и ответы **на русском**
+- Не задавать уточняющих вопросов ради вопросов — действовать по контексту
+- Паттерн ретраев: _mark_failed → status='retry'; _unstick_processing → 'pending' или 'failed'
+- Имена файлов/таблиц — на латинице, комментарии — на русском
 
-- **Folder Analyzer Skill**: All 8 stages completed (2026-05-20).
-
-## Technical Practices
-
-- **File Operations**: Always use explicit `utf-8` encoding for cyrillic path handling in Windows.
-- **Automation**: Prefer `exec` with absolute paths for Windows compatibility.
-- **Reporting**: Generate structured reports in Markdown and JSON formats with `--output` argument support.
-- **Large File Analysis**: Use map-reduce pattern with temporary file cleanup.
+## Паттерны работы с данными
+- Аудиторские данные: схема `oarb`, таблицы audit_reports/audits/report_items/violations
+- Кэш: DuckDB (`workspace/skills/audit_analyzer/cache/audit_cache.duckdb`)
+- Векторный поиск: FAISS (`audit_vectors`), --threshold приоритетнее --top-k
