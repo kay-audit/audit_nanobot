@@ -9,6 +9,7 @@ FAISS-индексов, вывод Rich-баннера.
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 import traceback
 from pathlib import Path
@@ -32,6 +33,61 @@ sys.path.insert(0, str(_WORKSPACE_DIR))
 console = Console()
 
 
+def _ensure_python_shim(workspace_dir: Path) -> str | None:
+    """Создать python-шим в ``<workspace>/.python-shim``.
+
+    На Linux ``nanobot/agent/tools/shell.py:_build_env`` НЕ передаёт PATH
+    в subprocess exec-tool (только HOME/LANG/TERM/PYTHONUNBUFFERED). Bash
+    в subprocess берёт compile-time default PATH
+    (``/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin``)
+    и подбирает ``/usr/bin/python3`` → symlink на системный 3.9 (без
+    библиотек). Сам ``gateway.py`` запущен в ``python3.12``, но exec-tool
+    агента видит только bash-default PATH → всё падает на импортах.
+
+    Шим: создаём каталог ``<workspace>/.python-shim`` с symlinks
+    ``python3 → /usr/bin/python3.12`` (или ``$AUDIT_PYTHON_BIN``).
+    Путь автоматически прописывается в
+    ``config.tools.exec.path_prepend`` → nanobot оборачивает каждую
+    exec-команду как ``export PATH="$SHIM:$PATH"; ...`` → ``python3``
+    резолвится в 3.12 ПЕРЕД ``/usr/bin``.
+
+    Override:
+      ``AUDIT_PYTHON_BIN=/path/to/python`` — использовать другой бинарь
+        (напр. venv: ``/home/user/venv/bin/python3.12``).
+      ``AUDIT_PYTHON_SHIM=0`` — отключить шим (даже если 3.12 есть).
+
+    Не требует правки ``/opt`` или ``/usr/bin``: всё внутри workspace,
+    который по умолчанию доступен на запись.
+
+    Returns: путь к шим-каталогу (``str``) или ``None`` при ошибке.
+    """
+    if os.environ.get("AUDIT_PYTHON_SHIM") == "0":
+        return None
+
+    target = os.environ.get("AUDIT_PYTHON_BIN") or "/usr/bin/python3.12"
+    target_path = Path(target)
+    if not target_path.is_file():
+        return None
+
+    shim = workspace_dir / ".python-shim"
+    try:
+        shim.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        return None
+
+    base = target_path.name
+    for name in {base, "python3", "python3.12"}:
+        link = shim / name
+        if link.exists() or link.is_symlink():
+            continue
+        try:
+            link.symlink_to(target)
+        except OSError:
+            return None
+
+    return str(shim)
+
+
 def main() -> None:
     """Точка входа gateway."""
     ctx = ApplicationContext.create(
@@ -42,6 +98,30 @@ def main() -> None:
     )
 
     _configure_logging(ctx.settings)
+
+    # ── python3.12 shim ──────────────────────────────────────────────
+    # nanobot/agent/tools/shell.py:_build_env на Linux не передаёт PATH
+    # в subprocess exec-tool. bash берёт default PATH → /usr/bin/python3
+    # → symlink на 3.9 (без библиотек). Шим в <workspace>/.python-shim
+    # прокидывается в exec.path_prepend, и python3 в каждом exec
+    # резолвится в 3.12 ПЕРЕД /usr/bin. Override:
+    #   AUDIT_PYTHON_BIN=/path/to/python — другой бинарь
+    #   AUDIT_PYTHON_SHIM=0 — отключить
+    _shim_dir = _ensure_python_shim(_WORKSPACE_DIR)
+    if _shim_dir:
+        try:
+            ctx.config.tools.exec.path_prepend = _shim_dir
+            _target = os.environ.get("AUDIT_PYTHON_BIN", "/usr/bin/python3.12")
+            console.print(
+                f"[green]\u2713[/green] python shim: {_shim_dir} "
+                f"(python3 \u2192 {_target})"
+            )
+        except Exception as e:
+            console.print(
+                f"[yellow]\u26a0[/yellow] python shim создан ({_shim_dir}), "
+                f"но не прокинут в exec.path_prepend: {e}"
+            )
+    # ─────────────────────────────────────────────────────────────────
 
     from nanobot.cli.commands import __logo__, __version__
 

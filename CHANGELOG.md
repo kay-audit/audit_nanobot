@@ -8,6 +8,27 @@
 
 ## [Unreleased]
 
+### Added
+
+- **`gateway.py`: авто-создание python-шима в `<workspace>/.python-shim/`.**
+  nanobot/agent/tools/shell.py:_build_env на Linux не передаёт PATH в
+  subprocess exec-tool (только HOME/LANG/TERM/PYTHONUNBUFFERED), и bash
+  в subprocess берёт compile-time default PATH
+  (``/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin``) →
+  ``/usr/bin/python3`` → symlink на системный 3.9 (без библиотек).
+  Проект при этом запущен в python3.12 (JupyterLab kernel / venv), но
+  exec-tool агента «видит» только 3.9 и падает на импортах. Шим
+  автоматически создаёт каталог ``<workspace>/.python-shim`` с
+  symlinks ``python3 → /usr/bin/python3.12`` (или ``$AUDIT_PYTHON_BIN``)
+  и прописывает его в ``config.tools.exec.path_prepend`` →
+  nanobot оборачивает каждую exec-команду как
+  ``export PATH="$SHIM:$PATH"; ...`` → python3 в каждом exec резолвится
+  в 3.12 ПЕРЕД /usr/bin. Не требует правки /opt или /usr/bin: всё
+  внутри workspace. Override: ``AUDIT_PYTHON_BIN=/path/to/python``,
+  отключить: ``AUDIT_PYTHON_SHIM=0``. Тесты: tests/test_python_shim.py
+  (8 unit-тестов: env-override, missing target, validation, symlink
+  failure, idempotency, AUDIT_PYTHON_BIN override).
+
 ### Changed
 
 - **`agent_conversation_messages.status`: новый статус `retry` для ретраев.**
