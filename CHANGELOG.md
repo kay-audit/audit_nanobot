@@ -10,6 +10,23 @@
 
 ### Added
 
+- **`PGSessionManager._load_inner`: лимит сообщений на сессию.**
+  ``_load_inner`` (lib/session/pg_session_manager.py) теперь берёт только
+  последние ``max_session_messages`` записей из ``agent_session_messages``
+  через ``ORDER BY seq DESC LIMIT N`` + reverse (хронологический порядок).
+  Раньше SELECT тащил ВСЕ сообщения сессии без LIMIT — при длинных
+  диалогах с тяжёлыми tool-результатами (audit_analyzer SELECT без
+  LIMIT) в context.messages копились тысячи строк JSON, раздувая
+  prompt до десятков тысяч токенов. Защита: фильтр по ``session_key``
+  уже был, теперь добавился и лимит. Настройка:
+  ``channels.postgres.max_session_messages`` (default 100) →
+  ``PGSessionManager(max_session_messages=...)`` →
+  ``session_storage._make_pg_manager``. Старые записи в БД НЕ удаляются
+  — это «окно» в context.messages, а не trim. Тесты:
+  tests/test_pg_session_manager.py (TestPGSessionManagerLoadLimit —
+  5 тестов: default 100, custom, фильтр session_key, reverse хронология,
+  защита от 0/отрицательных).
+
 - **`gateway.py`: авто-создание python-шима в `<workspace>/.python-shim/`.**
   nanobot/agent/tools/shell.py:_build_env на Linux не передаёт PATH в
   subprocess exec-tool (только HOME/LANG/TERM/PYTHONUNBUFFERED), и bash

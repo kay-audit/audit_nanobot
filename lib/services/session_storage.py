@@ -145,6 +145,7 @@ class SessionStorageService:
                 min_conn=int(pool_cfg.get("min_conn", 1)),
                 max_conn=int(pool_cfg.get("max_conn", 4)),
                 pool_timeout=float(pool_cfg.get("pool_timeout", 5.0)),
+                max_session_messages=int(pg_cfg.get("max_session_messages", 100)),
             )
             return "postgres", manager
 

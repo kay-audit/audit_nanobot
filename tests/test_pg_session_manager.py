@@ -287,3 +287,147 @@ class TestPGSessionManagerFlushAll:
             count = mgr.flush_all()
             assert count == 2
             assert mock_save.call_count == 2
+
+
+class TestPGSessionManagerLoadLimit:
+    """``_load_inner`` грузит только последние ``max_session_messages``
+    сообщений по session_key (ORDER BY seq DESC LIMIT N + reverse).
+    Это защита от раздувания context.messages при длинных диалогах /
+    тяжёлых tool-результатах (audit_analyzer без LIMIT)."""
+
+    @patch("lib.session.pg_session_manager.transaction")
+    def test_default_limit_is_100(self, mock_trans, mock_db_and_psycopg):
+        mgr = mock_db_and_psycopg(workspace=Path("/tmp/ws"))
+        assert mgr._max_session_messages == 100, (
+            "default max_session_messages должен быть 100"
+        )
+
+    @patch("lib.session.pg_session_manager.transaction")
+    def test_custom_limit_in_constructor(self, mock_trans, mock_db_and_psycopg):
+        mgr = mock_db_and_psycopg(workspace=Path("/tmp/ws"), max_session_messages=25)
+        assert mgr._max_session_messages == 25
+
+    @patch("lib.session.pg_session_manager.transaction")
+    def test_load_filters_by_session_key(self, mock_trans, mock_db_and_psycopg):
+        """Только сообщения для текущего session_key — никаких cross-session
+        утечек (защита от случайного `WHERE session_key IS NULL` или
+        отсутствия WHERE)."""
+        mgr = mock_db_and_psycopg(workspace=Path("/tmp/ws"), max_session_messages=100)
+
+        mock_conn = MagicMock()
+        mock_cur_meta = MagicMock()
+        mock_cur_meta.description = [
+            ("session_key",), ("created_at",), ("updated_at",),
+            ("last_consolidated",), ("metadata",),
+        ]
+        mock_cur_meta.fetchone.return_value = (
+            "postgres:chat1", datetime(2024, 1, 1), datetime(2024, 1, 1),
+            None, {},
+        )
+        mock_cur_meta.__enter__.return_value = mock_cur_meta
+
+        mock_cur_msgs = MagicMock()
+        mock_cur_msgs.description = [
+            ("id",), ("session_key",), ("seq",), ("role",),
+            ("content",), ("msg_timestamp",),
+            ("tool_calls",), ("tool_call_id",), ("name",),
+            ("reasoning_content",), ("thinking_blocks",),
+            ("media",), ("cli_apps",), ("mcp_presets",),
+            ("injected_event",), ("_command",), ("_channel_delivery",),
+            ("created_at",),
+        ]
+        mock_cur_msgs.fetchall.return_value = [
+            (1, "postgres:chat1", 0, "user", "hi", None,
+             None, None, None, None, None, None, None, None,
+             None, None, None, datetime(2024, 1, 1)),
+        ]
+        mock_cur_msgs.__enter__.return_value = mock_cur_msgs
+
+        mock_conn.cursor.side_effect = [mock_cur_meta, mock_cur_msgs]
+        mock_trans.return_value.__enter__.return_value = mock_conn
+
+        mgr._load("postgres:chat1")
+        # Должно быть 2 execute-вызова — meta + messages
+        meta_sql = mock_cur_meta.execute.call_args.args[0]
+        msgs_sql = mock_cur_msgs.execute.call_args.args[0]
+        assert "WHERE session_key = %s" in meta_sql
+        assert "WHERE session_key = %s" in msgs_sql
+        # Сообщения: ORDER BY seq DESC LIMIT %s
+        assert "ORDER BY seq DESC" in msgs_sql
+        assert "LIMIT %s" in msgs_sql
+        # Параметры: ("postgres:chat1", 100)
+        params = mock_cur_msgs.execute.call_args.args[1]
+        assert params == ("postgres:chat1", 100)
+
+    @patch("lib.session.pg_session_manager.transaction")
+    def test_load_keeps_most_recent_messages(self, mock_trans, mock_db_and_psycopg):
+        """LIMIT N + DESC → последние N сообщений, затем reverse
+        для хронологического порядка."""
+        mgr = mock_db_and_psycopg(workspace=Path("/tmp/ws"), max_session_messages=3)
+
+        mock_conn = MagicMock()
+        mock_cur_meta = MagicMock()
+        mock_cur_meta.description = [
+            ("session_key",), ("created_at",), ("updated_at",),
+            ("last_consolidated",), ("metadata",),
+        ]
+        mock_cur_meta.fetchone.return_value = (
+            "k", datetime(2024, 1, 1), datetime(2024, 1, 1),
+            None, {},
+        )
+        mock_cur_meta.__enter__.return_value = mock_cur_meta
+
+        # Имитация: в БД 5 сообщений (seq 0..4), DESC LIMIT 3 вернёт seq=4,3,2.
+        mock_cur_msgs = MagicMock()
+        mock_cur_msgs.description = [
+            ("id",), ("session_key",), ("seq",), ("role",),
+            ("content",), ("msg_timestamp",),
+            ("tool_calls",), ("tool_call_id",), ("name",),
+            ("reasoning_content",), ("thinking_blocks",),
+            ("media",), ("cli_apps",), ("mcp_presets",),
+            ("injected_event",), ("_command",), ("_channel_delivery",),
+            ("created_at",),
+        ]
+        mock_cur_msgs.fetchall.return_value = [
+            (4, "k", 4, "user", "msg-4", None,
+             None, None, None, None, None, None, None, None,
+             None, None, None, datetime(2024, 1, 1)),
+            (3, "k", 3, "user", "msg-3", None,
+             None, None, None, None, None, None, None, None,
+             None, None, None, datetime(2024, 1, 1)),
+            (2, "k", 2, "user", "msg-2", None,
+             None, None, None, None, None, None, None, None,
+             None, None, None, datetime(2024, 1, 1)),
+        ]
+        mock_cur_msgs.__enter__.return_value = mock_cur_msgs
+
+        mock_conn.cursor.side_effect = [mock_cur_meta, mock_cur_msgs]
+        mock_trans.return_value.__enter__.return_value = mock_conn
+
+        session = mgr._load("k")
+        # DESC LIMIT 3 → [seq=4, seq=3, seq=2], reverse → [seq=2, seq=3, seq=4]
+        assert session is not None
+        assert len(session.messages) == 3
+        assert [m["content"] for m in session.messages] == ["msg-2", "msg-3", "msg-4"]
+
+    @patch("lib.session.pg_session_manager.transaction")
+    def test_load_returns_empty_when_no_meta(self, mock_trans, mock_db_and_psycopg):
+        """Нет meta-строки → сессия не существует → None (no messages load)."""
+        mgr = mock_db_and_psycopg(workspace=Path("/tmp/ws"))
+
+        mock_conn = MagicMock()
+        mock_cur = MagicMock()
+        mock_cur.description = [("session_key",), ("created_at",), ("updated_at",), ("last_consolidated",), ("metadata",)]
+        mock_cur.fetchone.return_value = None  # no meta
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cur
+        mock_trans.return_value.__enter__.return_value = mock_conn
+
+        assert mgr._load("nonexistent") is None
+
+    @patch("lib.session.pg_session_manager.transaction")
+    def test_max_session_messages_min_1(self, mock_trans, mock_db_and_psycopg):
+        """Защита от 0/отрицательных значений."""
+        mgr = mock_db_and_psycopg(workspace=Path("/tmp/ws"), max_session_messages=0)
+        assert mgr._max_session_messages == 1
+        mgr = mock_db_and_psycopg(workspace=Path("/tmp/ws"), max_session_messages=-5)
+        assert mgr._max_session_messages == 1

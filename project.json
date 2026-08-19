@@ -37,6 +37,7 @@
       "schema": "public",                     // Схема БД
       "messages_table": "agent_session_messages",   // Таблица сообщений сессий (PGSessionManager)
       "meta_table": "agent_session_meta",           // Таблица метаданных сессий (PGSessionManager)
+      "max_session_messages": 100,            // Лимит сообщений сессии, загружаемых в контекст (PGSessionManager._load_inner); ORDER BY seq DESC LIMIT N
       "table_name": "agent_conversation_messages",  // Таблица обмена сообщениями (PostgresChannel/streamlit)
       "poll_interval": 2.0,                   // Поллинг новых сообщений, сек
       "flush_interval": 2.0,                  // Сброс reasoning в metadata, сек

@@ -67,6 +67,7 @@ class PGSessionManager(SessionManager):
         schema: str = "public",
         messages_table: str = "",
         meta_table: str = "",
+        max_session_messages: int = 100,
         **kwargs: Any,
     ) -> None:
         if not messages_table or not meta_table:
@@ -85,6 +86,12 @@ class PGSessionManager(SessionManager):
         self._fq_messages = self._quote(f"{schema}.{messages_table}")
         # кеш загруженных сессий (Session → key)
         self._cache: dict[str, Session] = {}
+        # Жёсткий лимит на количество сообщений, загружаемых в контекст
+        # при старте сессии. Берём последние N (ORDER BY seq DESC LIMIT N).
+        # Это не удаляет старые записи из БД — только не поднимает их в
+        # context.messages. Защита от раздувания контекста при длинных
+        # диалогах / тяжёлых tool-результатах (audit_analyzer SELECT).
+        self._max_session_messages = max(1, int(max_session_messages))
         if dsn:
             from utils.db import configure as _cfg
             _cfg(dsn)
@@ -117,7 +124,13 @@ class PGSessionManager(SessionManager):
 
         Читает:
            1. Одну строку из ``agent_session_meta`` по session_key
-           2. Все строки из ``agent_session_messages`` по session_key (ORDER BY seq)
+           2. Последние ``_max_session_messages`` строк из
+              ``agent_session_messages`` по session_key (ORDER BY seq DESC
+              LIMIT N, затем reverse → хронологический порядок).
+
+        Защита от раздувания контекста: даже если в БД 5000 tool-результатов
+        за месяц, в LLM уйдут только последние N сообщений. Старые записи
+        в БД НЕ удаляются — это «окно» в context.messages, а не trim.
 
         Собирает Session с распаковкой JSON-колонок.
         """
@@ -133,9 +146,17 @@ class PGSessionManager(SessionManager):
             meta = dict(zip(col_names, meta_row))
 
         with conn.cursor() as cur:
-            cur.execute(f"SELECT * FROM {self._fq_messages} WHERE session_key = %s ORDER BY seq ASC", (key,))
+            # Берём последние N сообщений (по seq DESC), затем reverse
+            # для хронологического порядка (старые → новые).
+            cur.execute(
+                f"SELECT * FROM {self._fq_messages} "
+                f"WHERE session_key = %s "
+                f"ORDER BY seq DESC LIMIT %s",
+                (key, self._max_session_messages),
+            )
             col_names = [desc[0] for desc in cur.description]
             rows_raw_list = [dict(zip(col_names, r)) for r in cur.fetchall()]
+        rows_raw_list.reverse()  # ASC: 0, 1, 2, ...
 
         messages: list[dict[str, Any]] = []
         for r in rows_raw_list:

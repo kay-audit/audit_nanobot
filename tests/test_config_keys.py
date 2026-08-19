@@ -43,6 +43,7 @@ def _required_keys():
         ("channels.postgres.allow_from", ["*"]),
         ("channels.postgres.messages_table", "agent_session_messages"),
         ("channels.postgres.meta_table", "agent_session_meta"),
+        ("channels.postgres.max_session_messages", 100),
         ("channels.postgres.table_name", "agent_conversation_messages"),
         ("channels.postgres.schema", "public"),
         ("channels.postgres.max_stuck_retries", 3),
