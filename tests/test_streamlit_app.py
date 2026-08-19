@@ -218,6 +218,20 @@ class TestLoadChatHistory:
         assert result[1]["role"] == "assistant"
         assert result[1]["reasoning"] == "greeting"
 
+    def test_includes_retry_status_in_filter(self, mock_all):
+        """``retry`` — задача в ретрае (НЕ финальная ошибка): user-сообщение
+        должно быть видно в истории, пока канал не вернёт его в 'pending' или
+        не переведёт в 'failed'."""
+        mock_all["utils_db"].fetch.return_value = []
+        mock_all["streamlit_app"]._load_chat_history("test-chat")
+        sql = mock_all["utils_db"].fetch.call_args.args[0]
+        assert "retry" in sql, (
+            "_load_chat_history should include 'retry' in status filter — "
+            "retry messages are still in progress, not terminal errors"
+        )
+        # 'failed' НЕ должен быть в фильтре (он терминальный, не показываем)
+        assert "failed" not in sql
+
     def test_skips_non_user_assistant_roles(self, mock_all):
         mock_all["utils_db"].fetch.return_value = [
             {

@@ -57,13 +57,16 @@ if _dsn:
 
 def _load_chat_history(chat_id: str = _CHAT_ID) -> list[dict]:
     """Загрузить историю чата из БД.
-    
+
     Возвращает список сообщений в формате для st.session_state.messages.
+    Включает ``retry`` — это задача в ретрае (НЕ финальная ошибка),
+    нужно показать пользовательское сообщение, пока идёт повторная
+    обработка.
     """
     rows = fetch(
         f"SELECT id, role, content, media, metadata, reply_to, status, created_at "
         f"FROM {_fq_table} "
-        f"WHERE chat_id = %s AND status IN ('completed', 'pending', 'processing') "
+        f"WHERE chat_id = %s AND status IN ('completed', 'pending', 'processing', 'retry') "
         f"ORDER BY created_at ASC",
         chat_id,
     )
@@ -373,9 +376,11 @@ if processing:
                 st.rerun()
 
             if cur_status == "failed":
-                # Статус может вернуться в работу (retry канала). Даём окно
-                # в 5 минут на повторную обработку, и только после него
-                # показываем ошибку окончательно.
+                # Статус 'failed' — окончательная ошибка после исчерпания
+                # max_stuck_retries. Даём окно в 5 минут на случай гонки
+                # (если канал ещё не успел вернуть в retry), и только потом
+                # показываем ошибку. Канал ставит 'retry' при первой ошибке,
+                # так что этот граничный кейс — fallback.
                 if failed_since is None:
                     failed_since = time.time()
                 failed_elapsed = int(time.time() - failed_since)
@@ -390,8 +395,10 @@ if processing:
                 time.sleep(_POLL_INTERVAL)
                 continue
 
-            # status in ('pending', 'processing') — сообщение в работе,
-            # ждём бесконечно, без таймаута.
+            # status in ('pending', 'processing', 'retry') — сообщение
+            # в работе либо в ретрае (задача в ретрае не считается
+            # финальной ошибкой: канал вернёт её в pending после таймаута).
+            # Ждём бесконечно, без таймаута.
             failed_since = None
 
             # Показываем live-состояние: размышления, черновик или просто счётчик

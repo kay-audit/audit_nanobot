@@ -8,6 +8,24 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **`agent_conversation_messages.status`: новый статус `retry` для ретраев.**
+  Раньше ``_mark_failed`` (ошибка диспетчеризации/записи) ставил
+  ``status='failed'`` сразу — UI потребителя (Streamlit) после 5-минутного
+  окна показывал «Ошибка обработки», даже если канал ещё мог успешно
+  обработать задачу через retry. Теперь при первой ошибке ставится
+  ``status='retry'`` (промежуточный): ``_poll_once`` его НЕ подбирает
+  (``WHERE status='pending'`` остаётся без изменений), а ``_unstick_processing``
+  после таймаута ``processing_timeout`` либо возвращает сообщение в
+  ``pending`` (новая попытка), либо после исчерпания ``max_stuck_retries``
+  окончательно переводит в ``failed``. UI больше не показывает
+  финальную ошибку во время реального ретрая. Тесты:
+  ``tests/test_postgres_channel.py`` (``TestPostgresChannelMarkFailed`` —
+  4 теста, ``TestPostgresChannelUnstickProcessing`` — расширен,
+  ``TestPostgresChannelPollOnce`` — 2 новых), ``tests/test_streamlit_app.py``
+  (``test_includes_retry_status_in_filter``).
+
 ### Added
 
 - **`workspace/hooks/recent_files_hook.py` — `RecentFilesHook` + auto-attach

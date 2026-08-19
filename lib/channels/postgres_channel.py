@@ -78,6 +78,12 @@ class PostgresChannel(BaseChannel):
         4. Агент формирует ответ → ``send()`` пишет status='completed'
         5. Web-сервер (Streamlit) видит completed и показывает ответ
 
+    При ошибке диспетчеризации/записи (``_mark_failed``) ставится
+    status='retry' (НЕ 'failed'): UI не показывает финальную ошибку, а
+    ``_unstick_processing`` после таймаута либо вернёт сообщение в
+    'pending' (новая попытка), либо после исчерпания max_stuck_retries
+    окончательно переведёт в 'failed'.
+
     Рассуждения агента (reasoning) пишутся в real-time через
     ``send_reasoning_delta`` → буферизируются → ``_flush_reasoning``
     периодически сбрасывает в ``metadata.reasoning``.
@@ -289,19 +295,25 @@ class PostgresChannel(BaseChannel):
         return bool(had)
 
     async def _unstick_processing(self) -> None:
-        """Освободить сообщения, зависшие в ``processing`` дольше таймаута.
+        """Освободить сообщения, зависшие в ``processing`` или ``retry`` дольше таймаута.
 
         Механизм:
-          — Если сообщение в processing > ``_processing_timeout`` секунд,
-            оно считается зависшим.
+          — Если сообщение в ``processing`` или ``retry`` > ``_processing_timeout``
+            секунд, оно считается зависшим.
           — Счётчик retry_count в metadata увеличивается.
-          — Если retry_count >= 3 → status = 'failed' (окончательно).
+          — Если retry_count >= max_stuck_retries → status = 'failed' (окончательно).
           — Иначе → status = 'pending' (повторная попытка).
-          — Старый assistant-placeholder удаляется (вместо failed), чтобы
-            пользователь не видел ошибочный статус до повторной обработки.
+          — Старый assistant-placeholder удаляется, чтобы пользователь не видел
+            ошибочный статус до повторной обработки.
+
+        Зачем ``retry`` в селекте: ``_mark_failed`` ставит status='retry' при
+        ошибке диспетчеризации/записи (НЕ 'failed'), чтобы UI не показывал
+        финальную ошибку. ``_unstick_processing`` подбирает такие сообщения
+        и либо возвращает в 'pending' (новая попытка), либо после исчерпания
+        лимита переводит в 'failed'.
 
         Это защита от ситуаций, когда агент упал, а сообщение осталось
-        висеть в processing навсегда.
+        висеть в processing/retry навсегда.
         """
         max_retries = self._max_stuck_retries
         timeout_s = self._processing_timeout
@@ -309,8 +321,8 @@ class PostgresChannel(BaseChannel):
         async with transaction() as conn:
             rows = await conn.fetch(
                 f"""
-                SELECT id, metadata FROM {self._fq_table}
-                WHERE role = 'user' AND status = 'processing'
+                SELECT id, status, metadata FROM {self._fq_table}
+                WHERE role = 'user' AND status IN ('processing', 'retry')
                 AND updated_at + interval '1 second' * %s < NOW()
                 """,
                 timeout_s,
@@ -318,6 +330,7 @@ class PostgresChannel(BaseChannel):
 
             for row in rows:
                 msg_id = str(row["id"])
+                prev_status = row["status"]
                 meta = _decode_jsonb(row["metadata"])
                 retry_count = meta.get("retry_count", 0) + 1
                 meta["retry_count"] = retry_count
@@ -331,12 +344,13 @@ class PostgresChannel(BaseChannel):
                     )
                     await conn.execute(
                         f"UPDATE {self._fq_table} SET status = 'failed', "
-                        f"updated_at = NOW() WHERE reply_to = %s AND role = 'assistant' AND status = 'processing'",
+                        f"updated_at = NOW() WHERE reply_to = %s AND role = 'assistant' "
+                        f"AND status IN ('processing', 'retry')",
                         msg_id,
                     )
                     self.logger.warning(
-                        "User msg {} exceeded max retries ({}/{})",
-                        msg_id, retry_count, max_retries,
+                        "User msg {} exceeded max retries ({}/{}, was {})",
+                        msg_id, retry_count, max_retries, prev_status,
                     )
                 else:
                     # возвращаем в pending для повторной попытки
@@ -347,16 +361,17 @@ class PostgresChannel(BaseChannel):
                     )
                     # Удаляем старый assistant-placeholder, чтобы пользователь
                     # не увидел "Ошибка обработки" до того, как новый ответ будет готов.
-                    # Удаляем как processing (текущий зависший), так и failed (если
-                    # _mark_failed частично записал ошибку до того, как мы решили retry).
+                    # Удаляем как processing (текущий зависший), так и retry (если
+                    # _mark_failed уже записал ошибку), чтобы при следующей попытке
+                    # был свежий placeholder.
                     await conn.execute(
                         f"DELETE FROM {self._fq_table} "
-                        f"WHERE reply_to = %s AND role = 'assistant' AND status IN ('processing', 'failed')",
+                        f"WHERE reply_to = %s AND role = 'assistant' AND status IN ('processing', 'retry')",
                         msg_id,
                     )
                     self.logger.warning(
-                        "Released stuck user msg {} (retry {}/{})",
-                        msg_id, retry_count, max_retries,
+                        "Released stuck user msg {} (retry {}/{}, was {})",
+                        msg_id, retry_count, max_retries, prev_status,
                     )
 
             # также помечаем failed orphaned assistant-сообщения (без user)
@@ -490,11 +505,18 @@ class PostgresChannel(BaseChannel):
         return assistant_msg_id
 
     async def _mark_failed(self, user_msg_id: str, assistant_msg_id: str | None, reason: str) -> None:
-        """Пометить пользовательское сообщение и ответ ассистента как failed.
+        """Пометить пользовательское сообщение и ответ ассистента как ``retry``.
 
         Вызывается при:
           — ошибке диспетчеризации (\"dispatch_error\")
           — ошибке записи ответа (\"write_error\")
+
+        ВАЖНО: ставит status='retry' (НЕ 'failed'), чтобы UI не показывал
+        окончательную ошибку. ``retry`` — это промежуточный статус «задача
+        в ретрае»: ``_poll_once`` НЕ подбирает такие сообщения (см.
+        ``WHERE status='pending'``), а ``_unstick_processing`` либо вернёт
+        их в ``pending`` (новая попытка), либо после исчерпания
+        ``max_stuck_retries`` окончательно переведёт в ``failed``.
 
         Дополнительно:
           — удаляет контекст из ``_msg_ctx``
@@ -505,11 +527,11 @@ class PostgresChannel(BaseChannel):
             if assistant_msg_id:
                 await conn.execute(
                     f"UPDATE {self._fq_table} SET content = %s, metadata = %s, "
-                    f"status = 'failed', updated_at = NOW() WHERE id = %s",
+                    f"status = 'retry', updated_at = NOW() WHERE id = %s",
                     f"Internal error: {reason}", {"error": reason}, assistant_msg_id,
                 )
             await conn.execute(
-                f"UPDATE {self._fq_table} SET status = 'failed', updated_at = NOW() WHERE id = %s",
+                f"UPDATE {self._fq_table} SET status = 'retry', updated_at = NOW() WHERE id = %s",
                 user_msg_id,
             )
         self._msg_ctx.pop(user_msg_id, None)

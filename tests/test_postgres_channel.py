@@ -253,6 +253,88 @@ class TestPostgresChannelInsertAssistantMessage:
         assert ch._msg_ctx["user-1"]["assistant_msg_id"] == "new-msg-42"
 
 
+class TestPostgresChannelMarkFailed:
+    """``_mark_failed`` ставит status='retry' (НЕ 'failed'), чтобы UI не
+    показывал финальную ошибку; 'failed' ставит только _unstick_processing
+    после исчерпания max_stuck_retries."""
+
+    @pytest.mark.asyncio
+    async def test_mark_failed_sets_retry_not_failed(self, mock_db_and_psycopg):
+        PostgresChannel, _, mock_db = mock_db_and_psycopg
+        mock_conn = AsyncMock()
+        mock_db.async_transaction.return_value.__aenter__.return_value = mock_conn
+
+        ch = _make_channel((PostgresChannel, None, mock_db))
+        await ch._mark_failed("user-1", "a-1", "dispatch_error")
+
+        # Должны быть 2 UPDATE: на assistant-сообщение и на user-сообщение
+        assert mock_conn.execute.call_count == 2
+        # Проверяем, что ОБА UPDATE ставят 'retry', не 'failed'
+        for call in mock_conn.execute.call_args_list:
+            sql = call.args[0]
+            assert "UPDATE" in sql
+            assert "status = 'retry'" in sql, (
+                f"_mark_failed must set status='retry', got: {sql}"
+            )
+            assert "status = 'failed'" not in sql, (
+                f"_mark_failed must NOT set status='failed', got: {sql}"
+            )
+
+    @pytest.mark.asyncio
+    async def test_mark_failed_without_assistant(self, mock_db_and_psycopg):
+        """Если assistant_msg_id=None, _mark_failed ставит 'retry' только на user-сообщение."""
+        PostgresChannel, _, mock_db = mock_db_and_psycopg
+        mock_conn = AsyncMock()
+        mock_db.async_transaction.return_value.__aenter__.return_value = mock_conn
+
+        ch = _make_channel((PostgresChannel, None, mock_db))
+        await ch._mark_failed("user-1", None, "write_error")
+
+        # Ровно 1 UPDATE — только на user-сообщение
+        assert mock_conn.execute.call_count == 1
+        sql = mock_conn.execute.call_args_list[0].args[0]
+        assert "status = 'retry'" in sql
+        assert "status = 'failed'" not in sql
+
+    @pytest.mark.asyncio
+    async def test_mark_failed_writes_error_content_to_assistant(self, mock_db_and_psycopg):
+        """Assistant placeholder получает content с причиной ошибки и metadata.error."""
+        PostgresChannel, _, mock_db = mock_db_and_psycopg
+        mock_conn = AsyncMock()
+        mock_db.async_transaction.return_value.__aenter__.return_value = mock_conn
+
+        ch = _make_channel((PostgresChannel, None, mock_db))
+        await ch._mark_failed("user-1", "a-1", "dispatch_error")
+
+        # Первый UPDATE — на assistant-сообщение: проверяем параметры
+        first_call = mock_conn.execute.call_args_list[0]
+        sql, *params = first_call.args
+        assert "status = 'retry'" in sql
+        # В params должно быть 'Internal error: dispatch_error' и {"error": "dispatch_error"}
+        assert any("Internal error: dispatch_error" in str(p) for p in params)
+        assert any(p == {"error": "dispatch_error"} for p in params)
+
+    @pytest.mark.asyncio
+    async def test_mark_failed_releases_slot(self, mock_db_and_psycopg):
+        """_mark_failed вызывает _release_slot (слот освобождается)."""
+        PostgresChannel, _, mock_db = mock_db_and_psycopg
+        mock_conn = AsyncMock()
+        mock_db.async_transaction.return_value.__aenter__.return_value = mock_conn
+
+        ch = _make_channel((PostgresChannel, None, mock_db))
+        # Эмулируем inflight msg, чтобы _release_slot имел смысл
+        ch.exchange.add_inflight("user-1")
+        ch._msg_chat["user-1"] = "chat-1"
+        ch._chat_inflight.add("chat-1")
+
+        await ch._mark_failed("user-1", "a-1", "dispatch_error")
+
+        # Слот должен быть освобождён
+        assert "user-1" not in ch.exchange.inflight
+        assert "chat-1" not in ch._chat_inflight
+        assert "user-1" not in ch._msg_chat
+
+
 class TestPostgresChannelSend:
     @pytest.mark.asyncio
     async def test_reasoning_delta_is_buffered(self, mock_db_and_psycopg):
@@ -505,29 +587,137 @@ class TestPostgresChannelUnstickProcessing:
         await ch._unstick_processing()  # should not raise
 
     @pytest.mark.asyncio
-    async def test_stuck_message_retried(self, mock_db_and_psycopg):
+    async def test_stuck_processing_message_retried(self, mock_db_and_psycopg):
+        """Зависшее user-сообщение в 'processing' с retry_count < max → 'pending'."""
         PostgresChannel, _, mock_db = mock_db_and_psycopg
         mock_conn = AsyncMock()
         mock_conn.fetch.return_value = [
-            {"id": 1, "metadata": "{}"}
+            {"id": 1, "status": "processing", "metadata": "{}"}
+        ]
+        mock_db.async_transaction.return_value.__aenter__.return_value = mock_conn
+
+        ch = _make_channel((PostgresChannel, None, mock_db))
+        await ch._unstick_processing()
+        # Should UPDATE to 'pending' (release) and DELETE old assistant placeholder
+        # + finalize orphan assistant update (3 exec calls)
+        assert mock_conn.execute.call_count >= 2
+        # Verify the UPDATE used 'pending', not 'failed'
+        update_calls = [
+            c for c in mock_conn.execute.call_args_list
+            if "UPDATE" in c.args[0] and "status = 'pending'" in c.args[0]
+        ]
+        assert len(update_calls) >= 1, (
+            "Should UPDATE to 'pending' for retry, not 'failed'"
+        )
+
+    @pytest.mark.asyncio
+    async def test_stuck_retry_message_retried(self, mock_db_and_psycopg):
+        """Зависшее user-сообщение в 'retry' с retry_count < max → 'pending'.
+
+        Сценарий: _mark_failed поставил retry, потом _unstick_processing
+        подобрал его после таймаута и вернул в pending.
+        """
+        PostgresChannel, _, mock_db = mock_db_and_psycopg
+        mock_conn = AsyncMock()
+        mock_conn.fetch.return_value = [
+            {"id": 1, "status": "retry", "metadata": "{}"}
         ]
         mock_db.async_transaction.return_value.__aenter__.return_value = mock_conn
 
         ch = _make_channel((PostgresChannel, None, mock_db))
         await ch._unstick_processing()
         # Should UPDATE to 'pending' and DELETE old assistant placeholder
-        assert mock_conn.execute.call_count >= 2
+        update_calls = [
+            c for c in mock_conn.execute.call_args_list
+            if "UPDATE" in c.args[0] and "status = 'pending'" in c.args[0]
+        ]
+        assert len(update_calls) >= 1, (
+            "Should bring 'retry' message back to 'pending'"
+        )
 
     @pytest.mark.asyncio
     async def test_stuck_message_max_retries(self, mock_db_and_psycopg):
+        """retry_count == max_stuck_retries-1 → следующий инкремент → 'failed'."""
         PostgresChannel, _, mock_db = mock_db_and_psycopg
         mock_conn = AsyncMock()
         mock_conn.fetch.return_value = [
-            {"id": 1, "metadata": '{"retry_count": 2}'}
+            {"id": 1, "status": "processing", "metadata": '{"retry_count": 2}'}
         ]
         mock_db.async_transaction.return_value.__aenter__.return_value = mock_conn
 
         ch = _make_channel((PostgresChannel, None, mock_db))
         await ch._unstick_processing()
-        # Should UPDATE to 'failed'
+        # Проверяем, что первая UPDATE — на 'failed' для user сообщения
+        first_update = mock_conn.execute.call_args_list[0]
+        assert "UPDATE" in first_update.args[0]
+        assert "status = 'failed'" in first_update.args[0]
         assert mock_conn.execute.call_count >= 1
+
+    @pytest.mark.asyncio
+    async def test_retry_message_max_retries(self, mock_db_and_psycopg):
+        """retry-сообщение с retry_count на пределе → 'failed'."""
+        PostgresChannel, _, mock_db = mock_db_and_psycopg
+        mock_conn = AsyncMock()
+        mock_conn.fetch.return_value = [
+            {"id": 1, "status": "retry", "metadata": '{"retry_count": 2}'}
+        ]
+        mock_db.async_transaction.return_value.__aenter__.return_value = mock_conn
+
+        ch = _make_channel((PostgresChannel, None, mock_db))
+        await ch._unstick_processing()
+        # Первая UPDATE — на 'failed' для user сообщения
+        first_update = mock_conn.execute.call_args_list[0]
+        assert "UPDATE" in first_update.args[0]
+        assert "status = 'failed'" in first_update.args[0]
+
+    @pytest.mark.asyncio
+    async def test_no_select_for_pending_messages(self, mock_db_and_psycopg):
+        """SELECT берёт только 'processing' и 'retry', не 'pending'/'failed'/'completed'."""
+        PostgresChannel, _, mock_db = mock_db_and_psycopg
+        mock_conn = AsyncMock()
+        mock_conn.fetch.return_value = []
+        mock_db.async_transaction.return_value.__aenter__.return_value = mock_conn
+
+        ch = _make_channel((PostgresChannel, None, mock_db))
+        await ch._unstick_processing()
+        # Проверяем SQL — фильтр на status IN ('processing', 'retry')
+        select_call = mock_conn.fetch.call_args
+        sql = select_call.args[0]
+        assert "status IN ('processing', 'retry')" in sql
+        # 'pending' НЕ должен попасть в селект (иначе ретрай зайдёт по своим же данным)
+        assert "'pending'" not in sql
+        assert "'completed'" not in sql
+
+
+class TestPostgresChannelPollOnce:
+    """``_poll_once`` подбирает ТОЛЬКО role='user' AND status='pending'.
+    'retry' — это НЕ входящая задача: его не должен подбирать ``_poll_once``.
+    """
+
+    @pytest.mark.asyncio
+    async def test_poll_once_sql_filters_only_pending(self, mock_db_and_psycopg):
+        PostgresChannel, _, mock_db = mock_db_and_psycopg
+        mock_db.async_fetchone.return_value = None  # ничего не найдено
+
+        ch = _make_channel((PostgresChannel, None, mock_db))
+        result = await ch._poll_once(MagicMock())
+        assert result is False
+
+        # Проверяем SQL
+        sql = mock_db.async_fetchone.call_args.args[0]
+        assert "WHERE role = 'user' AND status = 'pending'" in sql
+        # 'retry' НЕ должен попасть в WHERE
+        assert "'retry'" not in sql, (
+            "_poll_once must NOT pick up 'retry' messages — 'retry' is internal, not incoming"
+        )
+
+    @pytest.mark.asyncio
+    async def test_poll_once_skips_retry_message(self, mock_db_and_psycopg):
+        """Если в БД лежит 'retry' сообщение, _poll_once его не подбирает (return None)."""
+        PostgresChannel, _, mock_db = mock_db_and_psycopg
+        # fetchone возвращает None (по запросу 'pending' ничего нет)
+        mock_db.async_fetchone.return_value = None
+
+        ch = _make_channel((PostgresChannel, None, mock_db))
+        result = await ch._poll_once(MagicMock())
+        assert result is False
