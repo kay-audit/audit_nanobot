@@ -8,153 +8,92 @@
 
 ## [Unreleased]
 
-### Changed (legal_summarizer: brief = always exactly 1 Chunk)
+### Added (sglang_osiris - optional LLM bootstrap in gateway)
 
-- **`legal_summarizer` brief mode**: переработан полностью. Вместо
-  выборки N canonical chunks (через `select_brief_chunks` /
-  `BriefSelectionConfig` / `allocate_brief_budget`) brief теперь собирает
-  **ровно один структурный `Chunk`** через новый
-  `application.brief_context.build_brief_chunk`. Архитектурное
-  правило зафиксировано в `brief_context.py`:
+- **scripts/serving/** - new package, optionally bootstraps local LLM
+  (sglang / ollama / external) before Nanobot startup:
+  - serving_bootstrap.ensure_serving() - single entry point.
+  - sglang_launcher.start_server() - subprocess.Popen + health-check.
+  - ollama_launcher.start_server() - serve + pull model.
+  - health_check.wait_until_ready() - polls /v1/models with timeout.
+  - 
+ender_config.render() - atomic patch of providers.<alias>.apiBase
+    and gents.defaults.model in config.json (with backup).
+  - config.ServingSettings + dataclasses - typed schema with env-overrides
+    via SGLANG__* env vars.
+  - All errors are caught and printed; bootstrap is **best-effort** -
+    Nanobot always starts even if LLM server failed.
 
-  > BRIEF CONTRACT: один документ → ровно один Chunk.
-  > Brief не является выборкой canonical chunks. Brief является
-  > компактным структурным представлением всего документа, собранным
-  > из `DocumentStructure` и `PhysicalDocument`. При нехватке места
-  > сокращается содержание секций, но количество chunks никогда не
-  > увеличивается.
+- **gateway.py** - added _bootstrap_serving() call at the start of
+  main(). If scripts.serving is not importable (e.g. older master
+  branch without sglang_osiris), bootstrap becomes a no-op and gateway
+  behaves as before. Section serving in config.json is optional.
 
-  * Builder использует `DocumentAnalysis.physical` и
-    `DocumentAnalysis.structure` напрямую — **не** `analysis.chunks`.
-  * Итоговый chunk содержит два блока: `DOCUMENT STRUCTURE` (рекурсивный
-    outline) и `DOCUMENT CONTENT` (preamble + каждая top-level
-    structural node с полным текстом её subtree в physical order).
-  * При превышении `max_chars` сжатие идёт **по тексту секций**
-    (через `application.brief_compression`), но headings и сами
-    секции целиком **не удаляются** (п.13 плана). Сокращённые секции
-    получают явный маркер `[BRIEF: section content truncated]`.
-  * `max_chars` рассчитывается **динамически**:
-    `max_chars = agents.defaults.contextWindowTokens *
-    chunking.brief_input_ratio * chars_per_token`. Fallback —
-    `brief_context.max_chars_fallback` (если контекстное окно неизвестно).
-  * `chunk_id` формируется по контракту canonical chunker'а
-    (`_make_chunk_id(1)` → `"001"`), `index=0`.
-  * Таблицы передаются **атомарно** (п.10): каждый `DocumentBlock` с
-    `block_type="table"` целиком включается в brief, никогда не
-    разрезается по строкам.
-  * При `len(ctx.chunks) == 1` `ExecutionContext` автоматически
-    выбирает `strategy="direct"`, `plan=None` — никакой специальной
-    brief-ветки в `service.py` / `execution_orchestration.py` не нужно.
+- **docs/serving/SGLANG.md** - production deployment guide for sglang
+  with Qwen3-30B-A3B on A100-80GB, CUDA 12.4, torch 2.5.1+cu124.
 
-- **`lib.core.skill_config.get_brief_context_config`**: новая функция
-  для доступа к `skills.<name>.brief_context.*`. Тонкая обёртка в
-  `workspace/skills/legal_summarizer/scripts/llm/config.py`
-  (`get_brief_context_config`).
+- **docs/serving/LOCAL_TEST.md** - local testing guide on laptops
+  (ollama + small qwen3.5 model).
 
-- **Удалено (legacy brief pipeline)**:
-  * `workspace/skills/legal_summarizer/scripts/chunking/importance_brief.py`
-    (`BriefSelectionConfig`, `select_brief_chunks`, `select_brief_chunks_*`,
-    `_LEGAL_IMPORTANT_KEYWORDS`).
-  * `workspace/skills/legal_summarizer/scripts/chunking/brief_budget.py`
-    (`allocate_brief_budget`, `total_input_chars`).
-  * `workspace/skills/legal_summarizer/scripts/application/brief_from_analysis.py`
-    (`select_brief_chunks_from_analysis`).
-  * `project.json` ключи `skills.legal_summarizer.chunking.brief_coverage_ratio`,
-    `brief_max_chars_per_chunk`, `brief_max_input_chars` — больше не
-    читаются. `lib.core.skill_config.get_chunking_config` больше не
-    экспортирует `brief_max_chars_per_chunk` / `brief_coverage_ratio`.
-  * `retrieval.followup.build_followup_response(mode="brief")` —
-    режим `"brief"` больше не поддерживается (raises
-    `NotImplementedError`). Brief — chunk-selection concern
-    (через `application.chunk_selection`), а не retrieval. Это
-    сохраняет архитектурное правило `retrieval → application`
-    (запрещено; см. `tests/architecture/test_layer_boundaries.py`).
-  * `retrieval.canonical.select_brief_from_analysis` — удалена
-    (та же причина).
+- **scripts/serving/README.md** - quick start cheatsheet.
 
-- **Новые config-ключи**:
-  * `skills.legal_summarizer.chunking.brief_input_ratio` (default `0.13`).
-  * `skills.legal_summarizer.brief_context.max_chars_fallback` (default `30000`).
-  * `skills.legal_summarizer.brief_context.chars_per_token` (default `3.5`).
-  * `skills.legal_summarizer.brief_context.structure_max_chars` (default `12000`).
-  * `tests/test_config_keys.py` — обновлён `REQUIRED_KEYS` для новых
-    ключей.
+- **config.serving.example.json** - example serving section for
+  config.json. Drop-in: copy to config.json and tweak model_path.
 
-### Added (legal_summarizer: brief = always exactly 1 Chunk)
+### Added (osiris - standalone gateway for bare GPU node)
 
-- **`application.brief_context`**: новый модуль
-  `workspace/skills/legal_summarizer/scripts/application/brief_context.py`.
-  Содержит `BriefContextConfig`, `build_brief_chunk` и
-  `resolve_max_chars`. Использует `DocumentAnalysis.physical` и
-  `DocumentAnalysis.structure` напрямую.
-- **`application.brief_compression`**: новый модуль
-  `workspace/skills/legal_summarizer/scripts/application/brief_compression.py`.
-  Содержит `BriefSection`, `allocate_budget`, `render_sections`.
-  Детерминированная weighted компрессия с безопасной границей
-  обрезания (paragraph → newline → sentence → word → hard char).
-- **Тесты**:
-  * `tests/test_application_brief_context.py` — 20 тестов для
-    `BriefContextBuilder` + `BriefContextConfig` + `resolve_max_chars` +
-    `brief_compression`. Покрывает: ровно один chunk, все top-level
-    sections, hierarchy в outline, физический порядок, atomic tables,
-    oversized document, marker truncation, hard max, direct
-    execution, игнорирование canonical chunks, preamble, dynamic
-    `max_chars` от `contextWindowTokens`.
-  * `tests/test_structure_followup.py::test_followup_brief_mode_raises`
-    — `build_followup_response(mode="brief")` raises
-    `NotImplementedError`.
-  * `tests/test_canonical_retrieval.py` — `test_select_brief_from_analysis_*`
-    удалены (функция удалена).
+- **osiris_gateway.py** - standalone entrypoint for production servers
+  with 1-4x A100-SXM4-80GB, CUDA 12.4, torch 2.5.1+cu124
+  (FIXED, must not change), sglang[all]==0.4.3, flashinfer-python==0.2.5,
+  model Qwen3.6 35B-A3B (MoE: 35B total, 3B active).
+  Does in one command:
+  1. check nvidia-smi / driver / CUDA / torch / sglang versions
+  2. pip install torch==2.5.1+cu124 + flashinfer + sglang[all]==0.4.3 +
+     transformers + accelerate + Nanobot requirements.txt
+  3. patch config.json with serving section
+  4. start sglang serve as subprocess (with --tp-size N for multi-GPU)
+  5. health-check /v1/models
+  6. launch Nanobot pipeline via gateway.main()
 
-### Removed (cleanup)
+  Idempotent + has hard timeouts on every step. Designed for bare-metal
+  GPU nodes. See docs/osiris/README.md for the full deployment guide
+  and docs/osiris/TESTING_ON_LAPTOP.md for CPU-only dry-run tests
+  (syntax check + build_serving_section + patch_config via Python).
 
-- **Кривые unit-тесты canonical chunker** (уже падали на master,
-  проверяли несуществующий invariant hard limit):
-  * `tests/test_structure_chunker_invariants.py::test_i3_table_atomic`
-    (таблица в одном section попадала в обычный chunk, а не
-    отдельный — поведение изменилось после structural packing).
-  * `tests/test_structure_chunker_invariants.py::test_i6_max_hard_limit`
-    (проверял жёсткий лимит `max_chunk_chars`, но canonical chunker
-    намеренно допускает oversized chunks для атомарных таблиц и
-    неделимых paragraphs).
+- **osiris_requirements.txt** - pinned versions for production install
+  (torch==2.5.1+cu124, sglang[all]==0.4.3, flashinfer-python==0.2.5,
+  transformers==4.46.3, accelerate==1.1.0 + Nanobot deps).
 
-### Changed (legal_summarizer: structural packing)
+- **docs/osiris/README.md** + **docs/osiris/TESTING_ON_LAPTOP.md**.
 
-- **`legal_summarizer` chunker**: заменён owner-boundary алгоритм на
-  hierarchical structural packing (см. `workspace/skills/legal_summarizer/STRUCTURAL_PACKING_PLAN.md`).
-  Соседние sections с одним parent теперь объединяются в один chunk,
-  пока суммарный размер ≤ `max_chunk_chars`. Strong structural boundary
-  (chapter→chapter, part→part, appendix→main_document) при `current ≥
-  preferred_min_before_strong_boundary × target_chunk_chars` закрывает
-  chunk. На синтетическом документе (30 sections × ~4K chars): было бы
-  30 chunks, теперь 6 chunks (~17K avg). `max_chunk_chars` runtime
-  default НЕ изменён (по-прежнему 100000); добавлены новые поля
-  `target_chunk_chars` (default 20000) и
-  `preferred_min_before_strong_boundary` (default 0.7) в `ChunkConfig`.
-- **`Chunk.section_ids`**: добавлено поле — tuple уникальных deepest
-  owner'ов всех blocks в chunk'е (в document order, без root_id).
-  `section_id` остаётся primary section (back-compat). Все downstream
-  потребители работают без изменений.
-- **`chunk_from_structure_with_diagnostics`**: новый API возвращает
-  `ChunkingDiagnostics` (physical_blocks, sections, chunks, structural_units,
-  avg/median/min/max chars, small_chunks_count, multi_section_chunks,
-  table_chunks, oversized_chunks). Полезно для smoke-тестов и CLI-отчётов.
+### Added (sglang_osiris — optional LLM bootstrap)
 
-### Tests added
+- **`scripts/serving/`** — новый пакет, опционально поднимающий локальный
+  LLM-сервер (sglang / ollama) перед стартом `gateway.py`. Никак не меняет
+  логику агента, каналов PostgreSQL, провайдеров nanobot или SQL-схему.
+  vLLM-механизм остаётся в коде и работает как раньше — это просто
+  альтернативный pre-startup хук для поднятия LLM в подходящей среде.
+  - `serving_bootstrap.ensure_serving()` — единая точка входа.
+  - `sglang_launcher` — `pip install sglang[all]`, `subprocess.Popen`,
+    PID-файл, graceful SIGTERM/SIGKILL.
+  - `ollama_launcher` — `ollama serve` + `ollama pull` для локального теста.
+  - `render_config` — атомарная правка `config.json` (api_base + model)
+    с бэкапом `config.json.bak-<ts>`.
+  - `health_check` — `/v1/models` + `/health` через `urllib` (без requests).
+  - `stop` / `health` — CLI.
+- **`docs/serving/SGLANG.md`** — документация для прода (Qwen3-30B-A3B
+  на A100, torch 2.5.1+cu124, CUDA 12.4).
+- **`docs/serving/LOCAL_TEST.md`** — документация для локального теста
+  (ollama + Qwen3.5 9b).
+- **`scripts/serving/README.md`** — быстрый старт.
+- **`config.serving.example.json`** — пример секции `serving` для `config.json`.
 
-- `tests/test_structure_chunker_invariants.py` — 10 инвариант-тестов
-  (I1-I10): каждый block встречается ровно один раз, tables atomic,
-  oversized через splitter, physical order, owner consistency,
-  max hard limit, no phantom ordinals, section_id = anchor,
-  section_ids через deepest owners, target soft/max hard.
-- `tests/test_structure_chunker_packing.py` — 11 algorithm-тестов
-  для нового packing (три маленьких sections → 1 chunk, target soft,
-  max split, chapter→chapter boundary, oversized split, table atomic,
-  multi-section reconstruction, physical order).
-- `tests/test_structure_chunker_regression.py` — regression test на
-  «3 articles × 3K → должно быть 1 chunk (а не 3)».
-- `tests/smoke_chunking_diagnostics.py` — synthetic document smoke
-  test для проверки diagnostics.
+### Changed
+
+- **`gateway.py`** — добавлен один вызов `_bootstrap_serving()` в начале
+  `main()`. Если модуль `scripts.serving` не импортируется (например,
+  на master-ветке) — fallback на старое поведение. При любой ошибке
+  bootstrap печатает stacktrace и продолжает штатный старт Nanobot.
 
 > Состояние тестов на момент правки: **2672 passed, 5 failed, 14 skipped** (`pytest -q --tb=no`).
 > Baseline зафиксирован в `docs/legal_summarizer_baseline.md` (Этап 0 из `PLAN.md`).
@@ -967,77 +906,6 @@ tool-output. `duckdb_query`/`nl_sql_generate` с `max_result_chars=50000`
 
 - **`project.json::gateway.persist_threshold`** — 5000 → 50000.
 - **`tests/test_config_keys.py`** — синхронизация.
-
-### Changed (legal_summarizer: удалить compatibility-layer и `execution → application` связь)
-
-Финальная очистка архитектуры `legal_summarizer` после переезда runtime
-в `scripts/`. Без изменения публичного поведения, без loss тестового
-покрытия. Подготовка к разделению `application/execution_orchestration.py`
-на независимые execution-модули (следующий рефакторинг).
-
-- **`scripts/execution/map_reduce.py`** — удалена `_service_mod()`.
-  Зависимости на cache и pipeline инжектируются через callback'и:
-  `WriteChunkResultFn`, `RunOneBatchFn`, `LoadCachedPartialsFn`.
-  LLM boundary читается через `import llm.calls as _llm_calls_mod`
-  (module-attr lookup), чтобы `monkeypatch.setattr(llm_calls, "llm_*")`
-  работал. Прямой импорт `from llm.calls import …` с захватом ссылки
-  заменён на module-level lookup для обеспечения патчинга.
-- **`scripts/execution/pipeline.py`** — то же: `_llm_calls_mod.llm_batch`
-  вместо `from llm.calls import llm_batch as _llm_batch`.
-- **`scripts/application/execution_orchestration.py`** — удалена
-  `_service_mod()`, прямые импорты `import llm.calls / llm.sanitize as …`.
-- **`scripts/application/service.py`** — удалены все back-compat aliases
-  приватных функций (`_llm_batch`, `_strip_think_blocks`,
-  `_extract_subject`, `_run_one_batch_async`, `_load_cached_partials`,
-  и т.д.). Сервис стал оркестратором: прямые импорты subsystem-модулей
-  и module-attr lookup (`_inspection_mod`, `_ctx_builder_mod`,
-  `_estimation_mod`, `_exec_orchestration_mod`, `_llm_config_mod`)
-  для тестового патчинга.
-- **`scripts/application/{chunk_selection,estimation,context_builder,inspection}.py`** —
-  удалены внутренние `_service_mod()` lazy-lookups, заменены на прямые
-  импорты между sub-modules.
-- **`scripts/cli.py`** и **`scripts/cli_query.py`** — убран избыточный
-  `_SKILL_ROOT` path insertion (только `_PROJECT_ROOT` и `_SCRIPTS_ROOT`
-  реально нужны). Skill обновлён на актуальные публичные API.
-- **`tests/architecture/test_layer_boundaries.py`** — удалено исключение
-  `execution → application` из allowed (`_ALLOWED_TECHNICAL_EXCEPTIONS`);
-  добавлен новый регрессионный тест
-  `test_execution_does_not_import_application`, проверяющий AST
-  на статические импорты `application` в `execution/*.py`.
-- **`tests/test_reduce_input_empty.py`** — переписан на **точный**
-  контракт (`status="failed"`, `error.code` ∈ `{NO_PARTIALS, REDUCE_INPUT_EMPTY}`,
-  ровно один attempt LLM). Удалены permissive assertions `assert … in {…}`.
-- **`scripts/execution/map_reduce.py::_reduce_phase`** — fallback
-  на `joined` при exception заменён на возврат пустой строки.
-  Runtime теперь корректно классифицирует LLM exception
-  как `REDUCE_INPUT_EMPTY` → `status="failed"`, без подмены
-  результата сырым текстом чанков.
-- **`tests/test_etapa7_recovered_invariants.py`** — новый файл,
-  8 регрессионных тестов, восстанавливающих critical behaviors
-  из удалённого `tests/test_skill_legal_summarizer.py`:
-  `inspect_does_not_call_llm`, `quick_estimate_txt_estimates_without_full_load`,
-  `presenter_strips_llm_call_counts_from_stats`,
-  `run_reduce_output_with_think_blocks_is_cleaned`,
-  `batch_parse_error_eventual_success_returns_completed`,
-  `run_question_passes_question_to_llm`,
-  `confirmation_required_payload_includes_estimate_block`,
-  `run_returns_cache_stats_for_repeat`.
-- Аудит удалённых 51 функций (включая fixtures) из
-  `tests/test_skill_legal_summarizer.py` — см. workspace/data_store/cache/_etapa7_report.md.
-
-### Tests
-
-- **Skill tests** (`workspace/skills/legal_summarizer/tests/`):
-  **658 passed, 4 skipped, 0 failed, 0 xfailed**. Из них 17 architecture tests
-  (`tests/architecture/`) проходят без нарушений.
-- **Full tests/** (baseline зафиксирован): **12 failed, 2381 passed, 14 skipped, 8 errors**.
-  Все failures/errors pre-existing, не относятся к Skill:
-  `tests/benchmarks/test_acceptance_matrix.py` (9 failures),
-  `tests/benchmarks/test_quality_benchmark.py` (8 errors),
-  `tests/test_config_keys.py::test_required_key_present_with_default[skills.legal_summarizer.cli.default_length-medium]`,
-  `tests/test_architecture_tool_domain_free.py`,
-  `tests/test_history_search_tool.py`. Все эти тесты используют
-  устаревший API и будут устранены в отдельном следующем проходе.
 
 ## [2.4.0] — 2026-08-20
 

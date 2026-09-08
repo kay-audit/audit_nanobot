@@ -4,6 +4,20 @@
 каналы — в ``ChannelFactory``, lifecycle — в ``GatewayRunner``.
 Файл отвечает ТОЛЬКО за gateway-специфику: spawn Streamlit, preload
 FAISS-индексов, вывод Rich-баннера.
+
+Опциональный serving-bootstrap (ветка ``sglang_osiris``):
+    Перед ``ApplicationContext.create`` вызывается
+    ``scripts.serving.serving_bootstrap.ensure_serving()``, который:
+      1) читает секцию ``serving`` из ``config.json`` (если есть);
+      2) устанавливает sglang / ollama (если нужно и ``install_deps=true``);
+      3) поднимает локальный LLM-сервер (sglang / ollama) или
+         делает health-check внешнего (mode=external);
+      4) патчит ``providers.<alias>.apiBase`` + ``agents.defaults.model``
+         в ``config.json`` (с бэкапом).
+    Если секции ``serving`` нет — bootstrap no-op и gateway ведёт себя
+    как раньше (vLLM-механизм остаётся в качестве fallback'а).
+    При любой ошибке bootstrap печатает stacktrace и продолжает штатный
+    старт (без локального LLM).
 """
 
 from __future__ import annotations
@@ -50,8 +64,46 @@ sys.path.insert(0, str(_WORKSPACE_DIR))
 console = Console()
 
 
+def _bootstrap_serving() -> None:
+    """Опциональный pre-startup: установить/запустить локальный LLM (sglang/ollama).
+
+    Секция ``serving`` в config.json полностью опциональна. Если её нет —
+    возвращаемся к штатному поведению (Nanobot ходит на уже сконфигурированный
+    провайдер, например vllm). Подробнее см. ``docs/serving/SGLANG.md``.
+
+    Ошибки логируются, но никогда не бросаются — это best-effort шаг.
+    """
+    try:
+        from scripts.serving.serving_bootstrap import ensure_serving
+    except ImportError:
+        return  # модуль отсутствует (например, master-ветка) — стартуем штатно
+    try:
+        result = ensure_serving(config_path=_SCRIPT_DIR / "config.json", pretty=True)
+        if result is None:
+            return  # mode=off
+        if not result.healthy:
+            console.print(
+                f"[yellow]⚠[/yellow] serving bootstrap failed: {result.detail}; "
+                "starting Nanobot with current providers config"
+            )
+        else:
+            console.print(
+                f"[green]✓[/green] serving ready: mode={result.mode} "
+                f"api_base={result.api_base} model={result.model_name}"
+            )
+    except Exception:
+        import traceback
+        traceback.print_exc()
+        console.print(
+            "[yellow]⚠[/yellow] serving bootstrap crashed; "
+            "starting Nanobot with current providers config"
+        )
+
+
 def main() -> None:
     """Точка входа gateway."""
+    _bootstrap_serving()
+
     ctx = ApplicationContext.create(
         script_dir=_SCRIPT_DIR,
         workspace_dir=_WORKSPACE_DIR,

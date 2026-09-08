@@ -1,0 +1,52 @@
+{
+  "_comment": "Пример секции serving для config.json (ветка sglang_osiris). Скопируйте эту секцию в свой config.json. Если её нет — Nanobot стартует штатно (vLLM-механизм как в master).",
+
+  "serving": {
+    "mode": "sglang",
+    "_mode_doc": "off | sglang | ollama | external. См. docs/serving/SGLANG.md для деталей.",
+
+    "provider_alias": "vllm",
+    "_provider_alias_doc": "Какой существующий провайдер из nanobot.providers.registry использовать. Обычно 'vllm' (по имени) или 'ollama' для локального теста.",
+
+    "model_name": "Qwen3-30B-A3B",
+    "api_base": "http://localhost:30000/v1",
+    "api_key": "EMPTY",
+
+    "health_check_timeout_sec": 300,
+    "health_check_interval_sec": 2.0,
+    "install_deps": true,
+
+    "sglang": {
+      "host": "0.0.0.0",
+      "port": 30000,
+      "model_path": "/data/models/Qwen3-30B-A3B-Instruct",
+      "served_model_name": "Qwen3-30B-A3B",
+      "gpu_ids": "0",
+      "gpu_memory_utilization": 0.9,
+      "max_model_len": 32768,
+      "dtype": "bfloat16",
+      "trust_remote_code": true,
+      "torch_compile": false,
+      "quantization": null,
+      "backend": "auto",
+      "extra_args": [],
+      "log_dir": "logs",
+      "pid_file": "logs/sglang.pid",
+      "api_key": "EMPTY"
+    },
+
+    "ollama": {
+      "source": "external",
+      "host": "127.0.0.1",
+      "port": 11434,
+      "model": "qwen3.5:9b",
+      "keep_alive": "5m",
+      "num_gpu": null,
+      "extra_pull_args": [],
+      "extra_run_args": [],
+      "log_dir": "logs",
+      "pid_file": "logs/ollama.pid",
+      "api_key": "ollama"
+    }
+  }
+}
