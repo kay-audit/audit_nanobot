@@ -1,0 +1,55 @@
+# osiris_requirements.txt - зафиксированные версии для production
+#
+# Сценарий: голая нода с 1-4 GPU A100-SXM4-80GB, driver >= 550.90.07, CUDA 12.4.
+# Этот файл используется osiris_gateway.py как «baseline» для pip install,
+# но конкретные версии torch/sglang/flashinfer выставляются в коде
+# osiris_gateway.py (TORCH_VERSION, SGLANG_VERSION, FLASHINFER_PYTHON_VERSION
+# и т.д.) — это ЗАФИКСИРОВАНО, менять только после прогона тестов на
+# qwen_3_5_moe + torchinductor (см. docs/serving/SGLANG.md).
+#
+# Этот файл полезен для:
+#   - ручной установки: pip install -r osiris_requirements.txt
+#   - тестового venv на ноутбуке (--index-url pytorch-cpu)
+#   - CI/CD пайплайна (--index-url https://download.pytorch.org/whl/cu124)
+
+# === ЗАФИКСИРОВАНО (qwen_3_5_moe + torchinductor ломается на других версиях) ===
+--index-url https://download.pytorch.org/whl/cu124
+
+torch==2.5.1
+torchvision==0.20.1
+torchaudio==2.5.1
+
+# === sglang + flashinfer (для Qwen3.6 35B-A3B MoE) ===
+sglang[all]==0.4.3
+flashinfer-python==0.2.5
+flashinfer-cubin
+
+# === transformers + accelerate (для Qwen3 и загрузки весов) ===
+transformers==4.46.3
+accelerate==1.1.0
+
+# === Nanobot core dependencies (копия requirements.txt; переустановка
+#     гарантирует консистентность с актуальной версией в этом репо) ===
+psycopg2-binary==2.9.12
+duckdb==1.5.4
+streamlit==1.56.0
+httpx==0.28.1
+loguru==0.7.3
+faiss-cpu==1.13.2
+numpy==2.4.2
+pyarrow==23.0.1
+PyYAML==6.0.3
+redis==8.0.0
+nanobot-ai==0.3.0
+
+# Office files (skill: workspace/skills/office_files/)
+python-docx==1.2.0
+openpyxl==3.1.5
+xlrd==2.0.2
+pypdf==5.9.0
+pdfplumber==0.11.10
+python-pptx==1.0.2
+Pillow==12.3.0
+
+# SQL AST security guard (lib/utils/sql_safety.py)
+sqlglot==30.17.0
