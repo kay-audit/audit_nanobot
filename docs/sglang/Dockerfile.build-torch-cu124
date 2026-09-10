@@ -1,0 +1,71 @@
+# Dockerfile для сборки PyTorch 2.7.1 wheel под CUDA 12.4
+# Результат: torch-2.7.1-cp312-cp312-linux_x86_64.whl (~700 МБ)
+# Использование:
+#   docker build -f Dockerfile.build-torch-cu124 -t pytorch-builder:2.7.1-cu124 .
+#   docker run --rm -v $(pwd)/out:/out pytorch-builder:2.7.1-cu124 sh -c "cp /build/pytorch/dist/*.whl /out/"
+#
+# Сборка занимает ~1.5–4 часа в зависимости от CPU.
+# После сборки wheel готов для pip install на серверах с CUDA 12.4 driver.
+
+FROM nvidia/cuda:12.4.1-devel-ubuntu24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV LANG=C.UTF-8
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.12 python3.12-venv python3.12-dev python3-pip \
+    build-essential cmake ninja-build git wget curl ca-certificates \
+    libopenblas-dev libomp-dev ccache \
+    && rm -rf /var/lib/apt/lists/*
+
+# CUDA 12.4 toolkit уже в nvidia/cuda:12.4.1-devel image
+ENV PATH=/usr/local/cuda-12.4/bin:${PATH}
+ENV LD_LIBRARY_PATH=/usr/local/cuda-12.4/lib64:${LD_LIBRARY_PATH}
+ENV CUDA_HOME=/usr/local/cuda-12.4
+
+# ccache для ускорения повторных сборок
+ENV CCACHE_DIR=/root/.ccache
+ENV CCACHE_MAXSIZE=10G
+RUN mkdir -p $CCACHE_DIR
+
+# Build pytorch 2.7.1 (последняя версия, поддерживаемая sglang 0.4.x)
+WORKDIR /build
+ARG PYTORCH_VERSION=2.7.1
+ARG PYTORCH_BRANCH=v2.7.1
+RUN git clone --depth 1 --branch ${PYTORCH_BRANCH} --recursive https://github.com/pytorch/pytorch.git
+WORKDIR /build/pytorch
+RUN git submodule update --init --recursive
+
+# Compute capabilities:
+#   8.0 = A100
+#   8.6 = RTX 3050 / 3060 / 3070 / 3080 / 3090
+#   8.9 = RTX 4090
+#   9.0 = H100
+ARG TORCH_CUDA_ARCH_LIST="8.0;8.6;8.9;9.0"
+
+# Build environment
+ENV USE_CUDA=1
+ENV USE_CUDNN=1
+ENV USE_NCCL=1
+ENV USE_MKLDNN=0
+ENV BUILD_TEST=0
+ENV USE_DISTRIBUTED=0
+ENV USE_MPI=0
+ENV USE_GLOO=0
+ENV USE_BENCHMARK=0
+ENV PYTORCH_BUILD_VERSION=${PYTORCH_VERSION}
+ENV PYTORCH_BUILD_NUMBER=1
+ENV CMAKE_BUILD_TYPE=Release
+ENV MAX_JOBS=4
+
+RUN python3.12 -m pip install --no-cache-dir -U pip setuptools wheel
+
+# Сборка (~2 часа)
+RUN python3.12 setup.py bdist_wheel 2>&1 | tee /build/build.log
+
+# Артефакт wheel готов
+RUN ls -lh /build/pytorch/dist/
+RUN mkdir -p /out
+RUN cp /build/pytorch/dist/*.whl /out/
+
+CMD ["sh", "-c", "ls -lh /out/"]
