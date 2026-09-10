@@ -1,0 +1,61 @@
+# SGLANG SERVER REQUIREMENTS
+# Production-ready pinned deps for running sglang Qwen3 on server GPU
+# Compatible with: A100 80GB / H100 / L40 / RTX 4090 / RTX 6000 Ada
+# Tested torch/cu combinations:
+#   - torch 2.13.0+cu126 (recommended for sglang 0.4.10-post2)
+#   - torch 2.13.0+cu128
+#   - torch 2.13.0+cu129
+# CUDA driver requirement: >= 12.6 (forward compat from 12.4 OK)
+
+# === Core ML stack ===
+torch==2.13.0
+torchvision==0.24.0
+torchaudio==2.13.0
+triton==3.5.0
+
+# === SGLANG + Qwen3/Qwen3-MoE support ===
+# 0.4.10.post2 is the first version with qwen3.py and qwen3_moe.py
+sglang==0.4.10.post2
+sgl-kernel==0.2.8
+
+# === Transformers + tokenizer ===
+transformers==4.54.1
+tokenizers==0.21.4
+huggingface-hub>=0.34,<1
+accelerate>=1.0
+
+# === Runtime dependencies ===
+uvloop
+sentencepiece
+compressed-tensors
+einops
+scipy
+pybase64
+pydantic>=2,<3
+aiohttp
+fastapi
+uvicorn[standard]
+packaging
+cloudpickle
+psutil
+pyzmq>=25.1.2
+prometheus-client>=0.20.0
+orjson
+pillow
+interegular
+partial_json_parser
+llguidance<0.8.0,>=0.7.11
+datasets
+outlines>=0.0.42,<0.2
+setproctitle
+IPython
+timm
+numpy<2
+ninja
+requests
+tqdm
+
+# === Optional: optimized kernels ===
+flashinfer-python==0.6.18.post1
+# bitsandbytes for 4-bit/8-bit quantization (optional)
+# vllm is NOT a runtime dep of sglang — keep commented unless needed
