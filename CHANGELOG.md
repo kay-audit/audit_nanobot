@@ -6,35 +6,14 @@
 
 Релизные ветки именуются как `release/vX.Y`, теги патч-релизов — `vX.Y.Z`.
 
+## [2.5.3] — 2026-09-18
+
 ## [Unreleased]
 
-> **MAJOR-релиз:** удаление persisted FAISS-кеша. После change
-> `remove-vector-index-store` единственный источник векторных данных —
-> `<storage_table>` (DuckDB-снапшот через `PgDuckDbSyncService`); FAISS-индекс
-> собирается в памяти при старте gateway (`provider.preload_indexes`).
->
-> **MAJOR-релиз:** единственный источник профиля конфигурации — CLI-флаг
-> `--profile` (см. `openspec/changes/config-profile-cli-flag`). Whitelist
-> закрытый: только `prod` и `test`. Env vars для передачи профиля
-> (исторически — `NANOBOT_PROFILE`) **полностью удалены** как
-> действующий механизм. Все три `application entrypoint`
-> (`gateway.py`, `cli_agent.py`, `streamlit_app.py`) без `--profile`
-> падают с `ConfigurationError` и `exit 2`. **BREAKING** для деплоев,
-> использующих env-based передачу профиля — требуется миграция на
-> `command: python gateway.py --profile=prod` (см. `docs/PROFILES.md`
-> § «Migration»).
-
-> **SECURITY:** `history_search(session_scope="all")` больше не
-> возвращает глобальный набор событий (cross-user leakage). Фильтрация
-> теперь идёт по `user_id` (security boundary), а не по
-> `(%s OR session_id = %s)` с булевым ослаблением. Колонка `user_id`
-> добавлена в `agent_gateway_logs` (миграция V004, идемпотентный
-> backfill из `agent_question_runs.user_id`). При отсутствии
-> identity-store (`RequestContext.sender_id`) — `missing_user_identity`
-> / `missing_session_identity` (SQL-запрос НЕ выполняется). Изменение
-> по поведению: `scope="all"` теперь означает «все сессии текущего
-> пользователя», а не «глобальная выборка». Tool API не изменился
-> (новых параметров нет).
+> **PATCH-релиз v2.5.3:** Security-фикс user isolation в `history_search`,
+> единый logging pipeline через `DbLoggingService.try_log_event`, in-memory
+> FAISS-индексы из DuckDB-снапшота, CLI `--profile` как источник профиля
+> конфигурации, observability sync-путей.
 
 ### Security
 

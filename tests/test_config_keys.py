@@ -135,6 +135,7 @@ def _required_keys():
         ("gateway.print_llm_calls", True),
         ("gateway.print_worker_activity", False),
         ("gateway.print_db_activity", False),
+        ("gateway.runtime_diagnostics.session_dir_watch", False),
         ("gateway.restart_initial_delay_sec", 1.0),
         ("gateway.restart_max_delay_sec", 30.0),
         ("gateway.streamlit_port", 8501),

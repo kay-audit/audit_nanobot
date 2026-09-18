@@ -30,7 +30,7 @@
   //  channels.* — каналы связи
   // ---------------------------------------------------------------------------
   "project": {
-    "version": "2.5.2"   // Версия проекта (актуальный релизный тег vX.Y.Z без префикса v)
+    "version": "2.5.3"   // Версия проекта (актуальный релизный тег vX.Y.Z без префикса v)
   },
 
   "channels": {
@@ -355,6 +355,12 @@
     "persist_max_age_hours": 0,       // 0 = хранить бессрочно
     //  tool_result_limits.* — потолки вывода инструментов (runtime_patcher.py).
     //  Все ключи опциональны; дефолты ниже совпадают с теми, что уже в коде.
+    //  runtime_diagnostics.* — временные диагностические гейты (для расследования).
+    //  session_dir_watch: true — оборачивает SessionManager.save для снятия
+    //  показаний при FileNotFoundError на sessions/*.tmp (по умолчанию выключено).
+    "runtime_diagnostics": {
+      "session_dir_watch": false
+    },
     "tool_result_limits": {
       "exec_max_output_chars": 500000,      // Потолок вывода exec/shell (MAX_OUTPUT_CHARS)
       "exec_default_output_chars": 100000,  // Дефолт разового exec (ExecTool._MAX_OUTPUT)
