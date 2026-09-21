@@ -1,0 +1,152 @@
+# feature.yaml - обязательный манифест ветки feature/d6-nanobot-with-manifest.
+#
+# Описывает содержимое ветки d6_nanobot для apply через audit_bridge:
+# - skill ior-analyzer (паттерн full, регистрация native-tool);
+# - tool ior_analyzer (config_key=ior_analyzer, native-tool registration);
+# - cross-cutting файл lib/services/skill_runtime_mode.py (используется
+#   обоими: этим tool и sql_assistant_runtime);
+# - testing-инфраструктура (filesystem-based в текущей реализации, см. §2.4
+#   bridge_skills.md про плановую миграцию на PostgreSQL через
+#   TestingPostgresStore - это работа будущей фазы).
+#
+# Все пути относительно корня audit_nanobot.
+
+feature:
+  id: d6_nanobot
+  name: ior-analyzer
+  version: 1.0.0
+  description: >
+    Анализ инцидентов операционного риска (ИОР): стандартные выгрузки,
+    ad-hoc запросы, отчёты, гипотезы и уточнения по выгрузке.
+  documentation: docs/D6.md
+  maintainer: "@kay-audit/audit-team"
+
+requires:
+  nanobot_version: ">=2.5.0"
+  system_deps:
+    - python>=3.14
+  env_vars:
+    - name: NANOBOT_SKILLS_RUNTIME
+      required: false
+      default: production
+      allowed: [production, testing]
+      description: "Режим работы skill'ов (production/testing)"
+    - name: IOR_RAG_CACHE_DIR
+      required: false
+      default: cache_final
+      description: "Имя директории кеша BGE-M3 retrieval (относительно PIPELINES_CACHE_DIR)"
+    - name: PIPELINES_CACHE_DIR
+      required: false
+      default: ""
+      description: "Корень кешей pipelines; если пусто - автодеривация"
+    - name: EMBED_TOKEN
+      required: false
+      scope: cross_cutting
+      description: "Bearer-токен для Ollama /api/embed reverse proxy (cross-cutting)"
+    - name: IOR_DATA_BACKEND
+      required: false
+      default: cache
+      allowed: [cache, local_duckdb, greenplum, spark]
+      description: "Бэкенд data_store.py для чтения production-данных"
+  secrets:
+    - name: DATABASE_URL
+      source: existing
+      description: "PG/Greenplum DSN для utils.db (cross-cutting)"
+    - name: OPENAI_API_KEY
+      source: existing
+      description: "API-ключ LLM-провайдера для nanobot-агента"
+  sql_migrations: []
+
+skills:
+  - name: ior-analyzer
+    path: workspace/skills/ior-analyzer
+    pattern: full
+    config_section: null   # native-tool registration; project.json::skills.* не пишем
+
+tools:
+  - name: ior_analyzer
+    path: workspace/tools/ior_analyzer.py
+    config_key: ior_analyzer
+    config_section: gateway.ior_analyzer
+
+overlays:
+  project_json:
+    - op: upsert
+      path: gateway.ior_analyzer.enable
+      value: true
+      rationale: >
+        Регистрация native tool через RuntimePatcher.patch_project_tools.
+        config_key="ior_analyzer", секция gateway.ior_analyzer обязательна
+        даже при наличии safety-дефолта в tool'е (явная запись в git diff -
+        единственный source of truth для аудита).
+  env_files: []
+  templates: []
+  sql_migrations: []
+
+lib_additions:
+  - path: lib/services/skill_runtime_mode.py
+    justification: >
+      Cross-skill runtime switch. Импортируется workspace/tools/ior_analyzer.py
+      (tool layer, до загрузки skill dir на sys.path) и
+      lib/services/sql_assistant_runtime.py. Не может жить внутри skill'а,
+      потому что tool не должен импортировать workspace/skills/* (Skill↔Tool
+      инвариант из docs/TARGET_ARCHITECTURE.md §22).
+    scope: cross_cutting
+    reuse_targets:
+      - workspace/tools/ior_analyzer.py
+      - lib/services/sql_assistant_runtime.py
+
+tests:
+  - path: tests/test_tools_ior_analyzer.py
+    marker: optional        # LLM-зависимости мокаются; red на CI не блокирует apply
+  - path: tests/test_ior_bge_followup_contract.py
+    marker: required        # контракт BGE-M3 retrieval - критичен для прод-логики
+
+testing:
+  runtime_env: NANOBOT_SKILLS_RUNTIME
+  runtime_value: testing
+  runtime_data_backend: testing_pg   # целевое состояние по PRT8
+  data_generator:
+    path: workspace/skills/ior-analyzer/testing/data_generator.py
+    command: "python workspace/skills/ior-analyzer/testing/data_generator.py --force"
+    # ВНИМАНИЕ: текущая реализация в d6_nanobot пишет в JSON-файл
+    # (workspace/data_store/cache/testing/ior/ior.json). Миграция на
+    # PostgreSQL test_d6 через TestingPostgresStore - работа будущей
+    # фазы. Здесь фиксируем фактическое состояние ветки.
+    target_storage: filesystem
+    filesystem:
+      target_path: workspace/data_store/cache/testing/ior/ior.json
+    idempotent: true
+    deterministic: true
+    seed: 20260921
+    record_count: 1000
+  runner:
+    path: workspace/skills/ior-analyzer/testing/runner.py
+    smoke_command: "python workspace/skills/ior-analyzer/testing/runner.py --smoke"
+    smoke_prompt: "сколько инцидентов в 2024 году?"
+    smoke_expected:
+      contains_section: "Финансовые потери"
+      min_records_in_evidence: 1
+  pytest:
+    command: "pytest tests/test_tools_ior_analyzer.py tests/test_ior_bge_followup_contract.py -q --tb=short -p no:cacheprovider"
+    marker_required_strict: true
+    marker_optional_strict: false
+
+isolation:
+  removable: true
+  strategy: files_and_config
+  # Полный список файлов из git diff origin/master..origin/d6_nanobot.
+  # Глоб workspace/skills/ior-analyzer/** покрывает все 89 файлов под этим
+  # префиксом (knowledge_base, scripts, testing, utils, data_store).
+  # Остальные файлы (документация, tool, тесты) перечислены явно.
+  files_added:
+    - lib/services/skill_runtime_mode.py
+    - docs/D6.md
+    - workspace/skills/ior-analyzer/**
+    - workspace/tools/ior_analyzer.py
+    - tests/test_tools_ior_analyzer.py
+    - tests/test_ior_bge_followup_contract.py
+  files_modified: []
+  config_keys_added:
+    - gateway.ior_analyzer.enable
+  config_keys_removed: []
