@@ -51,10 +51,8 @@ requires:
   secrets:
     - name: DATABASE_URL
       source: existing
-      description: "PG/Greenplum DSN для utils.db (cross-cutting)"
     - name: OPENAI_API_KEY
       source: existing
-      description: "API-ключ LLM-провайдера для nanobot-агента"
   sql_migrations: []
 
 skills:
