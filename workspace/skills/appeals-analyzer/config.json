@@ -1,0 +1,10 @@
+{
+  "name": "appeals-analyzer",
+  "version": "1.1.0",
+  "description": "Выгрузка и анализ обращений с точными фильтрами prd, s_prd и chnl.",
+  "presets": [
+    "all_appeals",
+    "appeals_by_topic",
+    "appeals_by_process"
+  ]
+}
