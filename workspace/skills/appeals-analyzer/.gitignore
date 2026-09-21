@@ -1,0 +1,5 @@
+__pycache__/
+*.py[cod]
+data_store/generated_files/
+data_store/local_appeals.duckdb
+logs/
