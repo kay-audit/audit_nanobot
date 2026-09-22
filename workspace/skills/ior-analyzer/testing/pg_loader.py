@@ -11,8 +11,8 @@
 через seed data_generator'а.
 
 DSN — через переменную окружения ``IOR_TEST_DSN`` (явная override)
-или через ``workspace.utils.db.resolve_dsn()`` (fallback на
-``channels.postgres.dsn`` из project.json).
+или ``--dsn``. Fallback на ``channels.postgres.dsn`` из project.json
+через парсинг JSONC-файла.
 
 Команда из feature.yaml::
 
@@ -20,6 +20,12 @@ DSN — через переменную окружения ``IOR_TEST_DSN`` (я�
         --json workspace/data_store/cache/testing/ior/ior.json \
         --schema test_d6 \
         --table ior_events
+
+Это **standalone-скрипт**: использует ``psycopg2`` напрямую, а не
+``workspace.utils.db``, потому что последний содержит относительные
+импорты (``from utils.clean_text``), которые не работают без
+``pip install -e .``. Applier копирует файлы и запускает python
+напрямую, поэтому standalone-логика обязательна.
 """
 from __future__ import annotations
 
@@ -27,7 +33,9 @@ import argparse
 import json
 import logging
 import os
+import re
 import sys
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -42,15 +50,25 @@ def _resolve_dsn(explicit: str | None) -> str:
     env_dsn = os.environ.get("IOR_TEST_DSN")
     if env_dsn:
         return env_dsn
-    # Fallback на runtime-конфиг через workspace.utils.db
-    try:
-        from workspace.utils.db import resolve_dsn as _runtime_dsn
-        return _runtime_dsn()
-    except Exception as exc:  # noqa: BLE001 - startup error path
-        raise SystemExit(
-            f"Не удалось разрешить DSN: {exc}. "
-            "Укажите --dsn или переменную IOR_TEST_DSN."
-        ) from exc
+    # Fallback: парсим project.json (JSONC) руками и ищем channels.postgres.dsn.
+    project_json = Path(__file__).resolve().parents[3] / "project.json"
+    if project_json.is_file():
+        text = project_json.read_text(encoding="utf-8")
+        # Удаляем JSONC-комментарии перед парсингом.
+        stripped = re.sub(r"//[^\n]*", "", text)
+        stripped = re.sub(r"/\*.*?\*/", "", stripped, flags=re.DOTALL)
+        try:
+            data = json.loads(stripped)
+            dsn = (((data or {}).get("channels") or {}).get("postgres") or {}).get("dsn")
+            if dsn:
+                return dsn
+        except json.JSONDecodeError:
+            pass
+    raise SystemExit(
+        "Не удалось разрешить DSN. "
+        "Укажите --dsn или переменную IOR_TEST_DSN, "
+        "или channels.postgres.dsn в project.json."
+    )
 
 
 def _normalize_record(raw: dict[str, Any]) -> dict[str, Any]:
@@ -60,12 +78,9 @@ def _normalize_record(raw: dict[str, Any]) -> dict[str, Any]:
     PostgreSQL ожидает ``date`` тип, psycopg2 принимает ``datetime.date``.
     Все остальные поля — passthrough с type-coerce для числовых.
     """
-    from datetime import date
-
     out: dict[str, Any] = {}
     out["eve_id"] = raw.get("eve_id", "")
     out["drp"] = raw.get("drp", "")
-    # ``date`` → ``datetime.date`` для psycopg2
     raw_date = raw.get("date")
     if isinstance(raw_date, str):
         try:
@@ -126,14 +141,14 @@ def load_to_postgres(
 
     full_table = f"{schema}.{table}"
 
-    # Workspace utils: configure(dsn) → execute(...). Импортируем лениво —
-    # чтобы --help работал без psycopg2 на хосте.
-    from workspace.utils.db import configure, execute, transaction
-
+    # psycopg2 напрямую (см. docstring — workspace.utils.db не standalone).
     try:
-        configure(dsn)
-    except Exception as exc:  # noqa: BLE001 - startup error path
-        raise SystemExit(f"Не удалось подключиться к PostgreSQL: {exc}") from exc
+        import psycopg2  # noqa: F401
+    except ImportError as exc:
+        raise SystemExit(
+            f"psycopg2 не установлен: {exc}. "
+            "Установите: pip install psycopg2-binary"
+        ) from exc
 
     insert_sql = f"""
         INSERT INTO {full_table} (
@@ -163,13 +178,20 @@ def load_to_postgres(
     """.strip()
 
     try:
-        with transaction() as conn:
-            if truncate:
-                conn.execute(f"TRUNCATE TABLE {full_table}")
-            for record in records:
-                conn.execute(insert_sql, record)
+        conn = psycopg2.connect(dsn)
+    except Exception as exc:  # noqa: BLE001 - connection error path
+        raise SystemExit(f"Не удалось подключиться к PostgreSQL: {exc}") from exc
+
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                if truncate:
+                    cur.execute(f"TRUNCATE TABLE {full_table}")
+                cur.executemany(insert_sql, records)
     except Exception as exc:  # noqa: BLE001 - DML error path
         raise SystemExit(f"Не удалось загрузить данные в {full_table}: {exc}") from exc
+    finally:
+        conn.close()
 
     logger.info("Загружено %d записей в %s", len(records), full_table)
     return len(records)
