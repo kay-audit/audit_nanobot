@@ -30,6 +30,20 @@ target/
 .DS_Store
 Thumbs.db
 
+# Local secrets (managed by .secrets.env + scripts/render-env.ps1)
+.secrets.env
+
+# Per-feature project.json backups (created by feature_bridge applier;
+# restore from git history if needed, not from these runtime artefacts)
+project.json.bak-*
+
+# One-off debug scripts (start with _check_); should not be tracked
+tests/_check_*.py
+
+# Local memory and session state (IDE/runtime artefacts, not source-of-truth)
+workspace/memory/
+workspace/sessions/
+
 # Coverage reports
 coverage/
 htmlcov/

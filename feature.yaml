@@ -5,9 +5,10 @@
 # - tool ior_analyzer (config_key=ior_analyzer, native-tool registration);
 # - cross-cutting файл lib/services/skill_runtime_mode.py (используется
 #   обоими: этим tool и sql_assistant_runtime);
-# - testing-инфраструктура (filesystem-based в текущей реализации, см. §2.4
-#   bridge_skills.md про плановую миграцию на PostgreSQL через
-#   TestingPostgresStore - это работа будущей фазы).
+# - testing-инфраструктура:
+#     * filesystem-cache (data_generator → ior.json) — primary для pre-flight;
+#     * PostgreSQL variant (V005 migration + pg_loader.py → test_d6.ior_events)
+#       — для SQL-flow (skill читает напрямую через workspace.utils.db).
 #
 # Все пути относительно корня audit_nanobot.
 
@@ -53,6 +54,9 @@ requires:
       source: existing
     - name: OPENAI_API_KEY
       source: existing
+    - name: IOR_TEST_DSN
+      source: optional            # переопределяет channels.postgres.dsn для pg_loader
+      description: "DSN для тестовой БД фичи (test_d6 schema); опциональная override"
   sql_migrations: []
 
 skills:
@@ -79,7 +83,13 @@ overlays:
         единственный source of truth для аудита).
   env_files: []
   templates: []
-  sql_migrations: []
+  sql_migrations:
+    # V005 создаёт изолированную test_d6 schema с таблицей ior_events.
+    # Применяется через `python tools/migrate.py --apply` ПОСЛЕ apply фичи
+    # (applier копирует файл, но НЕ выполняет DDL — это сознательное
+    # разделение, см. docs/feature-bridge-authoring.md §3.5).
+    # DROP CASCADE при rollback фичи (см. isolation.removable=true).
+    - sql/migrations/V005__d6_ior_test_schema.sql
 
 lib_additions:
   - path: lib/services/skill_runtime_mode.py
@@ -107,10 +117,7 @@ testing:
   data_generator:
     path: workspace/skills/ior-analyzer/testing/data_generator.py
     command: "python workspace/skills/ior-analyzer/testing/data_generator.py --force"
-    # ВНИМАНИЕ: текущая реализация в d6_nanobot пишет в JSON-файл
-    # (workspace/data_store/cache/testing/ior/ior.json). Миграция на
-    # PostgreSQL test_d6 через TestingPostgresStore - работа будущей
-    # фазы. Здесь фиксируем фактическое состояние ветки.
+    # Генерирует JSON-файл для filesystem-cache (быстро, детерминизм).
     target_storage: filesystem
     filesystem:
       target_path: workspace/data_store/cache/testing/ior/ior.json
@@ -118,6 +125,16 @@ testing:
     deterministic: true
     seed: 20260921
     record_count: 1000
+  pg_loader:
+    # Дополнительно: заливает тот же JSON в PostgreSQL (test_d6.ior_events).
+    # Это даёт skill'у возможность читать тестовые данные через SQL-flow
+    # (workspace.utils.db) для аудита, ad-hoc запросов, отчётов.
+    # Запускается ПОСЛЕ data_generator (использует тот же JSON).
+    # Требует: V005 миграция применена + $IOR_TEST_DSN или channels.postgres.dsn.
+    path: workspace/skills/ior-analyzer/testing/pg_loader.py
+    command: "python workspace/skills/ior-analyzer/testing/pg_loader.py --json workspace/data_store/cache/testing/ior/ior.json --schema test_d6 --table ior_events"
+    requires_migration: V005__d6_ior_test_schema
+    idempotent: true   # TRUNCATE + bulk INSERT в одной транзакции
   runner:
     path: workspace/skills/ior-analyzer/testing/runner.py
     smoke_command: "python workspace/skills/ior-analyzer/testing/runner.py --smoke"
@@ -136,12 +153,13 @@ isolation:
   # Полный список файлов из git diff origin/master..origin/d6_nanobot.
   # Глоб workspace/skills/ior-analyzer/** покрывает все 89 файлов под этим
   # префиксом (knowledge_base, scripts, testing, utils, data_store).
-  # Остальные файлы (документация, tool, тесты) перечислены явно.
+  # Остальные файлы (документация, tool, тесты, миграция, pg_loader) перечислены явно.
   files_added:
     - lib/services/skill_runtime_mode.py
     - docs/D6.md
     - workspace/skills/ior-analyzer/**
     - workspace/tools/ior_analyzer.py
+    - sql/migrations/V005__d6_ior_test_schema.sql
     - tests/test_tools_ior_analyzer.py
     - tests/test_ior_bge_followup_contract.py
   files_modified: []

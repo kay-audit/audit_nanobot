@@ -68,6 +68,7 @@ reference** по своей подсистеме; README в корне — эт�
 | [VECTOR_INDEXES.md](VECTOR_INDEXES.md) | FAISS, Ollama, `tools/build_vectors.py`, lifecycle кеша, edge-cases |
 | [INTERNAL_API.md](INTERNAL_API.md) | `tools.exec`, кастомные `workspace/tools/*.py`, CLI-режимы, `tools/`, добавление настроек |
 | [TESTING.md](TESTING.md) | Запуск тестов, контрактные тесты nanobot API, live e2e |
+| [feature-bridge-authoring.md](feature-bridge-authoring.md) | **Практический гайд для авторов skill/tool в `audit_nanobot`**, когда они поставляются через audit_bridge (feature.yaml + apply): карта зон (allowed/forbidden), schema манифеста, порядок проверки (validator + pre-flight), регистры БД, частые ошибки (кейс-стади), чеклист перед commit |
 
 ### Внешние ссылки
 
@@ -116,6 +117,14 @@ invariant'ы, anti-patterns, decision-чеклист и правила зави�
 Хотите написать **свой навык** (skill)? Начните с
 [`SKILL_AUTHORING.md`](SKILL_AUTHORING.md) — там пошаговый гайд, best practices,
 anti-patterns и Definition of Done.
+
+Если навык поставляется **через audit_bridge** (apply feature-ветки с
+`feature.yaml` манифестом) — смотрите также
+[`feature-bridge-authoring.md`](feature-bridge-authoring.md). Этот гайд
+покрывает то, чего `SKILL_AUTHORING.md` не касается: карту зон
+(allowed/forbidden для diff'а), schema `feature.yaml`, 6 стадий
+validator'а, 12 шагов applier'а, регистры БД (TableResource /
+VectorResource), и частые ошибки с case-study из реального apply.
 
 ## 📐 Конвенции правки документации
 

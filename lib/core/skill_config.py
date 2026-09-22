@@ -272,9 +272,23 @@ def get_vector_db_table(skill_name: str) -> str:
 
 
 def build_cache_provider(skill_name: str, skill_root: Path | str) -> Any:
+    """Собрать кеш-провайдер для навыка.
+
+    Tolerates native-tool registration (``config_section: null`` в
+    ``feature.yaml`` — навык не объявляет ``skills.<name>`` в
+    ``project.json``). В этом случае ``_skill_cfg`` вернёт ``{}``,
+    а ``_build({})`` соберёт провайдер с дефолтами (см.
+    ``cache_provider_impl.build_cache_provider`` — ``schema="main"``,
+    пустые tables, ``gateway.cache.*`` для snapshot_path). Это by design:
+    native-tool skill получает тот же runtime-кеш, что и registered skill,
+    но без декларации собственных таблиц/индексов.
+    """
     from lib.services.cache_provider_impl import build_cache_provider as _build
 
-    return _build(_skill_cfg(skill_name), str(skill_root))
+    cfg = _skills().get(skill_name)
+    if not isinstance(cfg, dict):
+        cfg = {}
+    return _build(cfg, str(skill_root))
 
 
 def get_vector_indexes(skill_name: str) -> dict[str, Any]:

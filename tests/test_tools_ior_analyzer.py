@@ -96,15 +96,22 @@ async def test_execute_delegates_to_skill_runner(monkeypatch):
 
 
 def test_data_backend_factory_is_explicit(monkeypatch):
+    """``IOR_DATA_BACKEND`` env-var controls which store ``get_data_store``
+    constructs (greenplum, local_duckdb, spark, or default cache).
+    """
     module = _load_data_store_module()
 
-    monkeypatch.setenv("DATA_BACKEND", "greenplum")
+    monkeypatch.setenv("IOR_DATA_BACKEND", "greenplum")
     module.reset_data_store()
     assert isinstance(module.get_data_store(), module.GreenplumStore)
 
-    monkeypatch.setenv("DATA_BACKEND", "duckdb")
+    monkeypatch.setenv("IOR_DATA_BACKEND", "local_duckdb")
     module.reset_data_store()
-    assert isinstance(module.get_data_store(), module.DuckDBStore)
+    assert isinstance(module.get_data_store(), module.LocalDuckDBStore)
+
+    monkeypatch.delenv("IOR_DATA_BACKEND", raising=False)
+    module.reset_data_store()
+    assert isinstance(module.get_data_store(), module.NanobotCacheStore)
 
 
 def test_greenplum_store_uses_shared_parameterized_db_layer():
