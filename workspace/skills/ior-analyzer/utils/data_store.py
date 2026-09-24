@@ -635,7 +635,20 @@ _store_backend = ""
 _store_lock = threading.Lock()
 
 def _configured_backend() -> str:
-    return os.environ.get("IOR_DATA_BACKEND", "cache").strip().lower() or "cache"
+    explicit = os.environ.get("IOR_DATA_BACKEND", "").strip().lower()
+    if explicit:
+        return explicit
+    # Без явного override выбор делается по NANOBOT_SKILLS_RUNTIME:
+    #   testing    → "cache"     (NanobotCacheStore: DuckDB-кэш из локальной PG,
+    #                             имена таблиц переписываются translate_physical_tables
+    #                             в bare-имена DuckDB-кэша; PgDuckDbSyncService
+    #                             синкает их из public.t_db_oarb_ior_d6_* в DEV)
+    #   production → "greenplum" (GreenplumStore: прямой psycopg2 в GP,
+    #                             SQL с s_grnplm_ld_audit_da_project_34.t_db_oarb_ior_d6_*)
+    from lib.services.skill_runtime_mode import is_testing_runtime
+    if is_testing_runtime():
+        return "cache"
+    return "greenplum"
 
 
 def reset_data_store() -> None:

@@ -110,8 +110,13 @@ def test_data_backend_factory_is_explicit(monkeypatch):
     assert isinstance(module.get_data_store(), module.LocalDuckDBStore)
 
     monkeypatch.delenv("IOR_DATA_BACKEND", raising=False)
+    monkeypatch.setenv("NANOBOT_SKILLS_RUNTIME", "testing")
     module.reset_data_store()
     assert isinstance(module.get_data_store(), module.NanobotCacheStore)
+    # Без runtime = production → GreenplumStore (прямой SQL в GP).
+    monkeypatch.delenv("NANOBOT_SKILLS_RUNTIME", raising=False)
+    module.reset_data_store()
+    assert isinstance(module.get_data_store(), module.GreenplumStore)
 
 
 def test_greenplum_store_uses_shared_parameterized_db_layer():

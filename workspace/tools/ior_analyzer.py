@@ -18,7 +18,6 @@ from nanobot.agent.tools.base import Tool, ToolResult, tool_parameters
 from pydantic import BaseModel
 from lib.services.skill_runtime_mode import (
     current_tool_session_id,
-    load_testing_module,
     log_skill_runtime,
 )
 
@@ -187,17 +186,10 @@ class IORAnalyzerTool(Tool):
         **_kwargs: Any,
     ) -> str:
         try:
-            runtime = log_skill_runtime("ior-analyzer", logger)
+            log_skill_runtime("ior-analyzer", logger)
             resolved_session = current_tool_session_id(
                 None if session_id == "webui_session" else session_id
             )
-            if runtime == "testing":
-                runner = load_testing_module("ior-analyzer", "runner")
-                return await runner.run_testing_report(
-                    preset_name=preset,
-                    session_id=resolved_session,
-                    user_prompt=prompt,
-                )
             runner = self._load_runner()
             return await runner(
                 preset_name=preset,
