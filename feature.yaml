@@ -48,7 +48,11 @@ requires:
       required: false
       default: cache
       allowed: [cache, local_duckdb, greenplum, spark]
-      description: "Бэкенд data_store.py для чтения production-данных"
+      description: >
+        Бэкенд data_store.py для чтения production-данных.
+        Без явного override выбор делается по NANOBOT_SKILLS_RUNTIME:
+          testing    → cache     (NanobotCacheStore → DuckDB-кэш из локальной PG)
+          production → greenplum (GreenplumStore → прямой SQL в GP).
   secrets:
     - name: DATABASE_URL
       source: existing
@@ -63,7 +67,10 @@ skills:
   - name: ior-analyzer
     path: workspace/skills/ior-analyzer
     pattern: full
-    config_section: null   # native-tool registration; project.json::skills.* не пишем
+    # Регистрируется в project.json::skills.ior-analyzer (см. overlays.project_json):
+    #   * tables[] — синхронизация в DuckDB-кэш через PgDuckDbSyncService;
+    #   * без cli.*/llm.*/vector_indexes — tool-only skill.
+    config_section: skills.ior-analyzer
 
 tools:
   - name: ior_analyzer
@@ -81,6 +88,37 @@ overlays:
         config_key="ior_analyzer", секция gateway.ior_analyzer обязательна
         даже при наличии safety-дефолта в tool'е (явная запись в git diff -
         единственный source of truth для аудита).
+    - op: upsert
+      path: skills.ior-analyzer.enabled
+      value: true
+      rationale: >
+        Регистрация доменных таблиц IOR для синхронизации в DuckDB-кэш.
+        Без этой записи PgDuckDbSyncService не подхватывает таблицы, и
+        skill получает "схема не существует" при попытке чтения через
+        NanobotCacheStore. На DEV таблицы лежат в public (после миграции
+        V006 и загрузки pg_loader_real.py); на ПРОМ — в GP, отдельный
+        project.json. Выбор backend'а (cache vs greenplum) делается
+        runtime-aware в data_store.py по NANOBOT_SKILLS_RUNTIME.
+    - op: upsert
+      path: skills.ior-analyzer.tables
+      value:
+        - name: public.t_db_oarb_ior_d6_base_of_knowledge_ior
+          tracking_column: incdnt_id
+        - name: public.t_db_oarb_ior_d6_base_of_knowledge_incident_stts_chng
+          tracking_column: incdnt_id
+        - name: public.t_db_oarb_ior_d6_base_of_knowledge_incident_recovery
+          tracking_column: incdnt_id
+        - name: public.t_db_oarb_ior_d6_base_of_knowledge_incident_fin_impact
+          tracking_column: incdnt_id
+        - name: public.t_db_oarb_ior_d6_base_of_knowledge_incident_nonfin_impact
+          tracking_column: incdnt_id
+      rationale: >
+        tracking_column=incdnt_id — PK основной таблицы (монотонный BIGINT,
+        совместим с инкрементальным sync'ом). Связанные таблицы (status/
+        recovery/fin/nonfin) тоже используют incdnt_id как ссылку на основную
+        таблицу, поэтому один tracking_column для всех 5 — корректен.
+        Sync подхватывает только эти 5 таблиц; DuckDB-кэш хранит их под
+        bare-именами (без схемы public).
   env_files: []
   templates: []
   sql_migrations:
@@ -90,6 +128,14 @@ overlays:
     # разделение, см. docs/feature-bridge-authoring.md §3.5).
     # DROP CASCADE при rollback фичи (см. isolation.removable=true).
     - sql/migrations/V005__d6_ior_test_schema.sql
+    # V006 создаёт 5 production-таблиц IOR (t_db_oarb_ior_d6_*) под схемой
+    # public в локальной PostgreSQL. Имена — production-реальные (совпадают
+    # с ПРОМ GP), чтобы DuckDB-кэш мог переиспользовать ту же раскладку
+    # колонок. На ПРОМ таблицы уже существуют (DDL не нужен), миграция
+    # применяется только в DEV-окружении через applier (pg_loader_real.py
+    # заполняет таблицы тестовыми данными). Источник данных выбирается
+    # runtime-aware в data_store.py по NANOBOT_SKILLS_RUNTIME.
+    - sql/migrations/V006__d6_ior_tables_real.sql
 
 lib_additions:
   - path: lib/services/skill_runtime_mode.py
@@ -135,6 +181,17 @@ testing:
     command: "python workspace/skills/ior-analyzer/testing/pg_loader.py --json workspace/data_store/cache/testing/ior/ior.json --schema test_d6 --table ior_events"
     requires_migration: V005__d6_ior_test_schema
     idempotent: true   # TRUNCATE + bulk INSERT в одной транзакции
+  pg_loader_real:
+    # Заливает тот же JSON в production-таблицы IOR (public.t_db_oarb_ior_d6_*).
+    # Это второй вариант SQL-flow: имена таблиц совпадают с ПРОМ, схема — наша.
+    # Используется для end-to-end проверки ior_analyzer через DuckDB-кэш
+    # (тот же путь, что и production). Требует: V006 миграция применена +
+    # $IOR_TEST_DSN или channels.postgres.dsn.
+    # Маппинг JSON→production-колонки — внутри pg_loader_real.py.
+    path: workspace/skills/ior-analyzer/testing/pg_loader_real.py
+    command: "python workspace/skills/ior-analyzer/testing/pg_loader_real.py --json workspace/data_store/cache/testing/ior/ior.json --schema public"
+    requires_migration: V006__d6_ior_tables_real
+    idempotent: true   # TRUNCATE CASCADE + bulk INSERT в одной транзакции
   runner:
     path: workspace/skills/ior-analyzer/testing/runner.py
     smoke_command: "python workspace/skills/ior-analyzer/testing/runner.py --smoke"
@@ -157,12 +214,21 @@ isolation:
   files_added:
     - lib/services/skill_runtime_mode.py
     - docs/D6.md
+    - docs/feature-bridge-authoring.md
     - workspace/skills/ior-analyzer/**
     - workspace/tools/ior_analyzer.py
     - sql/migrations/V005__d6_ior_test_schema.sql
+    - sql/migrations/V006__d6_ior_tables_real.sql
+    - workspace/skills/ior-analyzer/testing/pg_loader_real.py
     - tests/test_tools_ior_analyzer.py
     - tests/test_ior_bge_followup_contract.py
-  files_modified: []
+  files_modified:
+    - project.json        # + skills.ior-analyzer (таблицы IOR для sync)
+    - feature.yaml        # + pg_loader_real, V006, project_json overlay
+    - workspace/skills/ior-analyzer/utils/data_store.py  # runtime-aware backend (testing→cache, production→greenplum)
+    - workspace/tools/ior_analyzer.py                    # убрана JSON-ветка; testing идёт через ior_reports с другим backend
   config_keys_added:
     - gateway.ior_analyzer.enable
+    - skills.ior-analyzer.enabled
+    - skills.ior-analyzer.tables
   config_keys_removed: []
