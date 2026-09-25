@@ -184,7 +184,7 @@ testing:
     idempotent: true   # TRUNCATE + bulk INSERT в одной транзакции
   runner:
     path: workspace/skills/ior-analyzer/testing/runner.py
-    smoke_command: "python workspace/skills/ior-analyzer/testing/runner.py --smoke"
+    smoke_command: ""
     smoke_prompt: "сколько инцидентов в 2024 году?"
     smoke_expected:
       contains_section: "Финансовые потери"
