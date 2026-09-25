@@ -203,8 +203,11 @@ isolation:
   # Остальные файлы (документация, tool, тесты, миграция, pg_loader) перечислены явно.
   files_added:
     - lib/services/skill_runtime_mode.py
+    - lib/core/skill_config.py
     - docs/D6.md
+    - docs/README.md
     - docs/feature-bridge-authoring.md
+    - .gitignore
     - workspace/skills/ior-analyzer/**
     - workspace/tools/ior_analyzer.py
     - sql/migrations/V005__d6_ior_test_schema.sql
