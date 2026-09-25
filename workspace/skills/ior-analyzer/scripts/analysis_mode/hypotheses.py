@@ -318,7 +318,7 @@ async def generate_hypotheses(pack, ask=None):
             ask = ask_local_qwen
         except ImportError as exc:
             logger.warning("[analysis_mode] hypotheses_source=fallback reason=import_error:%s", exc)
-            return fallback_hypotheses(pack)
+            return "Гипотезы не были сформированы из-за недоступности аналитического LLM-этапа."
     summaries = await summarize_evidence_batches(pack, ask)
     feedback, reason = "", "unknown"
     for attempt in range(1, 3):
@@ -343,4 +343,4 @@ async def generate_hypotheses(pack, ask=None):
             logger.warning("[analysis_mode] Qwen hypothesis call failed: reason=%s", reason)
             break
     logger.warning("[analysis_mode] hypotheses_source=fallback reason=%s", reason)
-    return fallback_hypotheses(pack)
+    return "Гипотезы не были сформированы из-за недоступности аналитического LLM-этапа."

@@ -1,6 +1,6 @@
 """
 artifact_manager.py — Унифицированный менеджер артефактов (отчётов Excel/CSV и графиков PNG/SVG)
-для передачи в Greenplum (conversation_messages), Redis (outbox) и FastAPI Gateway (/api/files/download).
+Legacy metadata helper; native Nanobot delivery uses OutboundMessage.media.
 """
 
 from __future__ import annotations
@@ -34,8 +34,8 @@ from typing import Any, Dict, List, Optional, Union
 
 logger = logging.getLogger(__name__)
 
-_WORKSPACE_DIR = Path(__file__).resolve().parents[1]
-_ROOT_DIR = Path(__file__).resolve().parents[2]
+_WORKSPACE_DIR = Path(__file__).resolve().parents[3]
+_ROOT_DIR = _WORKSPACE_DIR.parent
 
 SEARCH_DIRS = [
     _WORKSPACE_DIR / "data_store" / "generated_charts",
@@ -101,7 +101,7 @@ def create_chart_artifact(file_path: Path) -> Dict[str, Any]:
         return {
             "name": raw_name,
             "path": f"generated_charts/{raw_name}",
-            "url": f"/api/files/download?path={raw_name}",
+            "url": None,
             "base64": None,
             "data_url": None,
             "mime": "image/png",
@@ -115,7 +115,7 @@ def create_chart_artifact(file_path: Path) -> Dict[str, Any]:
     return {
         "name": resolved.name,
         "path": f"generated_charts/{resolved.name}",
-        "url": f"/api/files/download?path={resolved.name}",
+        "url": None,
         "base64": b64,
         "data_url": data_url,
         "mime": mime,
@@ -133,7 +133,7 @@ def create_file_artifact(file_path: Path, max_b64_kb: int = 300) -> Dict[str, An
         return {
             "name": raw_name,
             "path": f"generated_files/{raw_name}",
-            "url": f"/api/files/download?path={raw_name}",
+            "url": None,
             "type": file_type,
             "mime": get_mime_type(Path(file_path)),
             "size_bytes": 0,
@@ -151,7 +151,7 @@ def create_file_artifact(file_path: Path, max_b64_kb: int = 300) -> Dict[str, An
     return {
         "name": resolved.name,
         "path": f"generated_files/{resolved.name}",
-        "url": f"/api/files/download?path={resolved.name}",
+        "url": None,
         "type": file_type,
         "mime": get_mime_type(resolved),
         "size_bytes": size_bytes,
@@ -182,9 +182,6 @@ def extract_and_attach_artifacts(
     # 1. Поиск ссылок и имен файлов в тексте content
     found_filenames = set()
     if content:
-        # Ручка скачивания /api/files/download?path=...
-        for m in re.finditer(r'/api/files/download\?path=([^\s&"\'\)]+)', content):
-            found_filenames.add(m.group(1))
         # Относительные пути generated_charts/ or generated_files/
         for m in re.finditer(r'(generated_charts|generated_files)/([^\s"\'\)]+)', content):
             found_filenames.add(m.group(2))
@@ -197,17 +194,7 @@ def extract_and_attach_artifacts(
                 elif any(url.endswith(e) for e in ('.png', '.jpg', '.jpeg', '.svg', '.xlsx', '.csv', '.pdf')):
                     found_filenames.add(Path(url).name)
 
-    # 2. Сканирование директорий на недавно созданные артефакты (в пределах recent_time_window_s)
-    now = time.time()
-    for search_dir in SEARCH_DIRS:
-        if not search_dir.exists():
-            continue
-        try:
-            for item in search_dir.iterdir():
-                if item.is_file() and (now - item.stat().st_mtime) <= recent_time_window_s:
-                    found_filenames.add(item.name)
-        except Exception:
-            pass
+    # No directory/time-window scan: artifacts must be identified explicitly.
 
     # 3. Классификация и создание объектов артефактов
     for fname in found_filenames:

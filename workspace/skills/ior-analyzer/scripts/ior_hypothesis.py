@@ -76,19 +76,21 @@ except ImportError as _local_qwen_import_error:  # import-safe unit-test runtime
 from vozmeshenie_analysis import format_vozmeshenie_header, prepare_vozmeshenie_views
 from preset_analysis.registry import get_analyzer
 from preset_analysis.common import sanitize_generated_text
+from utils.ior_artifacts import output_directory, register_artifact
 
 logger = logging.getLogger(__name__)
 
 
 def _write_minimal_chart_placeholder(prefix: str) -> str:
     """Создаёт валидный PNG только когда optional matplotlib отсутствует."""
-    output_dir = Path("workspace/data_store/generated_charts")
+    output_dir = output_directory(Path("workspace/data_store/generated_charts"))
     output_dir.mkdir(parents=True, exist_ok=True)
     chart_path = output_dir / f"{prefix}_{uuid.uuid4().hex[:8]}.png"
     # Валидный прозрачный PNG 1x1. В рабочем контуре с matplotlib не используется.
     chart_path.write_bytes(base64.b64decode(
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
     ))
+    register_artifact(chart_path)
     return str(chart_path)
 
 
@@ -1013,13 +1015,14 @@ def generate_dynamics_chart(
         plt.title(chart_title, color='#0f172a', fontsize=11, pad=15, fontweight='bold')
         fig.tight_layout()
 
-        output_dir = Path("workspace/data_store/generated_charts")
+        output_dir = output_directory(Path("workspace/data_store/generated_charts"))
         output_dir.mkdir(parents=True, exist_ok=True)
         chart_filename = f"chart_ior_{uuid.uuid4().hex[:8]}.png"
         chart_path = output_dir / chart_filename
 
         plt.savefig(str(chart_path), bbox_inches='tight', facecolor='#ffffff', edgecolor='none')
         plt.close(fig)
+        register_artifact(chart_path)
         return str(chart_path)
     except Exception as e:
         logger.error(f"Error generating dynamics chart: {e}")
@@ -1114,13 +1117,14 @@ def generate_distribution_chart(df: pd.DataFrame, session_id: str) -> Optional[s
 
         fig.tight_layout()
 
-        output_dir = Path("workspace/data_store/generated_charts")
+        output_dir = output_directory(Path("workspace/data_store/generated_charts"))
         output_dir.mkdir(parents=True, exist_ok=True)
         chart_filename = f"chart_dist_{uuid.uuid4().hex[:8]}.png"
         chart_path = output_dir / chart_filename
 
         plt.savefig(str(chart_path), bbox_inches='tight', facecolor='#0b0f19')
         plt.close(fig)
+        register_artifact(chart_path)
         return str(chart_path)
     except Exception as e:
         logger.error(f"Error generating distribution chart: {e}")
@@ -2223,7 +2227,10 @@ def build_deterministic_full_report(
                 "• **Ожидаемый результат:** Определение требуемых доработок в алгоритмах систем и снижении уровня операционных ошибок."
             ])
 
-    return "\n".join(lines)
+    report = "\n".join(lines)
+    if "### 4. Аналитические гипотезы" in report:
+        report = report.split("### 4. Аналитические гипотезы", 1)[0].rstrip()
+    return report + "\n\nГипотезы не были сформированы из-за недоступности аналитического LLM-этапа."
 
 
 def build_analysis_context_text(user_msg: str, analysis_context: Optional[dict | str] = None) -> str:
@@ -2390,11 +2397,12 @@ async def _generate_registered_preset_narrative(
             invalid_flags = [key for key, value in validation.items() if key != "details" and value is True]
             if not complete or invalid_flags:
                 logger.warning("[ior_hypothesis] Retry validation failed (%s, %s); deterministic fallback used", details, invalid_flags)
-                hypotheses = bundle.deterministic_hypotheses()
+                hypotheses = "Гипотезы не были сформированы из-за недоступности аналитического LLM-этапа."
     except Exception as qwen_error:
         logger.warning(f"[ior_hypothesis] Local Qwen unavailable for {normalized_skill}: {qwen_error}")
-        hypotheses = bundle.deterministic_hypotheses()
-    if hypotheses:
+        hypotheses = "Гипотезы не были сформированы из-за недоступности аналитического LLM-этапа."
+    llm_unavailable_note = "Гипотезы не были сформированы из-за недоступности аналитического LLM-этапа."
+    if hypotheses and hypotheses != llm_unavailable_note:
         parts.append(hypotheses)
 
     if bundle.chart_enabled and len(bundle.analysis_incident_df) > 1:
@@ -2404,12 +2412,12 @@ async def _generate_registered_preset_narrative(
                 normalized_skill, bundle.chart_policy(),
             )
             if chart_file_id:
-                parts.append(
-                    "### Визуализация аналитики\n\n"
-                    f"![Динамика утверждённых ИОР](/api/files/download?path={Path(chart_file_id).name})"
-                )
+                parts.append("### Визуализация аналитики\n\nГрафик приложен к сообщению.")
         except Exception as chart_error:
             logger.warning(f"[ior_hypothesis] Chart generation skipped: {chart_error}")
+
+    if hypotheses == llm_unavailable_note:
+        parts.append(llm_unavailable_note)
 
     narrative = "\n\n".join(part for part in parts if part and part.strip())
     narrative = sanitize_generated_text(narrative, ())
@@ -3250,7 +3258,7 @@ async def generate_hypothesis_narrative(
             chart_filename = Path(chart_file_id).name
             narrative += "\n\n### Визуализация аналитики\n"
             chart_alt = "Динамика возмещений и уникальных ИОР" if is_vozmeshenie else "Динамика потерь и инцидентов"
-            narrative += f"\n![{chart_alt}](/api/files/download?path={chart_filename})\n"
+            narrative += f"\n{chart_alt}: график приложен к сообщению.\n"
 
         narrative = re.sub(r'\n{3,}', '\n\n', narrative)
         narrative = normalize_markdown_for_frontend(narrative)

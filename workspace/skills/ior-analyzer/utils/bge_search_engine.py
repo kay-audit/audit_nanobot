@@ -20,7 +20,7 @@ import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
-_WORKSPACE_DIR = Path(__file__).resolve().parents[2]
+_WORKSPACE_DIR = Path(__file__).resolve().parents[3]
 _PIPELINES_DIR = _WORKSPACE_DIR / "data_store" / "cache" / "caches_pipelines"
 _CACHE_DEFAULT = _PIPELINES_DIR / "cache_final"
 _BGE_DEFAULT = _PIPELINES_DIR / "BAAI:bge-m3"

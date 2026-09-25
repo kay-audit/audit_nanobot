@@ -26,6 +26,8 @@ from ior_reports import (
     format_excel_inspection_markdown, resolve_preset_for_request, run_ior_report,
 )
 from utils.data_store import DUCKDB_TABLES, GREENPLUM_TABLES
+from utils.excel_inspector import inspect_excel
+from utils.excel_literal import force_literal_excel_cells
 
 _QUERY_SPEC_PATH = Path(__file__).resolve().parents[1] / "utils" / "query_spec.py"
 _QUERY_SPEC_SPEC = importlib.util.spec_from_file_location("ior_analyzer_query_spec_contract", _QUERY_SPEC_PATH)
@@ -317,7 +319,7 @@ class RegisteredRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("### 1.", report)
         self.assertNotIn("Гипотеза 1", report)
 
-    async def test_five_approved_runtime_produces_three_case_hypotheses(self):
+    async def test_five_approved_runtime_without_llm_has_facts_not_case_hypotheses(self):
         df = pd.DataFrame({
             "incdnt_sid": [f"EVE-{i}" for i in range(5)],
             "incdnt_status_name": ["Утверждён"] * 5,
@@ -327,9 +329,8 @@ class RegisteredRuntimeTests(unittest.IsolatedAsyncioTestCase):
             "проверка малой approved выборки", df,
             session_id="synthetic", preset_name="ior_hypothesis",
         )
-        self.assertIn("Гипотеза 1", report)
-        self.assertIn("Гипотеза 2", report)
-        self.assertIn("Гипотеза 3", report)
+        self.assertIn("Гипотезы не были сформированы", report)
+        self.assertNotIn("Гипотеза 1", report)
 
 
 class QuerySpecPopulationTests(unittest.IsolatedAsyncioTestCase):
@@ -372,8 +373,38 @@ class QuerySpecPopulationTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result.ok, result.error)
         narrative = result.output["analysis_narrative"]
         self.assertIn("Общая информация", narrative)
-        self.assertIn("Гипотеза 1", narrative)
+        self.assertIn("Гипотезы не были сформированы", narrative)
         self.assertIn("analysis_narrative", result.summary)
+
+
+class ExportSafetyTests(unittest.TestCase):
+    def test_excel_card_tb_uses_organisation_not_event_type(self):
+        frame = pd.DataFrame({
+            "Тип события — уровень 2": ["Некорректная работа систем"] * 3,
+            "Орг. структура — уровень 3 (Блок / ТБ / ПЦП)": ["Московский банк"] * 3,
+        })
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "report.xlsx"
+            frame.to_excel(path, index=False, engine="openpyxl")
+            self.assertEqual(inspect_excel(path)["stats"]["top_tb"]["label"], "Московский банк")
+
+    def test_excel_literal_cell_preserves_text_and_numeric(self):
+        from openpyxl import Workbook, load_workbook
+
+        values = ["=1+1", "+cmd", "-cmd", "@cmd", "  =SUM(1,2)", 123, None]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "literal.xlsx"
+            book = Workbook()
+            sheet = book.active
+            sheet.append(values)
+            force_literal_excel_cells(sheet)
+            book.save(path)
+            loaded = load_workbook(path).active
+            for index, value in enumerate(values[:5], 1):
+                self.assertEqual(loaded.cell(1, index).value, value)
+                self.assertEqual(loaded.cell(1, index).data_type, "s")
+            self.assertEqual(loaded.cell(1, 6).value, 123)
+            self.assertEqual(loaded.cell(1, 6).data_type, "n")
 
 
 class RoutingAndSqlRegressionTests(unittest.TestCase):

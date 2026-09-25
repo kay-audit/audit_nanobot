@@ -621,10 +621,8 @@ class HypothesisTests(unittest.IsolatedAsyncioTestCase):
     async def test_two_invalid_responses_and_unavailable_fallback(self):
         for ask in (Mock(return_value="invalid"), Mock(side_effect=RuntimeError("offline"))):
             result = await generate_hypotheses(self.pack, ask)
-            self.assertEqual(result.count("**Гипотеза "), 3)
-            self.assertEqual(result.count("**Ожидаемый результат:**"), 3)
-            self.assertIn("EVE-", result)
-            self.assertTrue(result.startswith("### 3. Гипотезы"))
+            self.assertEqual(result.count("**Гипотеза "), 0)
+            self.assertIn("Гипотезы не были сформированы", result)
         self.assertEqual(ask.call_count, 2)
 
     def test_markdown_needs_no_json_or_internal_ids(self):
@@ -648,8 +646,8 @@ class HypothesisTests(unittest.IsolatedAsyncioTestCase):
         data, metrics, _ = prepared()
         pack = build_evidence_pack(data, metrics, [])
         result = await generate_hypotheses(pack, Mock(return_value="invalid"))
-        self.assertEqual(result.count("**Гипотеза "), 3)
-        self.assertIn("EVE-1", result)
+        self.assertEqual(result.count("**Гипотеза "), 0)
+        self.assertIn("Гипотезы не были сформированы", result)
 
     async def test_second_invalid_response_retries_exactly_once(self):
         ask = Mock(return_value="invalid")
@@ -802,7 +800,8 @@ class RunnerTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(len(exported), 7)
             self.assertEqual(len(exported.loc[exported.incdnt_id.eq(1)]), 3)
             self.assertEqual(exported.incdnt_status_name.nunique(), 5)
-            self.assertIn(files[0].name, result)
+            self.assertNotIn(files[0].name, result)
+            self.assertNotIn("generated_files", result)
 
     async def test_empty_no_qwen_no_export(self):
         ask = Mock(side_effect=AssertionError("Qwen"))
@@ -833,7 +832,8 @@ class RunnerTests(unittest.IsolatedAsyncioTestCase):
     async def test_all_null_approved_population(self):
         raw = frame([(1, "F1", None, "Утверждён", "2026-03-01")])
         result = await run_analysis_mode(request(), self.store(raw), ask=Mock(return_value="invalid"))
-        self.assertEqual(result.count("**Гипотеза "), 3)
+        self.assertEqual(result.count("**Гипотеза "), 0)
+        self.assertIn("Гипотезы не были сформированы", result)
         self.assertNotIn("в выборке нет утверждённых ИОР", result)
 
 

@@ -3,6 +3,8 @@ from pathlib import Path
 from uuid import uuid4
 
 import pandas as pd
+from utils.ior_artifacts import output_directory, register_artifact
+from utils.excel_literal import force_literal_excel_cells
 
 from .direct_loss import MAIN_COLUMNS, FINANCIAL_COLUMNS
 
@@ -13,7 +15,7 @@ EXCEL_ROWS_PER_SHEET = 1_048_575  # Excel's row capacity less the header.
 def export_details(detail: pd.DataFrame, output_dir: Path | None = None) -> Path:
     from utils.dataframe_ops import prepare_df_for_excel
 
-    output_dir = Path(output_dir) if output_dir is not None else GENERATED_FILES
+    output_dir = Path(output_dir) if output_dir is not None else output_directory(GENERATED_FILES)
     output_dir.mkdir(parents=True, exist_ok=True)
     path = output_dir / f"ior_analysis_{uuid4().hex}.xlsx"
     columns = [c for c in (*MAIN_COLUMNS, *FINANCIAL_COLUMNS, "amount_is_null") if c in detail]
@@ -26,12 +28,9 @@ def export_details(detail: pd.DataFrame, output_dir: Path | None = None) -> Path
                 ws = writer.sheets[f"Последствия_{sheet}"]
                 ws.freeze_panes = "A2"
                 ws.auto_filter.ref = ws.dimensions
-                # Export descriptions as literal text, including leading '='.
-                for row in ws.iter_rows():
-                    for cell in row:
-                        if cell.data_type == "f":
-                            cell.data_type = "s"
+                force_literal_excel_cells(ws)
     except Exception:
         path.unlink(missing_ok=True)
         raise
+    register_artifact(path)
     return path

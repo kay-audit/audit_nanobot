@@ -25,5 +25,5 @@ async def run_analysis_mode(request: AnalysisRequest, store, *, ask=None, output
     result = render_report(request, data, metrics, events, hypotheses)
     if request.export_excel:
         path = await asyncio.to_thread(export_details, data.detail_df, output_dir)
-        result += f"\n\n📎 **Файл Excel**: [{path.name}]({path.as_posix()})"
+        # Delivery is handled by Nanobot media, not a local Markdown link.
     return result

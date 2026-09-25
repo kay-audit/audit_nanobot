@@ -37,6 +37,8 @@ from utils.data_store import (
 from utils.session_extract_manager import get_session_extract, set_session_extract
 from utils.bge_search_engine import build_and_cache_small_index, search_small_index
 from utils.dataframe_ops import aggregate_by_incident_id, prepare_df_for_excel
+from utils.ior_artifacts import output_directory, register_artifact
+from utils.excel_literal import force_literal_excel_cells
 try:
     from utils.local_qwen import answer_detail_with_qwen, classify_intent_with_qwen, answer_follow_up_with_qwen
 except ImportError as _qwen_import_error:  # import-safe unit-test runtime
@@ -820,7 +822,9 @@ def format_excel_inspection_markdown(
 
         top_tb = stats.get("top_tb")
         if top_tb:
-            lines.append(f"- **Преобладающий ТБ**: `{top_tb.get('label')}` ({top_tb.get('value')} инц., {top_tb.get('pct')}%)")
+            unit = "операций" if preset_name == "vozmeshenie_ior" else (
+                "последствий" if preset_name == "financial_consequences_ior" else "строк")
+            lines.append(f"- **Преобладающий ТБ**: `{top_tb.get('label')}` ({top_tb.get('value')} {unit}, {top_tb.get('pct')}%)")
 
         top_type = stats.get("top_type")
         if top_type:
@@ -854,13 +858,11 @@ def build_graceful_fallback_report(df: pd.DataFrame, xlsx_path: Optional[Path], 
     analyzer = get_analyzer(preset_name)
     if analyzer is not None and not df.empty:
         report = analyzer.prepare(df).deterministic_report()
-        if xlsx_path:
-            report += f"\n\n📊 **Файл выгрузки Excel сохранен по пути**: `{xlsx_path}`"
         return report
 
     lines = [
         "### ⚠️ Аналитический отчет по ИОР (Режим надежности / Graceful Fallback)",
-        f"*Примечание: Произошла задержка или сбой при генерации нарративных гипотез ({error_msg}). Сформирован детерминированный отчет на основе данных выгрузки.*\n"
+        "*Примечание: аналитический LLM-этап недоступен. Ниже приведены рассчитанные показатели выгрузки.*\n"
     ]
 
     if df.empty:
@@ -873,7 +875,6 @@ def build_graceful_fallback_report(df: pd.DataFrame, xlsx_path: Optional[Path], 
         lines = [format_vozmeshenie_header(metrics).rstrip()]
         lines.append(profile_dataframe(incidents, running_skill=preset_name))
         if xlsx_path:
-            lines.append(f"📊 **Файл выгрузки Excel сохранен по пути**: `{xlsx_path}`")
             excel_card = format_excel_inspection_markdown(
                 xlsx_path,
                 include_row_count=False,
@@ -881,7 +882,7 @@ def build_graceful_fallback_report(df: pd.DataFrame, xlsx_path: Optional[Path], 
             )
             if excel_card:
                 lines.append(excel_card)
-        return "\n\n".join(lines)
+        return "\n\n".join(lines + ["Гипотезы не были сформированы из-за недоступности аналитического LLM-этапа."])
 
     lines.append(profile_dataframe(df, running_skill=preset_name))
     lines.append("")
@@ -916,7 +917,6 @@ def build_graceful_fallback_report(df: pd.DataFrame, xlsx_path: Optional[Path], 
 
     lines.append("")
     if xlsx_path:
-        lines.append(f"📊 **Файл выгрузки Excel сохранен по пути**: `{xlsx_path}`")
         excel_card = format_excel_inspection_markdown(
             xlsx_path,
             include_row_count=preset_name != "vozmeshenie_ior",
@@ -925,7 +925,7 @@ def build_graceful_fallback_report(df: pd.DataFrame, xlsx_path: Optional[Path], 
         if excel_card:
             lines.append(excel_card)
 
-    return "\n".join(lines)
+    return "\n".join(lines + ["Гипотезы не были сформированы из-за недоступности аналитического LLM-этапа."])
 
 
 async def run_ior_report(
@@ -1088,7 +1088,7 @@ async def run_ior_report(
 
             df_export = prepare_df_for_excel(df_export)
 
-            output_dir = Path("workspace/data_store/generated_files")
+            output_dir = output_directory(Path("workspace/data_store/generated_files"))
             output_dir.mkdir(parents=True, exist_ok=True)
             file_id = str(uuid.uuid4())
             xlsx_path = output_dir / f"{file_id}.xlsx"
@@ -1100,10 +1100,14 @@ async def run_ior_report(
 
                 # 2. Сохраняем Excel с защитой от ошибок версии xlsxwriter
                 try:
-                    df_export.to_excel(xlsx_path, index=False, engine="openpyxl")
+                    with pd.ExcelWriter(xlsx_path, engine="openpyxl") as writer:
+                        df_export.to_excel(writer, index=False)
+                        force_literal_excel_cells(writer.sheets["Sheet1"])
                 except Exception:
                     try:
-                        df_export.to_excel(xlsx_path, index=False)
+                        with pd.ExcelWriter(xlsx_path, engine="openpyxl") as writer:
+                            df_export.to_excel(writer, index=False)
+                            force_literal_excel_cells(writer.sheets["Sheet1"])
                     except Exception:
                         import openpyxl
                         wb = openpyxl.Workbook()
@@ -1111,8 +1115,10 @@ async def run_ior_report(
                         ws.append([str(c) for c in df_export.columns])
                         for row in df_export.values.tolist():
                             ws.append([str(v) if (v is not None and not pd.isna(v)) else "" for v in row])
+                        force_literal_excel_cells(ws)
                         wb.save(xlsx_path)
                 logger.info(f"[ior_reports] Generated export files for query/preset '{preset}': {xlsx_path}")
+                register_artifact(xlsx_path)
             except Exception as export_err:
                 logger.warning(f"[ior_reports] Failed to write Excel/CSV files: {export_err}")
 
