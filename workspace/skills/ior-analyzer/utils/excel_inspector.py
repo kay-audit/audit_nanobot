@@ -107,11 +107,11 @@ def _inspect_pandas(xlsx_path: Path, *, sheet_name: str = "Отчет_ОпРис
         or _find_col(cols, "Идентификационный ключ", "инцидента") \
         or _find_col(cols, "incdnt_sid")
     col_date = _find_col(cols, "Дата ввода") or _find_col(cols, "incdnt_entry_dt")
-    col_tb = _find_col(cols, "уровень 2") \
-        or _find_col(cols, "Терр", "структура") \
-        or _find_col(cols, "уровень 3") \
+    col_tb = _find_col(cols, "орг. структура", "уровень 3") \
+        or _find_col(cols, "org_struct_lvl_3") \
+        or _find_col(cols, "орг. структура", "уровень 2") \
         or _find_col(cols, "org_struct_lvl_2") \
-        or _find_col(cols, "org_struct_lvl_3")
+        or _find_col(cols, "терр", "структура")
     col_type = _find_col(cols, "Тип события", "уровень 1") \
         or _find_col(cols, "тип", "уровень 1") \
         or _find_col(cols, "incdnt_type_lvl_1")

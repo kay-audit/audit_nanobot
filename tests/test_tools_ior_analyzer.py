@@ -41,6 +41,7 @@ def test_tool_metadata_and_schema():
     assert "ИОР" in tool.description
     assert tool.parameters["required"] == ["prompt"]
     assert "preset" in tool.parameters["properties"]
+    assert "session_id" not in tool.parameters["properties"]
     preset_description = tool.parameters["properties"]["preset"]["description"]
     assert "EVE-ID" in preset_description
     assert "DRP/SBR" in preset_description
@@ -95,9 +96,58 @@ async def test_execute_delegates_to_skill_runner(monkeypatch):
     }
 
 
+@pytest.mark.asyncio
+async def test_execute_delivers_exact_artifacts_to_request_session(monkeypatch, tmp_path):
+    from workspace.tools.ior_analyzer import IORAnalyzerTool, IORAnalyzerToolConfig
+    from nanobot.agent.tools.base import ToolResult
+    from nanobot.agent.tools.context import RequestContext, request_context
+    IORAnalyzerTool._prepare_skill_utils_namespace(Path(__file__).resolve().parent.parent / "workspace" / "skills" / "ior-analyzer")
+    from utils.ior_artifacts import output_directory, register_artifact
+    import utils.ior_artifacts as ior_artifacts
+    scope_directories = []
+    real_scope = ior_artifacts.artifact_scope
+    def test_scope(directory, paths):
+        scope_directories.append(directory)
+        return real_scope(tmp_path, paths)
+    monkeypatch.setattr(ior_artifacts, "artifact_scope", test_scope)
+    monkeypatch.setitem(sys.modules, "lib.services.skill_runtime_mode", None)
+
+    deliveries = []
+    class MessageTool:
+        async def execute(self, **kwargs):
+            deliveries.append(kwargs)
+            return ToolResult("sent")
+
+    async def fake_runner(**kwargs):
+        assert kwargs["session_id"] == "postgres:current"
+        directory = output_directory(Path("missing"))
+        directory.mkdir(parents=True, exist_ok=True)
+        for name in ("ior-test-artifact.xlsx", "ior-test-chart.png"):
+            path = directory / name
+            path.write_bytes(b"artifact")
+            register_artifact(path)
+        foreign = tmp_path.parent / f"{tmp_path.name}-foreign.png"
+        foreign.write_bytes(b"foreign")
+        register_artifact(foreign)
+        return "Отчёт без ссылки"
+
+    monkeypatch.setattr(IORAnalyzerTool, "_load_runner", staticmethod(lambda: fake_runner))
+    tool = IORAnalyzerTool(config=IORAnalyzerToolConfig(), message_tool=MessageTool())
+    context = RequestContext(channel="postgres", chat_id="chat-1", session_key="postgres:current")
+    with request_context(context):
+        assert await tool.execute(prompt="ИОР", session_id="other-session") == "Отчёт без ссылки"
+    assert scope_directories[0].name == "results"
+    assert scope_directories[0].parent.name == "postgres_current"
+    assert deliveries == [{
+        "content": "Отчёт без ссылки",
+        "media": [str(tmp_path / "ior-test-artifact.xlsx"), str(tmp_path / "ior-test-chart.png")],
+    }]
+
+
 def test_data_backend_factory_is_explicit(monkeypatch):
     """``IOR_DATA_BACKEND`` env-var controls which store ``get_data_store``
-    constructs (greenplum, local_duckdb, spark, or default cache).
+    constructs (greenplum, local_duckdb, duckdb, or default cache).
+    Nanobot Cache is selected by default or via ``NANOBOT_SKILLS_RUNTIME=testing``.
     """
     module = _load_data_store_module()
 
@@ -113,7 +163,7 @@ def test_data_backend_factory_is_explicit(monkeypatch):
     monkeypatch.setenv("NANOBOT_SKILLS_RUNTIME", "testing")
     module.reset_data_store()
     assert isinstance(module.get_data_store(), module.NanobotCacheStore)
-    # Без runtime = production → GreenplumStore (прямой SQL в GP).
+
     monkeypatch.delenv("NANOBOT_SKILLS_RUNTIME", raising=False)
     module.reset_data_store()
     assert isinstance(module.get_data_store(), module.GreenplumStore)

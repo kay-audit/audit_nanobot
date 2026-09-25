@@ -483,9 +483,7 @@ class AnalysisBundle:
             parts.extend([self.status_summary().rstrip(), self.scope_note()])
         if self.can_analyze:
             parts.append(self.profile.replace("{{DELETION_QWEN_SUMMARY}}", "").rstrip())
-            hypotheses = self.deterministic_hypotheses()
-            if hypotheses:
-                parts.append(hypotheses)
+            parts.append("Гипотезы не были сформированы из-за недоступности аналитического LLM-этапа.")
         return "\n\n".join(part for part in parts if part and part.strip())
 
     def chart_policy(self) -> dict[str, Any]:
