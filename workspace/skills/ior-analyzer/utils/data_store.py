@@ -60,6 +60,18 @@ DUCKDB_TABLES: dict[str, str] = {
     "appeals": "d6_appeals",
 }
 
+# DuckDB-кэш, публикуемый gateway (publish_path), хранит таблицы под
+# production-именами с префиксом схемы (как они лежат в PG, откуда были
+# синкнуты). Это РАЗНЫЕ bare-имена в DUCKDB_TABLES — те использует
+# LocalDuckDBStore (отдельный файл с упрощённой схемой для локальной отладки).
+DUCKDB_PUBLISHED_TABLES: dict[str, str] = {
+    "ior": "public.t_db_oarb_ior_d6_base_of_knowledge_ior",
+    "status": "public.t_db_oarb_ior_d6_base_of_knowledge_incident_stts_chng",
+    "recovery": "public.t_db_oarb_ior_d6_base_of_knowledge_incident_recovery",
+    "financial_impact": "public.t_db_oarb_ior_d6_base_of_knowledge_incident_fin_impact",
+    "nonfinancial_impact": "public.t_db_oarb_ior_d6_base_of_knowledge_incident_nonfin_impact",
+}
+
 HIVE_SCHEMA = "arnsdpsbx_t_team_sva_oarb_4"
 HIVE_TABLES: dict[str, str] = {
     "ior": f"{HIVE_SCHEMA}.d6_base_of_knowledge_ior",
@@ -288,8 +300,16 @@ class NanobotCacheStore:
         sql_query: str,
         params: Optional[Sequence[Any]] = None,
     ) -> pd.DataFrame:
+        # Gateway DuckDB-кэш (publish_path) хранит таблицы под production-именами
+        # с префиксом схемы (например, public.t_db_oarb_ior_d6_*), а GREENPLUM_TABLES
+        # содержит те же имена, но с GP-схемой (s_grnplm_ld_audit_da_project_34.t_db_oarb_ior_d6_*).
+        # Переписываем через DUCKDB_PUBLISHED_TABLES, чтобы DuckDB получил
+        # правильное имя. Это отличается от LocalDuckDBStore, который хранит
+        # таблицы под bare-именами (DUCKDB_TABLES).
+        clean_query = translate_physical_tables(sql_query, GREENPLUM_TABLES, DUCKDB_PUBLISHED_TABLES)
+        clean_query = translate_physical_tables(clean_query, HIVE_TABLES, DUCKDB_PUBLISHED_TABLES)
         result = self._provider.query_sql(
-            sql_query,
+            clean_query,
             list(params) if params is not None else None,
         )
         if result.get("status") != "success":
@@ -641,7 +661,7 @@ def _configured_backend() -> str:
     # Без явного override выбор делается по NANOBOT_SKILLS_RUNTIME:
     #   testing    → "cache"     (NanobotCacheStore: DuckDB-кэш из локальной PG,
     #                             имена таблиц переписываются translate_physical_tables
-    #                             в bare-имена DuckDB-кэша; PgDuckDbSyncService
+    #                             в имена DuckDB-кэша; PgDuckDbSyncService
     #                             синкает их из public.t_db_oarb_ior_d6_* в DEV)
     #   production → "greenplum" (GreenplumStore: прямой psycopg2 в GP,
     #                             SQL с s_grnplm_ld_audit_da_project_34.t_db_oarb_ior_d6_*)

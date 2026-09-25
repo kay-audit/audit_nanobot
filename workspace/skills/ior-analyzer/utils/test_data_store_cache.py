@@ -43,7 +43,6 @@ class TestNanobotCacheStore(unittest.TestCase):
         self.env.start()
         os.environ.pop("IOR_DATA_BACKEND", None)
         os.environ.pop("DATA_BACKEND", None)
-        os.environ.pop("NANOBOT_SKILLS_RUNTIME", None)
         os.environ.pop("IOR_CACHE_WAIT_SECONDS", None)
         os.environ.pop("IOR_CACHE_POLL_INTERVAL", None)
         data_store.reset_data_store()
@@ -53,10 +52,6 @@ class TestNanobotCacheStore(unittest.TestCase):
         self.env.stop()
 
     def test_default_backend_uses_gateway_cache(self) -> None:
-        # NANOBOT_SKILLS_RUNTIME=testing → cache (NanobotCacheStore) — default for
-        # local DEV. Без явного runtime и без IOR_DATA_BACKEND — production →
-        # GreenplumStore (см. test_default_backend_uses_greenplum_in_production).
-        os.environ["NANOBOT_SKILLS_RUNTIME"] = "testing"
         provider = _provider()
         with patch.object(data_store, "build_cache_provider", return_value=provider), patch.object(
             data_store.time, "sleep"
@@ -126,8 +121,6 @@ class TestNanobotCacheStore(unittest.TestCase):
         provider.refresh.assert_not_called()
 
     def test_missing_cache_has_no_local_or_greenplum_fallback(self) -> None:
-        # testing → ожидаем cache; без fallback на local DuckDB / Greenplum.
-        os.environ["NANOBOT_SKILLS_RUNTIME"] = "testing"
         provider = _provider(opens=False)
         with patch.object(data_store, "build_cache_provider", return_value=provider), patch.object(
             data_store, "LocalDuckDBStore", side_effect=AssertionError("local DuckDB fallback")
@@ -146,8 +139,6 @@ class TestNanobotCacheStore(unittest.TestCase):
         provider.refresh.assert_not_called()
 
     def test_cache_provider_construction_error_is_not_hidden(self) -> None:
-        # testing → cache backend; ошибка build_cache_provider должна подниматься.
-        os.environ["NANOBOT_SKILLS_RUNTIME"] = "testing"
         with patch.object(
             data_store, "build_cache_provider", side_effect=PermissionError("cache directory")
         ):
@@ -194,12 +185,8 @@ class TestNanobotCacheStore(unittest.TestCase):
         sleep.assert_not_called()
 
     def test_generic_data_backend_is_ignored(self) -> None:
-        # ``DATA_BACKEND=greenplum`` (legacy) НЕ должен переключать backend —
-        # runtime-aware логика смотрит только на NANOBOT_SKILLS_RUNTIME
-        # и IOR_DATA_BACKEND. Тест ставит testing → ожидаем cache.
-        os.environ["DATA_BACKEND"] = "greenplum"
-        os.environ["NANOBOT_SKILLS_RUNTIME"] = "testing"
         provider = _provider()
+        os.environ["DATA_BACKEND"] = "greenplum"
         with patch.object(data_store, "build_cache_provider", return_value=provider):
             self.assertIsInstance(data_store.get_data_store(), data_store.NanobotCacheStore)
 
