@@ -54,8 +54,28 @@ _DEFAULT_TABLES = (
 )
 
 
+_ENV_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
+
+
+def _resolve_env(value: str) -> str:
+    """Подставить ${VAR} из os.environ (как делает lib.services.config_service.resolve_value).
+
+    Не задана — оставляем литерал (не падаем, чтобы тесты с DSN-литералами работали).
+    """
+    def replace(m: re.Match[str]) -> str:
+        return os.environ.get(m.group(1), m.group(0))
+    return _ENV_RE.sub(replace, value)
+
+
 def _resolve_dsn(explicit: str | None) -> str:
-    """DSN в порядке приоритета: --dsn, $IOR_TEST_DSN, channels.postgres.dsn."""
+    """DSN в порядке приоритета: --dsn, $IOR_TEST_DSN, channels.postgres.dsn.
+
+    Глобальный параметр audit_nanobot: ``channels.postgres.dsn`` в ``project.json``
+    ссылается на ``${DATABASE_URL}`` и резолвится ``lib.services.config_service``
+    во время merge с ``.secrets.env``. Этот скрипт читает ``project.json``
+    напрямую (минуя ``config.py``), поэтому резолвит ``${VAR}`` через
+    ``os.environ`` самостоятельно — без дублирования DSN/host/port в коде ветки.
+    """
     if explicit:
         return explicit
     env_dsn = os.environ.get("IOR_TEST_DSN")
@@ -68,15 +88,17 @@ def _resolve_dsn(explicit: str | None) -> str:
         stripped = re.sub(r"/\*.*?\*/", "", stripped, flags=re.DOTALL)
         try:
             data = json.loads(stripped)
-            dsn = (((data or {}).get("channels") or {}).get("postgres") or {}).get("dsn")
-            if dsn:
-                return dsn
+            raw_dsn = (((data or {}).get("channels") or {}).get("postgres") or {}).get("dsn")
+            if raw_dsn:
+                resolved = _resolve_env(raw_dsn)
+                if resolved and "${" not in resolved:
+                    return resolved
         except json.JSONDecodeError:
             pass
     raise SystemExit(
         "Не удалось разрешить DSN. "
         "Укажите --dsn или переменную IOR_TEST_DSN, "
-        "или channels.postgres.dsn в project.json."
+        "или channels.postgres.dsn в project.json с DATABASE_URL в .secrets.env."
     )
 
 

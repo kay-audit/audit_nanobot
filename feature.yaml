@@ -60,7 +60,6 @@ requires:
       source: existing
     - name: IOR_TEST_DSN
       source: optional            # переопределяет channels.postgres.dsn для pg_loader
-      description: "DSN для тестовой БД фичи (test_d6 schema); опциональная override"
   sql_migrations: []
 
 skills:
@@ -177,21 +176,12 @@ testing:
     # (workspace.utils.db) для аудита, ad-hoc запросов, отчётов.
     # Запускается ПОСЛЕ data_generator (использует тот же JSON).
     # Требует: V005 миграция применена + $IOR_TEST_DSN или channels.postgres.dsn.
+    # Тот же JSON может быть залит в production-таблицы IOR (public.t_db_oarb_ior_d6_*)
+    # скриптом workspace/skills/ior-analyzer/testing/pg_loader_real.py после V006.
     path: workspace/skills/ior-analyzer/testing/pg_loader.py
     command: "python workspace/skills/ior-analyzer/testing/pg_loader.py --json workspace/data_store/cache/testing/ior/ior.json --schema test_d6 --table ior_events"
     requires_migration: V005__d6_ior_test_schema
     idempotent: true   # TRUNCATE + bulk INSERT в одной транзакции
-  pg_loader_real:
-    # Заливает тот же JSON в production-таблицы IOR (public.t_db_oarb_ior_d6_*).
-    # Это второй вариант SQL-flow: имена таблиц совпадают с ПРОМ, схема — наша.
-    # Используется для end-to-end проверки ior_analyzer через DuckDB-кэш
-    # (тот же путь, что и production). Требует: V006 миграция применена +
-    # $IOR_TEST_DSN или channels.postgres.dsn.
-    # Маппинг JSON→production-колонки — внутри pg_loader_real.py.
-    path: workspace/skills/ior-analyzer/testing/pg_loader_real.py
-    command: "python workspace/skills/ior-analyzer/testing/pg_loader_real.py --json workspace/data_store/cache/testing/ior/ior.json --schema public"
-    requires_migration: V006__d6_ior_tables_real
-    idempotent: true   # TRUNCATE CASCADE + bulk INSERT в одной транзакции
   runner:
     path: workspace/skills/ior-analyzer/testing/runner.py
     smoke_command: "python workspace/skills/ior-analyzer/testing/runner.py --smoke"
@@ -229,6 +219,6 @@ isolation:
     - workspace/tools/ior_analyzer.py                    # убрана JSON-ветка; testing идёт через ior_reports с другим backend
   config_keys_added:
     - gateway.ior_analyzer.enable
-    - skills.ior-analyzer.enabled
-    - skills.ior-analyzer.tables
+    - skills.ior_analyzer.enabled
+    - skills.ior_analyzer.tables
   config_keys_removed: []
