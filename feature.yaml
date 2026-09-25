@@ -190,7 +190,7 @@ testing:
       contains_section: "Финансовые потери"
       min_records_in_evidence: 1
   pytest:
-    command: "python -m pytest tests/test_tools_ior_analyzer.py tests/test_ior_bge_followup_contract.py -q --tb=short -p no:cacheprovider"
+    command: "C:\\Users\\pasco\\opencode_projects\\audit_point\\audit_bridge\\venvs\\bot_venv\\Scripts\\python.exe -m pytest tests/test_tools_ior_analyzer.py tests/test_ior_bge_followup_contract.py -q --tb=short -p no:cacheprovider"
     marker_required_strict: true
     marker_optional_strict: false
 
