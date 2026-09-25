@@ -9,18 +9,13 @@ from __future__ import annotations
 
 import logging
 import sys
-import traceback
 from importlib import import_module
 from pathlib import Path
 from typing import Any, ClassVar
 
 from nanobot.agent.tools.base import Tool, ToolResult, tool_parameters
+from nanobot.agent.tools.context import current_request_context, current_request_session_key
 from pydantic import BaseModel
-from lib.services.skill_runtime_mode import (
-    current_tool_session_id,
-    load_testing_module,
-    log_skill_runtime,
-)
 
 
 logger = logging.getLogger(__name__)
@@ -59,11 +54,6 @@ class IORAnalyzerToolConfig(BaseModel):
                 "фильтров по DRP/SBR, периоду, оргструктуре или сумме передавай "
                 "ior_hypothesis либо не передавай preset."
             ),
-        },
-        "session_id": {
-            "type": "string",
-            "default": "webui_session",
-            "description": "Идентификатор сессии для продолжения анализа ИОР.",
         },
     },
     "required": ["prompt"],
@@ -105,10 +95,13 @@ class IORAnalyzerTool(Tool):
         except Exception:
             logger.exception("Invalid gateway.ior_analyzer configuration; using defaults")
             config = cls.config_cls()()
-        return cls(config=config)
+        agent = getattr(ctx, "_agent_ref", None)
+        message_tool = agent.tools.get("message") if agent is not None else None
+        return cls(config=config, message_tool=message_tool)
 
-    def __init__(self, *, config: IORAnalyzerToolConfig) -> None:
+    def __init__(self, *, config: IORAnalyzerToolConfig, message_tool: Any = None) -> None:
         self.config = config
+        self._message_tool = message_tool
 
     @property
     def name(self) -> str:
@@ -120,7 +113,7 @@ class IORAnalyzerTool(Tool):
             "Анализирует инциденты операционного риска (ИОР): финансовые и "
             "нефинансовые последствия, потери, возмещения, удалённые ИОР, "
             "кредитную задолженность и аналитические гипотезы. Возвращает "
-            "готовый отчёт и при необходимости ссылку на выгрузку. Досье "
+            "готовый отчёт; выгрузки и графики передаются отдельными вложениями. Досье "
             "report_period_specific_ior выбирается только для конкретного EVE-ID; "
             "DRP/SBR и период являются ad-hoc фильтрами."
         )
@@ -183,30 +176,45 @@ class IORAnalyzerTool(Tool):
         *,
         prompt: str,
         preset: str | None = None,
-        session_id: str = "webui_session",
+        session_id: str | None = None,
         **_kwargs: Any,
     ) -> str:
         try:
-            runtime = log_skill_runtime("ior-analyzer", logger)
-            resolved_session = current_tool_session_id(
-                None if session_id == "webui_session" else session_id
-            )
-            if runtime == "testing":
-                runner = load_testing_module("ior-analyzer", "runner")
-                return await runner.run_testing_report(
+            runner = self._load_runner()
+            self._prepare_skill_utils_namespace(Path(__file__).resolve().parents[1] / "skills" / "ior-analyzer")
+            from workspace.utils.session_key import safe_session_key
+            from utils.ior_artifacts import artifact_scope
+
+            request_context = current_request_context()
+            request_session = current_request_session_key()
+            if request_context is not None and not request_session:
+                raise RuntimeError("Current request has no session key")
+            resolved_session = request_session or session_id or "webui_session"
+            paths: list[Path] = []
+            workspace = Path(__file__).resolve().parents[1]
+            output = workspace / "data_store" / "cache" / "sessions" / safe_session_key(resolved_session) / "results"
+            with artifact_scope(output, paths):
+                report = await runner(
                     preset_name=preset,
                     session_id=resolved_session,
                     user_prompt=prompt,
                 )
-            runner = self._load_runner()
-            return await runner(
-                preset_name=preset,
-                session_id=resolved_session,
-                user_prompt=prompt,
-            )
+            if paths:
+                # The stock message tool already publishes exact media paths to
+                # the active channel.  Its content is the full report because
+                # Nanobot suppresses the later final reply after message(...).
+                if request_context is not None:
+                    if self._message_tool is None:
+                        raise RuntimeError("MessageTool is unavailable for IOR artifact delivery")
+                    delivery = await self._message_tool.execute(
+                        content=report, media=[str(path) for path in paths]
+                    )
+                    if getattr(delivery, "is_error", False):
+                        raise RuntimeError(f"IOR artifact delivery failed: {delivery}")
+            return report
         except Exception as exc:
             logger.exception("IOR analysis failed")
             return ToolResult.error(
-                "Не удалось выполнить анализ ИОР "
-                f"({type(exc).__name__}): {exc}\n\n{traceback.format_exc()}"
+                f"Не удалось выполнить анализ ИОР ({type(exc).__name__}). "
+                "Подробности записаны в журнал."
             )
