@@ -1,0 +1,5166 @@
+{
+  "org-0137": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0137",
+      "count": 68
+    }
+  ],
+  "org-0101": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0101",
+      "count": 67
+    }
+  ],
+  "org-0003": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0003",
+      "count": 65
+    }
+  ],
+  "org-0016": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0016",
+      "count": 64
+    }
+  ],
+  "org-0110": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0110",
+      "count": 63
+    }
+  ],
+  "org-0176": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0176",
+      "count": 63
+    }
+  ],
+  "org-0190": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0190",
+      "count": 63
+    }
+  ],
+  "org-0133": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0133",
+      "count": 63
+    }
+  ],
+  "org-0037": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0037",
+      "count": 62
+    }
+  ],
+  "org-0105": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0105",
+      "count": 62
+    }
+  ],
+  "org-0198": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0198",
+      "count": 61
+    }
+  ],
+  "org-0174": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0174",
+      "count": 61
+    }
+  ],
+  "org-0168": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0168",
+      "count": 60
+    }
+  ],
+  "org-0060": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0060",
+      "count": 60
+    }
+  ],
+  "org-0106": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0106",
+      "count": 60
+    }
+  ],
+  "org-0177": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0177",
+      "count": 60
+    }
+  ],
+  "org-0014": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0014",
+      "count": 60
+    }
+  ],
+  "org-0181": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0181",
+      "count": 60
+    }
+  ],
+  "org-0116": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0116",
+      "count": 59
+    }
+  ],
+  "org-0070": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0070",
+      "count": 59
+    }
+  ],
+  "org-0078": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0078",
+      "count": 59
+    }
+  ],
+  "org-0152": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0152",
+      "count": 59
+    }
+  ],
+  "org-0126": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0126",
+      "count": 58
+    }
+  ],
+  "org-0144": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0144",
+      "count": 58
+    }
+  ],
+  "org-0062": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0062",
+      "count": 58
+    }
+  ],
+  "org-0124": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0124",
+      "count": 58
+    }
+  ],
+  "org-0109": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0109",
+      "count": 58
+    }
+  ],
+  "org-0194": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0194",
+      "count": 58
+    }
+  ],
+  "org-0138": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0138",
+      "count": 58
+    }
+  ],
+  "org-0135": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0135",
+      "count": 58
+    }
+  ],
+  "org-0079": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0079",
+      "count": 57
+    }
+  ],
+  "org-0061": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0061",
+      "count": 57
+    }
+  ],
+  "org-0023": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0023",
+      "count": 57
+    }
+  ],
+  "org-0119": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0119",
+      "count": 57
+    }
+  ],
+  "org-0018": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0018",
+      "count": 57
+    }
+  ],
+  "org-0163": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0163",
+      "count": 56
+    }
+  ],
+  "org-0017": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0017",
+      "count": 56
+    }
+  ],
+  "org-0035": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0035",
+      "count": 56
+    }
+  ],
+  "org-0180": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0180",
+      "count": 56
+    }
+  ],
+  "org-0155": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0155",
+      "count": 56
+    }
+  ],
+  "org-0140": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0140",
+      "count": 56
+    }
+  ],
+  "org-0132": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0132",
+      "count": 56
+    }
+  ],
+  "org-0139": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0139",
+      "count": 56
+    }
+  ],
+  "org-0156": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0156",
+      "count": 56
+    }
+  ],
+  "org-0027": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0027",
+      "count": 55
+    }
+  ],
+  "org-0025": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0025",
+      "count": 55
+    }
+  ],
+  "org-0051": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0051",
+      "count": 55
+    }
+  ],
+  "org-0009": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0009",
+      "count": 55
+    }
+  ],
+  "org-0074": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0074",
+      "count": 55
+    }
+  ],
+  "org-0054": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0054",
+      "count": 55
+    }
+  ],
+  "org-0084": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0084",
+      "count": 55
+    }
+  ],
+  "org-0067": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0067",
+      "count": 55
+    }
+  ],
+  "org-0048": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0048",
+      "count": 55
+    }
+  ],
+  "org-0127": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0127",
+      "count": 55
+    }
+  ],
+  "org-0169": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0169",
+      "count": 55
+    }
+  ],
+  "org-0121": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0121",
+      "count": 55
+    }
+  ],
+  "org-0026": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0026",
+      "count": 55
+    }
+  ],
+  "org-0012": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0012",
+      "count": 55
+    }
+  ],
+  "org-0146": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0146",
+      "count": 55
+    }
+  ],
+  "org-0022": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0022",
+      "count": 55
+    }
+  ],
+  "org-0131": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0131",
+      "count": 54
+    }
+  ],
+  "org-0191": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0191",
+      "count": 54
+    }
+  ],
+  "org-0066": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0066",
+      "count": 54
+    }
+  ],
+  "org-0164": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0164",
+      "count": 54
+    }
+  ],
+  "org-0197": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0197",
+      "count": 54
+    }
+  ],
+  "org-0049": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0049",
+      "count": 54
+    }
+  ],
+  "org-0058": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0058",
+      "count": 54
+    }
+  ],
+  "org-0081": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0081",
+      "count": 54
+    }
+  ],
+  "org-0162": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0162",
+      "count": 53
+    }
+  ],
+  "org-0099": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0099",
+      "count": 53
+    }
+  ],
+  "org-0178": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0178",
+      "count": 53
+    }
+  ],
+  "org-0098": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0098",
+      "count": 53
+    }
+  ],
+  "org-0103": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0103",
+      "count": 52
+    }
+  ],
+  "org-0052": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0052",
+      "count": 52
+    }
+  ],
+  "org-0063": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0063",
+      "count": 52
+    }
+  ],
+  "org-0073": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0073",
+      "count": 52
+    }
+  ],
+  "org-0046": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0046",
+      "count": 52
+    }
+  ],
+  "org-0123": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0123",
+      "count": 52
+    }
+  ],
+  "org-0195": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0195",
+      "count": 52
+    }
+  ],
+  "org-0019": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0019",
+      "count": 52
+    }
+  ],
+  "org-0113": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0113",
+      "count": 52
+    }
+  ],
+  "org-0160": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0160",
+      "count": 52
+    }
+  ],
+  "org-0096": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0096",
+      "count": 52
+    }
+  ],
+  "org-0004": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0004",
+      "count": 52
+    }
+  ],
+  "org-0085": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0085",
+      "count": 52
+    }
+  ],
+  "org-0153": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0153",
+      "count": 52
+    }
+  ],
+  "org-0159": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0159",
+      "count": 52
+    }
+  ],
+  "org-0147": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0147",
+      "count": 51
+    }
+  ],
+  "org-0034": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0034",
+      "count": 51
+    }
+  ],
+  "org-0149": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0149",
+      "count": 51
+    }
+  ],
+  "org-0001": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0001",
+      "count": 51
+    }
+  ],
+  "org-0148": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0148",
+      "count": 51
+    }
+  ],
+  "org-0045": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0045",
+      "count": 51
+    }
+  ],
+  "org-0044": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0044",
+      "count": 51
+    }
+  ],
+  "org-0188": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0188",
+      "count": 51
+    }
+  ],
+  "org-0029": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0029",
+      "count": 51
+    }
+  ],
+  "org-0031": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0031",
+      "count": 51
+    }
+  ],
+  "org-0196": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0196",
+      "count": 50
+    }
+  ],
+  "org-0015": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0015",
+      "count": 50
+    }
+  ],
+  "org-0050": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0050",
+      "count": 50
+    }
+  ],
+  "org-0055": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0055",
+      "count": 50
+    }
+  ],
+  "org-0008": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0008",
+      "count": 50
+    }
+  ],
+  "org-0192": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0192",
+      "count": 50
+    }
+  ],
+  "org-0189": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0189",
+      "count": 50
+    }
+  ],
+  "org-0069": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0069",
+      "count": 50
+    }
+  ],
+  "org-0056": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0056",
+      "count": 50
+    }
+  ],
+  "org-0171": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0171",
+      "count": 50
+    }
+  ],
+  "org-0006": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0006",
+      "count": 50
+    }
+  ],
+  "org-0053": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0053",
+      "count": 50
+    }
+  ],
+  "org-0033": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0033",
+      "count": 50
+    }
+  ],
+  "org-0020": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0020",
+      "count": 50
+    }
+  ],
+  "org-0047": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0047",
+      "count": 50
+    }
+  ],
+  "org-0111": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0111",
+      "count": 49
+    }
+  ],
+  "org-0095": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0095",
+      "count": 49
+    }
+  ],
+  "org-0032": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0032",
+      "count": 49
+    }
+  ],
+  "org-0011": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0011",
+      "count": 49
+    }
+  ],
+  "org-0040": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0040",
+      "count": 49
+    }
+  ],
+  "org-0118": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0118",
+      "count": 49
+    }
+  ],
+  "org-0093": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0093",
+      "count": 49
+    }
+  ],
+  "org-0193": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0193",
+      "count": 49
+    }
+  ],
+  "org-0038": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0038",
+      "count": 49
+    }
+  ],
+  "org-0104": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0104",
+      "count": 48
+    }
+  ],
+  "org-0182": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0182",
+      "count": 48
+    }
+  ],
+  "org-0183": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0183",
+      "count": 48
+    }
+  ],
+  "org-0112": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0112",
+      "count": 48
+    }
+  ],
+  "org-0150": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0150",
+      "count": 48
+    }
+  ],
+  "org-0024": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0024",
+      "count": 48
+    }
+  ],
+  "org-0129": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0129",
+      "count": 48
+    }
+  ],
+  "org-0057": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0057",
+      "count": 48
+    }
+  ],
+  "org-0077": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0077",
+      "count": 47
+    }
+  ],
+  "org-0090": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0090",
+      "count": 47
+    }
+  ],
+  "org-0041": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0041",
+      "count": 47
+    }
+  ],
+  "org-0082": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0082",
+      "count": 47
+    }
+  ],
+  "org-0094": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0094",
+      "count": 47
+    }
+  ],
+  "org-0092": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0092",
+      "count": 47
+    }
+  ],
+  "org-0173": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0173",
+      "count": 46
+    }
+  ],
+  "org-0088": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0088",
+      "count": 46
+    }
+  ],
+  "org-0128": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0128",
+      "count": 46
+    }
+  ],
+  "org-0117": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0117",
+      "count": 46
+    }
+  ],
+  "org-0161": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0161",
+      "count": 46
+    }
+  ],
+  "org-0002": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0002",
+      "count": 46
+    }
+  ],
+  "org-0185": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0185",
+      "count": 46
+    }
+  ],
+  "org-0083": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0083",
+      "count": 46
+    }
+  ],
+  "org-0028": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0028",
+      "count": 46
+    }
+  ],
+  "org-0158": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0158",
+      "count": 46
+    }
+  ],
+  "org-0114": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0114",
+      "count": 46
+    }
+  ],
+  "org-0166": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0166",
+      "count": 46
+    }
+  ],
+  "org-0108": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0108",
+      "count": 46
+    }
+  ],
+  "org-0071": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0071",
+      "count": 45
+    }
+  ],
+  "org-0141": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0141",
+      "count": 45
+    }
+  ],
+  "org-0097": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0097",
+      "count": 45
+    }
+  ],
+  "org-0010": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0010",
+      "count": 45
+    }
+  ],
+  "org-0136": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0136",
+      "count": 45
+    }
+  ],
+  "org-0042": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0042",
+      "count": 45
+    }
+  ],
+  "org-0059": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0059",
+      "count": 44
+    }
+  ],
+  "org-0030": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0030",
+      "count": 44
+    }
+  ],
+  "org-0075": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0075",
+      "count": 44
+    }
+  ],
+  "org-0039": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0039",
+      "count": 44
+    }
+  ],
+  "org-0107": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0107",
+      "count": 44
+    }
+  ],
+  "org-0120": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0120",
+      "count": 44
+    }
+  ],
+  "org-0172": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0172",
+      "count": 44
+    }
+  ],
+  "org-0065": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0065",
+      "count": 44
+    }
+  ],
+  "org-0122": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0122",
+      "count": 44
+    }
+  ],
+  "org-0086": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0086",
+      "count": 44
+    }
+  ],
+  "org-0089": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0089",
+      "count": 43
+    }
+  ],
+  "org-0068": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0068",
+      "count": 43
+    }
+  ],
+  "org-0200": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0200",
+      "count": 43
+    }
+  ],
+  "org-0005": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0005",
+      "count": 43
+    }
+  ],
+  "org-0130": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0130",
+      "count": 43
+    }
+  ],
+  "org-0165": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0165",
+      "count": 42
+    }
+  ],
+  "org-0087": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0087",
+      "count": 42
+    }
+  ],
+  "org-0157": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0157",
+      "count": 42
+    }
+  ],
+  "org-0102": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0102",
+      "count": 42
+    }
+  ],
+  "org-0007": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0007",
+      "count": 42
+    }
+  ],
+  "org-0199": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0199",
+      "count": 42
+    }
+  ],
+  "org-0142": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0142",
+      "count": 42
+    }
+  ],
+  "org-0175": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0175",
+      "count": 41
+    }
+  ],
+  "org-0167": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0167",
+      "count": 41
+    }
+  ],
+  "org-0170": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0170",
+      "count": 41
+    }
+  ],
+  "org-0179": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0179",
+      "count": 40
+    }
+  ],
+  "org-0036": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0036",
+      "count": 40
+    }
+  ],
+  "org-0154": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0154",
+      "count": 40
+    }
+  ],
+  "org-0186": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0186",
+      "count": 40
+    }
+  ],
+  "org-0143": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0143",
+      "count": 40
+    }
+  ],
+  "org-0064": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0064",
+      "count": 40
+    }
+  ],
+  "org-0100": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0100",
+      "count": 39
+    }
+  ],
+  "org-0134": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0134",
+      "count": 39
+    }
+  ],
+  "org-0184": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0184",
+      "count": 39
+    }
+  ],
+  "org-0076": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0076",
+      "count": 38
+    }
+  ],
+  "org-0043": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0043",
+      "count": 37
+    }
+  ],
+  "org-0080": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0080",
+      "count": 37
+    }
+  ],
+  "org-0145": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0145",
+      "count": 37
+    }
+  ],
+  "org-0021": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0021",
+      "count": 37
+    }
+  ],
+  "org-0115": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0115",
+      "count": 36
+    }
+  ],
+  "org-0187": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0187",
+      "count": 36
+    }
+  ],
+  "org-0013": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0013",
+      "count": 35
+    }
+  ],
+  "org-0125": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0125",
+      "count": 33
+    }
+  ],
+  "org-0072": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0072",
+      "count": 33
+    }
+  ],
+  "org-0151": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0151",
+      "count": 32
+    }
+  ],
+  "org-0091": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_id",
+      "value": "ORG-0091",
+      "count": 30
+    }
+  ],
+  "блок \"управление рисками\"": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_2_name",
+      "value": "Блок \"Управление рисками\"",
+      "count": 2036
+    }
+  ],
+  "блок \"технологии\"": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_2_name",
+      "value": "Блок \"Технологии\"",
+      "count": 2025
+    }
+  ],
+  "блок \"корпоративные клиенты\"": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_2_name",
+      "value": "Блок \"Корпоративные клиенты\"",
+      "count": 2022
+    }
+  ],
+  "блок \"сеть продаж\"": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_2_name",
+      "value": "Блок \"Сеть продаж\"",
+      "count": 1966
+    }
+  ],
+  "блок \"розничный бизнес\"": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_2_name",
+      "value": "Блок \"Розничный бизнес\"",
+      "count": 1951
+    }
+  ],
+  "поволжский банк": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_3_name",
+      "value": "Поволжский банк",
+      "count": 963
+    }
+  ],
+  "юго-западный банк": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_3_name",
+      "value": "Юго-Западный банк",
+      "count": 944
+    }
+  ],
+  "центрально-чернозёмный банк": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_3_name",
+      "value": "Центрально-Чернозёмный банк",
+      "count": 937
+    }
+  ],
+  "волго-вятский банк": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_3_name",
+      "value": "Волго-Вятский банк",
+      "count": 937
+    }
+  ],
+  "московский банк": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_3_name",
+      "value": "Московский банк",
+      "count": 918
+    }
+  ],
+  "северо-западный банк": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_3_name",
+      "value": "Северо-Западный банк",
+      "count": 913
+    }
+  ],
+  "уральский банк": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_3_name",
+      "value": "Уральский банк",
+      "count": 898
+    }
+  ],
+  "сибирский банк": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_3_name",
+      "value": "Сибирский банк",
+      "count": 896
+    }
+  ],
+  "дальневосточный банк": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_3_name",
+      "value": "Дальневосточный банк",
+      "count": 893
+    }
+  ],
+  "байкальский банк": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_3_name",
+      "value": "Байкальский банк",
+      "count": 872
+    }
+  ],
+  "среднерусский банк": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_3_name",
+      "value": "Среднерусский банк",
+      "count": 829
+    }
+  ],
+  "дивизион 9": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_4_name",
+      "value": "Дивизион 9",
+      "count": 365
+    }
+  ],
+  "дивизион 7": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_4_name",
+      "value": "Дивизион 7",
+      "count": 358
+    }
+  ],
+  "дивизион 22": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_4_name",
+      "value": "Дивизион 22",
+      "count": 356
+    }
+  ],
+  "дивизион 29": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_4_name",
+      "value": "Дивизион 29",
+      "count": 354
+    }
+  ],
+  "дивизион 15": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_4_name",
+      "value": "Дивизион 15",
+      "count": 354
+    }
+  ],
+  "дивизион 6": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_4_name",
+      "value": "Дивизион 6",
+      "count": 353
+    }
+  ],
+  "дивизион 26": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_4_name",
+      "value": "Дивизион 26",
+      "count": 352
+    }
+  ],
+  "дивизион 1": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_4_name",
+      "value": "Дивизион 1",
+      "count": 351
+    }
+  ],
+  "дивизион 30": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_4_name",
+      "value": "Дивизион 30",
+      "count": 345
+    }
+  ],
+  "дивизион 25": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_4_name",
+      "value": "Дивизион 25",
+      "count": 344
+    }
+  ],
+  "дивизион 27": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_4_name",
+      "value": "Дивизион 27",
+      "count": 343
+    }
+  ],
+  "дивизион 18": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_4_name",
+      "value": "Дивизион 18",
+      "count": 341
+    }
+  ],
+  "дивизион 10": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_4_name",
+      "value": "Дивизион 10",
+      "count": 340
+    }
+  ],
+  "дивизион 11": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_4_name",
+      "value": "Дивизион 11",
+      "count": 339
+    }
+  ],
+  "дивизион 5": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_4_name",
+      "value": "Дивизион 5",
+      "count": 339
+    }
+  ],
+  "дивизион 28": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_4_name",
+      "value": "Дивизион 28",
+      "count": 338
+    }
+  ],
+  "дивизион 19": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_4_name",
+      "value": "Дивизион 19",
+      "count": 332
+    }
+  ],
+  "дивизион 20": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_4_name",
+      "value": "Дивизион 20",
+      "count": 330
+    }
+  ],
+  "дивизион 12": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_4_name",
+      "value": "Дивизион 12",
+      "count": 326
+    }
+  ],
+  "дивизион 16": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_4_name",
+      "value": "Дивизион 16",
+      "count": 324
+    }
+  ],
+  "дивизион 4": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_4_name",
+      "value": "Дивизион 4",
+      "count": 324
+    }
+  ],
+  "дивизион 24": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_4_name",
+      "value": "Дивизион 24",
+      "count": 321
+    }
+  ],
+  "дивизион 3": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_4_name",
+      "value": "Дивизион 3",
+      "count": 319
+    }
+  ],
+  "дивизион 13": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_4_name",
+      "value": "Дивизион 13",
+      "count": 316
+    }
+  ],
+  "дивизион 21": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_4_name",
+      "value": "Дивизион 21",
+      "count": 315
+    }
+  ],
+  "дивизион 23": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_4_name",
+      "value": "Дивизион 23",
+      "count": 313
+    }
+  ],
+  "дивизион 8": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_4_name",
+      "value": "Дивизион 8",
+      "count": 313
+    }
+  ],
+  "дивизион 14": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_4_name",
+      "value": "Дивизион 14",
+      "count": 308
+    }
+  ],
+  "дивизион 2": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_4_name",
+      "value": "Дивизион 2",
+      "count": 294
+    }
+  ],
+  "дивизион 17": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_4_name",
+      "value": "Дивизион 17",
+      "count": 293
+    }
+  ],
+  "управление 20": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 20",
+      "count": 224
+    },
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_4_name",
+      "value": "Управление 20",
+      "count": 255
+    }
+  ],
+  "управление 30": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 30",
+      "count": 223
+    },
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_4_name",
+      "value": "Управление 30",
+      "count": 261
+    }
+  ],
+  "управление 27": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 27",
+      "count": 222
+    },
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_4_name",
+      "value": "Управление 27",
+      "count": 248
+    }
+  ],
+  "управление 4": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 4",
+      "count": 221
+    },
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_4_name",
+      "value": "Управление 4",
+      "count": 248
+    }
+  ],
+  "управление 17": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 17",
+      "count": 216
+    },
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_4_name",
+      "value": "Управление 17",
+      "count": 224
+    }
+  ],
+  "управление 25": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 25",
+      "count": 212
+    },
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_4_name",
+      "value": "Управление 25",
+      "count": 254
+    }
+  ],
+  "управление 42": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 42",
+      "count": 210
+    }
+  ],
+  "управление 5": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 5",
+      "count": 210
+    },
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_4_name",
+      "value": "Управление 5",
+      "count": 228
+    }
+  ],
+  "управление 8": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 8",
+      "count": 210
+    },
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_4_name",
+      "value": "Управление 8",
+      "count": 254
+    }
+  ],
+  "управление 26": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 26",
+      "count": 210
+    },
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_4_name",
+      "value": "Управление 26",
+      "count": 277
+    }
+  ],
+  "управление 47": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 47",
+      "count": 210
+    }
+  ],
+  "управление 36": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 36",
+      "count": 209
+    },
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_4_name",
+      "value": "Управление 36",
+      "count": 215
+    }
+  ],
+  "управление 39": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 39",
+      "count": 209
+    },
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_4_name",
+      "value": "Управление 39",
+      "count": 244
+    }
+  ],
+  "управление 28": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 28",
+      "count": 209
+    },
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_4_name",
+      "value": "Управление 28",
+      "count": 210
+    }
+  ],
+  "управление 34": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 34",
+      "count": 209
+    },
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_4_name",
+      "value": "Управление 34",
+      "count": 242
+    }
+  ],
+  "управление 33": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 33",
+      "count": 209
+    },
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_4_name",
+      "value": "Управление 33",
+      "count": 255
+    }
+  ],
+  "управление 43": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 43",
+      "count": 209
+    }
+  ],
+  "управление 37": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 37",
+      "count": 207
+    },
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_4_name",
+      "value": "Управление 37",
+      "count": 275
+    }
+  ],
+  "управление 29": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 29",
+      "count": 204
+    },
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_4_name",
+      "value": "Управление 29",
+      "count": 245
+    }
+  ],
+  "управление 13": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 13",
+      "count": 204
+    },
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_4_name",
+      "value": "Управление 13",
+      "count": 230
+    }
+  ],
+  "управление 22": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 22",
+      "count": 203
+    },
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_4_name",
+      "value": "Управление 22",
+      "count": 266
+    }
+  ],
+  "управление 40": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 40",
+      "count": 203
+    },
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_4_name",
+      "value": "Управление 40",
+      "count": 218
+    }
+  ],
+  "управление 23": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 23",
+      "count": 201
+    },
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_4_name",
+      "value": "Управление 23",
+      "count": 267
+    }
+  ],
+  "управление 18": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 18",
+      "count": 200
+    },
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_4_name",
+      "value": "Управление 18",
+      "count": 238
+    }
+  ],
+  "управление 15": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 15",
+      "count": 199
+    },
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_4_name",
+      "value": "Управление 15",
+      "count": 252
+    }
+  ],
+  "управление 19": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 19",
+      "count": 199
+    },
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_4_name",
+      "value": "Управление 19",
+      "count": 263
+    }
+  ],
+  "управление 31": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 31",
+      "count": 198
+    },
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_4_name",
+      "value": "Управление 31",
+      "count": 274
+    }
+  ],
+  "управление 21": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 21",
+      "count": 198
+    },
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_4_name",
+      "value": "Управление 21",
+      "count": 234
+    }
+  ],
+  "управление 49": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 49",
+      "count": 198
+    }
+  ],
+  "управление 38": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 38",
+      "count": 198
+    },
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_4_name",
+      "value": "Управление 38",
+      "count": 268
+    }
+  ],
+  "управление 12": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 12",
+      "count": 197
+    },
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_4_name",
+      "value": "Управление 12",
+      "count": 258
+    }
+  ],
+  "управление 10": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 10",
+      "count": 197
+    },
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_4_name",
+      "value": "Управление 10",
+      "count": 250
+    }
+  ],
+  "управление 1": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 1",
+      "count": 196
+    },
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_4_name",
+      "value": "Управление 1",
+      "count": 248
+    }
+  ],
+  "управление 50": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 50",
+      "count": 196
+    }
+  ],
+  "управление 45": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 45",
+      "count": 195
+    }
+  ],
+  "управление 24": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 24",
+      "count": 194
+    },
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_4_name",
+      "value": "Управление 24",
+      "count": 273
+    }
+  ],
+  "управление 11": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 11",
+      "count": 193
+    },
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_4_name",
+      "value": "Управление 11",
+      "count": 261
+    }
+  ],
+  "управление 14": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 14",
+      "count": 192
+    },
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_4_name",
+      "value": "Управление 14",
+      "count": 253
+    }
+  ],
+  "управление 41": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 41",
+      "count": 190
+    }
+  ],
+  "управление 44": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 44",
+      "count": 189
+    }
+  ],
+  "управление 35": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 35",
+      "count": 189
+    },
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_4_name",
+      "value": "Управление 35",
+      "count": 266
+    }
+  ],
+  "управление 9": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 9",
+      "count": 186
+    },
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_4_name",
+      "value": "Управление 9",
+      "count": 217
+    }
+  ],
+  "управление 48": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 48",
+      "count": 186
+    }
+  ],
+  "управление 2": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 2",
+      "count": 185
+    },
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_4_name",
+      "value": "Управление 2",
+      "count": 231
+    }
+  ],
+  "управление 3": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 3",
+      "count": 184
+    },
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_4_name",
+      "value": "Управление 3",
+      "count": 251
+    }
+  ],
+  "управление 16": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 16",
+      "count": 183
+    },
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_4_name",
+      "value": "Управление 16",
+      "count": 242
+    }
+  ],
+  "управление 6": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 6",
+      "count": 182
+    },
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_4_name",
+      "value": "Управление 6",
+      "count": 281
+    }
+  ],
+  "управление 46": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 46",
+      "count": 181
+    }
+  ],
+  "управление 7": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 7",
+      "count": 179
+    },
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_4_name",
+      "value": "Управление 7",
+      "count": 253
+    }
+  ],
+  "управление 32": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_5_name",
+      "value": "Управление 32",
+      "count": 172
+    },
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_4_name",
+      "value": "Управление 32",
+      "count": 271
+    }
+  ],
+  "отдел 3": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 3",
+      "count": 147
+    }
+  ],
+  "отдел 29": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 29",
+      "count": 146
+    }
+  ],
+  "отдел 55": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 55",
+      "count": 145
+    }
+  ],
+  "отдел 62": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 62",
+      "count": 144
+    }
+  ],
+  "отдел 68": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 68",
+      "count": 143
+    }
+  ],
+  "отдел 77": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 77",
+      "count": 143
+    }
+  ],
+  "отдел 11": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 11",
+      "count": 142
+    }
+  ],
+  "отдел 69": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 69",
+      "count": 137
+    }
+  ],
+  "отдел 25": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 25",
+      "count": 136
+    }
+  ],
+  "отдел 5": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 5",
+      "count": 136
+    }
+  ],
+  "отдел 30": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 30",
+      "count": 135
+    }
+  ],
+  "отдел 24": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 24",
+      "count": 135
+    }
+  ],
+  "отдел 38": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 38",
+      "count": 135
+    }
+  ],
+  "отдел 34": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 34",
+      "count": 133
+    }
+  ],
+  "отдел 23": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 23",
+      "count": 133
+    }
+  ],
+  "отдел 35": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 35",
+      "count": 133
+    }
+  ],
+  "отдел 74": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 74",
+      "count": 133
+    }
+  ],
+  "отдел 36": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 36",
+      "count": 132
+    }
+  ],
+  "отдел 39": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 39",
+      "count": 132
+    }
+  ],
+  "отдел 53": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 53",
+      "count": 131
+    }
+  ],
+  "отдел 56": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 56",
+      "count": 130
+    }
+  ],
+  "отдел 45": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 45",
+      "count": 130
+    }
+  ],
+  "отдел 18": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 18",
+      "count": 130
+    }
+  ],
+  "отдел 51": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 51",
+      "count": 130
+    }
+  ],
+  "отдел 63": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 63",
+      "count": 129
+    }
+  ],
+  "отдел 10": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 10",
+      "count": 129
+    }
+  ],
+  "отдел 8": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 8",
+      "count": 129
+    }
+  ],
+  "отдел 32": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 32",
+      "count": 129
+    }
+  ],
+  "отдел 37": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 37",
+      "count": 129
+    }
+  ],
+  "отдел 75": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 75",
+      "count": 129
+    }
+  ],
+  "отдел 17": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 17",
+      "count": 128
+    }
+  ],
+  "отдел 31": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 31",
+      "count": 127
+    }
+  ],
+  "отдел 42": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 42",
+      "count": 127
+    }
+  ],
+  "отдел 9": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 9",
+      "count": 127
+    }
+  ],
+  "отдел 43": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 43",
+      "count": 127
+    }
+  ],
+  "отдел 26": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 26",
+      "count": 127
+    }
+  ],
+  "отдел 22": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 22",
+      "count": 126
+    }
+  ],
+  "отдел 46": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 46",
+      "count": 126
+    }
+  ],
+  "отдел 70": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 70",
+      "count": 125
+    }
+  ],
+  "отдел 76": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 76",
+      "count": 125
+    }
+  ],
+  "отдел 78": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 78",
+      "count": 125
+    }
+  ],
+  "отдел 15": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 15",
+      "count": 125
+    }
+  ],
+  "отдел 41": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 41",
+      "count": 124
+    }
+  ],
+  "отдел 80": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 80",
+      "count": 124
+    }
+  ],
+  "отдел 52": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 52",
+      "count": 124
+    }
+  ],
+  "отдел 12": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 12",
+      "count": 122
+    }
+  ],
+  "отдел 73": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 73",
+      "count": 122
+    }
+  ],
+  "отдел 72": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 72",
+      "count": 122
+    }
+  ],
+  "отдел 48": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 48",
+      "count": 122
+    }
+  ],
+  "отдел 2": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 2",
+      "count": 122
+    }
+  ],
+  "отдел 71": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 71",
+      "count": 121
+    }
+  ],
+  "отдел 13": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 13",
+      "count": 121
+    }
+  ],
+  "отдел 21": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 21",
+      "count": 121
+    }
+  ],
+  "отдел 57": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 57",
+      "count": 121
+    }
+  ],
+  "отдел 1": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 1",
+      "count": 120
+    }
+  ],
+  "отдел 54": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 54",
+      "count": 119
+    }
+  ],
+  "отдел 7": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 7",
+      "count": 119
+    }
+  ],
+  "отдел 64": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 64",
+      "count": 119
+    }
+  ],
+  "отдел 33": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 33",
+      "count": 119
+    }
+  ],
+  "отдел 6": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 6",
+      "count": 119
+    }
+  ],
+  "отдел 16": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 16",
+      "count": 119
+    }
+  ],
+  "отдел 67": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 67",
+      "count": 118
+    }
+  ],
+  "отдел 44": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 44",
+      "count": 118
+    }
+  ],
+  "отдел 20": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 20",
+      "count": 117
+    }
+  ],
+  "отдел 40": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 40",
+      "count": 117
+    }
+  ],
+  "отдел 47": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 47",
+      "count": 116
+    }
+  ],
+  "отдел 65": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 65",
+      "count": 116
+    }
+  ],
+  "отдел 49": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 49",
+      "count": 116
+    }
+  ],
+  "отдел 14": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 14",
+      "count": 116
+    }
+  ],
+  "отдел 66": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 66",
+      "count": 116
+    }
+  ],
+  "отдел 28": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 28",
+      "count": 114
+    }
+  ],
+  "отдел 61": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 61",
+      "count": 113
+    }
+  ],
+  "отдел 60": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 60",
+      "count": 113
+    }
+  ],
+  "отдел 79": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 79",
+      "count": 110
+    }
+  ],
+  "отдел 50": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 50",
+      "count": 109
+    }
+  ],
+  "отдел 19": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 19",
+      "count": 109
+    }
+  ],
+  "отдел 59": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 59",
+      "count": 108
+    }
+  ],
+  "отдел 27": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 27",
+      "count": 107
+    }
+  ],
+  "отдел 4": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 4",
+      "count": 104
+    }
+  ],
+  "отдел 58": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_6_name",
+      "value": "Отдел 58",
+      "count": 103
+    }
+  ],
+  "группа 41": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 41",
+      "count": 137
+    }
+  ],
+  "группа 3": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 3",
+      "count": 123
+    }
+  ],
+  "группа 27": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 27",
+      "count": 122
+    }
+  ],
+  "группа 37": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 37",
+      "count": 119
+    }
+  ],
+  "группа 49": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 49",
+      "count": 119
+    }
+  ],
+  "группа 65": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 65",
+      "count": 116
+    }
+  ],
+  "группа 5": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 5",
+      "count": 116
+    }
+  ],
+  "группа 82": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 82",
+      "count": 116
+    }
+  ],
+  "группа 69": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 69",
+      "count": 115
+    }
+  ],
+  "группа 18": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 18",
+      "count": 115
+    }
+  ],
+  "группа 97": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 97",
+      "count": 115
+    }
+  ],
+  "группа 44": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 44",
+      "count": 113
+    }
+  ],
+  "группа 62": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 62",
+      "count": 113
+    }
+  ],
+  "группа 25": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 25",
+      "count": 112
+    }
+  ],
+  "группа 11": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 11",
+      "count": 110
+    }
+  ],
+  "группа 61": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 61",
+      "count": 110
+    }
+  ],
+  "группа 66": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 66",
+      "count": 110
+    }
+  ],
+  "группа 26": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 26",
+      "count": 109
+    }
+  ],
+  "группа 19": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 19",
+      "count": 109
+    }
+  ],
+  "группа 8": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 8",
+      "count": 109
+    }
+  ],
+  "группа 6": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 6",
+      "count": 109
+    }
+  ],
+  "группа 68": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 68",
+      "count": 108
+    }
+  ],
+  "группа 89": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 89",
+      "count": 107
+    }
+  ],
+  "группа 93": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 93",
+      "count": 107
+    }
+  ],
+  "группа 84": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 84",
+      "count": 107
+    }
+  ],
+  "группа 71": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 71",
+      "count": 106
+    }
+  ],
+  "группа 51": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 51",
+      "count": 106
+    }
+  ],
+  "группа 15": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 15",
+      "count": 105
+    }
+  ],
+  "группа 13": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 13",
+      "count": 105
+    }
+  ],
+  "группа 2": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 2",
+      "count": 105
+    }
+  ],
+  "группа 36": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 36",
+      "count": 105
+    }
+  ],
+  "группа 24": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 24",
+      "count": 105
+    }
+  ],
+  "группа 1": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 1",
+      "count": 105
+    }
+  ],
+  "группа 85": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 85",
+      "count": 104
+    }
+  ],
+  "группа 67": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 67",
+      "count": 104
+    }
+  ],
+  "группа 23": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 23",
+      "count": 104
+    }
+  ],
+  "группа 74": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 74",
+      "count": 104
+    }
+  ],
+  "группа 88": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 88",
+      "count": 104
+    }
+  ],
+  "группа 79": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 79",
+      "count": 103
+    }
+  ],
+  "группа 33": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 33",
+      "count": 103
+    }
+  ],
+  "группа 98": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 98",
+      "count": 102
+    }
+  ],
+  "группа 40": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 40",
+      "count": 102
+    }
+  ],
+  "группа 39": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 39",
+      "count": 101
+    }
+  ],
+  "группа 94": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 94",
+      "count": 101
+    }
+  ],
+  "группа 12": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 12",
+      "count": 101
+    }
+  ],
+  "группа 77": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 77",
+      "count": 100
+    }
+  ],
+  "группа 59": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 59",
+      "count": 100
+    }
+  ],
+  "группа 83": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 83",
+      "count": 100
+    }
+  ],
+  "группа 48": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 48",
+      "count": 100
+    }
+  ],
+  "группа 16": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 16",
+      "count": 99
+    }
+  ],
+  "группа 57": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 57",
+      "count": 99
+    }
+  ],
+  "группа 60": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 60",
+      "count": 99
+    }
+  ],
+  "группа 4": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 4",
+      "count": 99
+    }
+  ],
+  "группа 73": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 73",
+      "count": 99
+    }
+  ],
+  "группа 56": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 56",
+      "count": 99
+    }
+  ],
+  "группа 86": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 86",
+      "count": 99
+    }
+  ],
+  "группа 10": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 10",
+      "count": 98
+    }
+  ],
+  "группа 92": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 92",
+      "count": 98
+    }
+  ],
+  "группа 54": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 54",
+      "count": 98
+    }
+  ],
+  "группа 29": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 29",
+      "count": 98
+    }
+  ],
+  "группа 52": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 52",
+      "count": 98
+    }
+  ],
+  "группа 45": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 45",
+      "count": 98
+    }
+  ],
+  "группа 47": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 47",
+      "count": 97
+    }
+  ],
+  "группа 21": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 21",
+      "count": 97
+    }
+  ],
+  "группа 76": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 76",
+      "count": 96
+    }
+  ],
+  "группа 32": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 32",
+      "count": 96
+    }
+  ],
+  "группа 30": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 30",
+      "count": 96
+    }
+  ],
+  "группа 75": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 75",
+      "count": 95
+    }
+  ],
+  "группа 50": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 50",
+      "count": 95
+    }
+  ],
+  "группа 34": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 34",
+      "count": 95
+    }
+  ],
+  "группа 22": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 22",
+      "count": 95
+    }
+  ],
+  "группа 78": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 78",
+      "count": 95
+    }
+  ],
+  "группа 42": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 42",
+      "count": 95
+    }
+  ],
+  "группа 95": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 95",
+      "count": 94
+    }
+  ],
+  "группа 38": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 38",
+      "count": 94
+    }
+  ],
+  "группа 72": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 72",
+      "count": 93
+    }
+  ],
+  "группа 58": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 58",
+      "count": 93
+    }
+  ],
+  "группа 96": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 96",
+      "count": 92
+    }
+  ],
+  "группа 87": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 87",
+      "count": 92
+    }
+  ],
+  "группа 80": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 80",
+      "count": 92
+    }
+  ],
+  "группа 63": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 63",
+      "count": 91
+    }
+  ],
+  "группа 9": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 9",
+      "count": 90
+    }
+  ],
+  "группа 46": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 46",
+      "count": 90
+    }
+  ],
+  "группа 28": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 28",
+      "count": 90
+    }
+  ],
+  "группа 99": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 99",
+      "count": 90
+    }
+  ],
+  "группа 17": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 17",
+      "count": 89
+    }
+  ],
+  "группа 70": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 70",
+      "count": 89
+    }
+  ],
+  "группа 35": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 35",
+      "count": 88
+    }
+  ],
+  "группа 55": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 55",
+      "count": 88
+    }
+  ],
+  "группа 31": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 31",
+      "count": 86
+    }
+  ],
+  "группа 100": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 100",
+      "count": 86
+    }
+  ],
+  "группа 81": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 81",
+      "count": 86
+    }
+  ],
+  "группа 14": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 14",
+      "count": 85
+    }
+  ],
+  "группа 64": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 64",
+      "count": 84
+    }
+  ],
+  "группа 20": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 20",
+      "count": 84
+    }
+  ],
+  "группа 43": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 43",
+      "count": 81
+    }
+  ],
+  "группа 7": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 7",
+      "count": 79
+    }
+  ],
+  "группа 90": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 90",
+      "count": 78
+    }
+  ],
+  "группа 53": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 53",
+      "count": 76
+    }
+  ],
+  "группа 91": [
+    {
+      "column": "d6_base_of_knowledge_ior.org_struct_lvl_7_name",
+      "value": "Группа 91",
+      "count": 66
+    }
+  ],
+  "банковские операции": [
+    {
+      "column": "d6_base_of_knowledge_ior.process_lvl_1_name",
+      "value": "Банковские операции",
+      "count": 10000
+    }
+  ],
+  "корпоративные операции": [
+    {
+      "column": "d6_base_of_knowledge_ior.process_lvl_2_name",
+      "value": "Корпоративные операции",
+      "count": 2583
+    }
+  ],
+  "кредитование": [
+    {
+      "column": "d6_base_of_knowledge_ior.process_lvl_2_name",
+      "value": "Кредитование",
+      "count": 2504
+    }
+  ],
+  "розничные операции": [
+    {
+      "column": "d6_base_of_knowledge_ior.process_lvl_2_name",
+      "value": "Розничные операции",
+      "count": 2460
+    }
+  ],
+  "расчёты": [
+    {
+      "column": "d6_base_of_knowledge_ior.process_lvl_2_name",
+      "value": "Расчёты",
+      "count": 2453
+    }
+  ],
+  "дбо": [
+    {
+      "column": "d6_base_of_knowledge_ior.process_lvl_3_name",
+      "value": "ДБО",
+      "count": 2528
+    }
+  ],
+  "юл": [
+    {
+      "column": "d6_base_of_knowledge_ior.process_lvl_3_name",
+      "value": "ЮЛ",
+      "count": 2516
+    }
+  ],
+  "эквайринг": [
+    {
+      "column": "d6_base_of_knowledge_ior.process_lvl_3_name",
+      "value": "Эквайринг",
+      "count": 2504
+    }
+  ],
+  "фл": [
+    {
+      "column": "d6_base_of_knowledge_ior.process_lvl_3_name",
+      "value": "ФЛ",
+      "count": 2452
+    }
+  ],
+  "потребительское кредитование – одобрение": [
+    {
+      "column": "d6_base_of_knowledge_ior.process_lvl_4_name",
+      "value": "Потребительское кредитование – Одобрение",
+      "count": 959
+    }
+  ],
+  "депозиты фл – открытие вклада": [
+    {
+      "column": "d6_base_of_knowledge_ior.process_lvl_4_name",
+      "value": "Депозиты ФЛ – Открытие вклада",
+      "count": 956
+    }
+  ],
+  "карты мпс – эмиссия": [
+    {
+      "column": "d6_base_of_knowledge_ior.process_lvl_4_name",
+      "value": "Карты МПС – Эмиссия",
+      "count": 942
+    }
+  ],
+  "п1227 кредитование фл – выдача": [
+    {
+      "column": "d6_base_of_knowledge_ior.process_lvl_4_name",
+      "value": "П1227 Кредитование ФЛ – Выдача",
+      "count": 917
+    }
+  ],
+  "дебетовые карты – возврат": [
+    {
+      "column": "d6_base_of_knowledge_ior.process_lvl_4_name",
+      "value": "Дебетовые карты – Возврат",
+      "count": 911
+    }
+  ],
+  "кредитные карты – авторизация": [
+    {
+      "column": "d6_base_of_knowledge_ior.process_lvl_4_name",
+      "value": "Кредитные карты – Авторизация",
+      "count": 911
+    }
+  ],
+  "рко фл – перевод": [
+    {
+      "column": "d6_base_of_knowledge_ior.process_lvl_4_name",
+      "value": "РКО ФЛ – Перевод",
+      "count": 889
+    }
+  ],
+  "кассовое обслуживание – приём наличных": [
+    {
+      "column": "d6_base_of_knowledge_ior.process_lvl_4_name",
+      "value": "Кассовое обслуживание – Приём наличных",
+      "count": 887
+    }
+  ],
+  "вэд – конверсия": [
+    {
+      "column": "d6_base_of_knowledge_ior.process_lvl_4_name",
+      "value": "ВЭД – Конверсия",
+      "count": 884
+    }
+  ],
+  "дбо – авторизация платежа": [
+    {
+      "column": "d6_base_of_knowledge_ior.process_lvl_4_name",
+      "value": "ДБО – Авторизация платежа",
+      "count": 879
+    }
+  ],
+  "ипотечное кредитование – регистрация": [
+    {
+      "column": "d6_base_of_knowledge_ior.process_lvl_4_name",
+      "value": "Ипотечное кредитование – Регистрация",
+      "count": 865
+    }
+  ],
+  "fb-022": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-022",
+      "count": 234
+    }
+  ],
+  "fb-004": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-004",
+      "count": 228
+    }
+  ],
+  "fb-001": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-001",
+      "count": 225
+    }
+  ],
+  "fb-033": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-033",
+      "count": 220
+    }
+  ],
+  "fb-019": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-019",
+      "count": 219
+    }
+  ],
+  "fb-037": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-037",
+      "count": 216
+    }
+  ],
+  "fb-042": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-042",
+      "count": 216
+    }
+  ],
+  "fb-012": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-012",
+      "count": 216
+    }
+  ],
+  "fb-041": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-041",
+      "count": 213
+    }
+  ],
+  "fb-007": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-007",
+      "count": 212
+    }
+  ],
+  "fb-030": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-030",
+      "count": 212
+    }
+  ],
+  "fb-050": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-050",
+      "count": 212
+    }
+  ],
+  "fb-027": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-027",
+      "count": 212
+    }
+  ],
+  "fb-021": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-021",
+      "count": 211
+    }
+  ],
+  "fb-039": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-039",
+      "count": 210
+    }
+  ],
+  "fb-013": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-013",
+      "count": 208
+    }
+  ],
+  "fb-009": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-009",
+      "count": 207
+    }
+  ],
+  "fb-006": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-006",
+      "count": 205
+    }
+  ],
+  "fb-026": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-026",
+      "count": 204
+    }
+  ],
+  "fb-016": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-016",
+      "count": 202
+    }
+  ],
+  "fb-023": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-023",
+      "count": 201
+    }
+  ],
+  "fb-010": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-010",
+      "count": 201
+    }
+  ],
+  "fb-018": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-018",
+      "count": 200
+    }
+  ],
+  "fb-044": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-044",
+      "count": 199
+    }
+  ],
+  "fb-014": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-014",
+      "count": 198
+    }
+  ],
+  "fb-031": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-031",
+      "count": 197
+    }
+  ],
+  "fb-036": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-036",
+      "count": 197
+    }
+  ],
+  "fb-046": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-046",
+      "count": 196
+    }
+  ],
+  "fb-032": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-032",
+      "count": 195
+    }
+  ],
+  "fb-003": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-003",
+      "count": 195
+    }
+  ],
+  "fb-020": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-020",
+      "count": 194
+    }
+  ],
+  "fb-038": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-038",
+      "count": 194
+    }
+  ],
+  "fb-045": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-045",
+      "count": 194
+    }
+  ],
+  "fb-034": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-034",
+      "count": 194
+    }
+  ],
+  "fb-047": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-047",
+      "count": 194
+    }
+  ],
+  "fb-049": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-049",
+      "count": 193
+    }
+  ],
+  "fb-035": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-035",
+      "count": 193
+    }
+  ],
+  "fb-002": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-002",
+      "count": 192
+    }
+  ],
+  "fb-028": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-028",
+      "count": 192
+    }
+  ],
+  "fb-011": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-011",
+      "count": 189
+    }
+  ],
+  "fb-024": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-024",
+      "count": 189
+    }
+  ],
+  "fb-015": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-015",
+      "count": 188
+    }
+  ],
+  "fb-040": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-040",
+      "count": 188
+    }
+  ],
+  "fb-043": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-043",
+      "count": 187
+    }
+  ],
+  "fb-029": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-029",
+      "count": 182
+    }
+  ],
+  "fb-008": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-008",
+      "count": 181
+    }
+  ],
+  "fb-048": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-048",
+      "count": 180
+    }
+  ],
+  "fb-025": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-025",
+      "count": 180
+    }
+  ],
+  "fb-017": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-017",
+      "count": 174
+    }
+  ],
+  "fb-005": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_id",
+      "value": "FB-005",
+      "count": 161
+    }
+  ],
+  "поддержка": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_2_name",
+      "value": "Поддержка",
+      "count": 2044
+    }
+  ],
+  "розничный бизнес": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_2_name",
+      "value": "Розничный бизнес",
+      "count": 2027
+    }
+  ],
+  "технологии": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_2_name",
+      "value": "Технологии",
+      "count": 1985
+    }
+  ],
+  "управление рисками": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_2_name",
+      "value": "Управление рисками",
+      "count": 1980
+    }
+  ],
+  "корпоративный бизнес": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_2_name",
+      "value": "Корпоративный бизнес",
+      "count": 1964
+    }
+  ],
+  "дирекция 6": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_3_name",
+      "value": "Дирекция 6",
+      "count": 710
+    }
+  ],
+  "дирекция 5": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_3_name",
+      "value": "Дирекция 5",
+      "count": 706
+    }
+  ],
+  "дирекция 8": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_3_name",
+      "value": "Дирекция 8",
+      "count": 700
+    }
+  ],
+  "дирекция 2": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_3_name",
+      "value": "Дирекция 2",
+      "count": 694
+    }
+  ],
+  "дирекция 1": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_3_name",
+      "value": "Дирекция 1",
+      "count": 686
+    }
+  ],
+  "дирекция 13": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_3_name",
+      "value": "Дирекция 13",
+      "count": 675
+    }
+  ],
+  "дирекция 11": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_3_name",
+      "value": "Дирекция 11",
+      "count": 670
+    }
+  ],
+  "дирекция 7": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_3_name",
+      "value": "Дирекция 7",
+      "count": 663
+    }
+  ],
+  "дирекция 10": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_3_name",
+      "value": "Дирекция 10",
+      "count": 658
+    }
+  ],
+  "дирекция 3": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_3_name",
+      "value": "Дирекция 3",
+      "count": 655
+    }
+  ],
+  "дирекция 4": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_3_name",
+      "value": "Дирекция 4",
+      "count": 649
+    }
+  ],
+  "дирекция 14": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_3_name",
+      "value": "Дирекция 14",
+      "count": 638
+    }
+  ],
+  "дирекция 9": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_3_name",
+      "value": "Дирекция 9",
+      "count": 638
+    }
+  ],
+  "дирекция 15": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_3_name",
+      "value": "Дирекция 15",
+      "count": 635
+    }
+  ],
+  "дирекция 12": [
+    {
+      "column": "d6_base_of_knowledge_ior.funct_block_lvl_3_name",
+      "value": "Дирекция 12",
+      "count": 623
+    }
+  ],
+  "кол-центр": [
+    {
+      "column": "d6_base_of_knowledge_ior.clntpth_lvl_4_name",
+      "value": "Кол-центр",
+      "count": 2535
+    },
+    {
+      "column": "d6_base_of_knowledge_ior.incdnt_source_name",
+      "value": "Кол-центр",
+      "count": 2051
+    }
+  ],
+  "сайт банка": [
+    {
+      "column": "d6_base_of_knowledge_ior.clntpth_lvl_4_name",
+      "value": "Сайт банка",
+      "count": 2514
+    }
+  ],
+  "цифровой клиентский путь": [
+    {
+      "column": "d6_base_of_knowledge_ior.clntpth_lvl_4_name",
+      "value": "Цифровой клиентский путь",
+      "count": 2478
+    }
+  ],
+  "офлайн обслуживание": [
+    {
+      "column": "d6_base_of_knowledge_ior.clntpth_lvl_4_name",
+      "value": "Офлайн обслуживание",
+      "count": 2473
+    }
+  ],
+  "drp-10008": [
+    {
+      "column": "d6_base_of_knowledge_ior.risk_profile_id",
+      "value": "DRP-10008",
+      "count": 880
+    }
+  ],
+  "drp-10025": [
+    {
+      "column": "d6_base_of_knowledge_ior.risk_profile_id",
+      "value": "DRP-10025",
+      "count": 852
+    }
+  ],
+  "drp-10103": [
+    {
+      "column": "d6_base_of_knowledge_ior.risk_profile_id",
+      "value": "DRP-10103",
+      "count": 849
+    }
+  ],
+  "drp-10051": [
+    {
+      "column": "d6_base_of_knowledge_ior.risk_profile_id",
+      "value": "DRP-10051",
+      "count": 843
+    }
+  ],
+  "drp-10102": [
+    {
+      "column": "d6_base_of_knowledge_ior.risk_profile_id",
+      "value": "DRP-10102",
+      "count": 832
+    }
+  ],
+  "drp-10012": [
+    {
+      "column": "d6_base_of_knowledge_ior.risk_profile_id",
+      "value": "DRP-10012",
+      "count": 830
+    }
+  ],
+  "drp-10196": [
+    {
+      "column": "d6_base_of_knowledge_ior.risk_profile_id",
+      "value": "DRP-10196",
+      "count": 828
+    }
+  ],
+  "drp-10138": [
+    {
+      "column": "d6_base_of_knowledge_ior.risk_profile_id",
+      "value": "DRP-10138",
+      "count": 817
+    }
+  ],
+  "drp-10192": [
+    {
+      "column": "d6_base_of_knowledge_ior.risk_profile_id",
+      "value": "DRP-10192",
+      "count": 811
+    }
+  ],
+  "drp-10050": [
+    {
+      "column": "d6_base_of_knowledge_ior.risk_profile_id",
+      "value": "DRP-10050",
+      "count": 807
+    }
+  ],
+  "drp-10101": [
+    {
+      "column": "d6_base_of_knowledge_ior.risk_profile_id",
+      "value": "DRP-10101",
+      "count": 349
+    }
+  ],
+  "drp-10047": [
+    {
+      "column": "d6_base_of_knowledge_ior.risk_profile_id",
+      "value": "DRP-10047",
+      "count": 339
+    }
+  ],
+  "drp-10023": [
+    {
+      "column": "d6_base_of_knowledge_ior.risk_profile_id",
+      "value": "DRP-10023",
+      "count": 323
+    }
+  ],
+  "drp-10024": [
+    {
+      "column": "d6_base_of_knowledge_ior.risk_profile_id",
+      "value": "DRP-10024",
+      "count": 321
+    }
+  ],
+  "drp-10027": [
+    {
+      "column": "d6_base_of_knowledge_ior.risk_profile_id",
+      "value": "DRP-10027",
+      "count": 319
+    }
+  ],
+  "информационная безопасность": [
+    {
+      "column": "d6_base_of_knowledge_ior.risk_profile_name",
+      "value": "Информационная безопасность",
+      "count": 1710
+    }
+  ],
+  "поведенческие риски": [
+    {
+      "column": "d6_base_of_knowledge_ior.risk_profile_name",
+      "value": "Поведенческие риски",
+      "count": 1681
+    }
+  ],
+  "операционная стабильность": [
+    {
+      "column": "d6_base_of_knowledge_ior.risk_profile_name",
+      "value": "Операционная стабильность",
+      "count": 1669
+    }
+  ],
+  "кредитные риски": [
+    {
+      "column": "d6_base_of_knowledge_ior.risk_profile_name",
+      "value": "Кредитные риски",
+      "count": 1651
+    }
+  ],
+  "штрафные санкции": [
+    {
+      "column": "d6_base_of_knowledge_ior.risk_profile_name",
+      "value": "Штрафные санкции",
+      "count": 1650
+    }
+  ],
+  "регуляторные риски": [
+    {
+      "column": "d6_base_of_knowledge_ior.risk_profile_name",
+      "value": "Регуляторные риски",
+      "count": 1639
+    }
+  ],
+  "внешнее мошенничество": [
+    {
+      "column": "d6_base_of_knowledge_ior.incdnt_type_lvl_1_name",
+      "value": "Внешнее мошенничество",
+      "count": 1277
+    }
+  ],
+  "ошибки персонала": [
+    {
+      "column": "d6_base_of_knowledge_ior.incdnt_type_lvl_1_name",
+      "value": "Ошибки персонала",
+      "count": 1263
+    }
+  ],
+  "действия третьих лиц": [
+    {
+      "column": "d6_base_of_knowledge_ior.incdnt_type_lvl_1_name",
+      "value": "Действия третьих лиц",
+      "count": 1263
+    }
+  ],
+  "нарушение процесса": [
+    {
+      "column": "d6_base_of_knowledge_ior.incdnt_type_lvl_1_name",
+      "value": "Нарушение процесса",
+      "count": 1259
+    }
+  ],
+  "ошибка ввода данных": [
+    {
+      "column": "d6_base_of_knowledge_ior.incdnt_type_lvl_1_name",
+      "value": "Ошибка ввода данных",
+      "count": 1259
+    }
+  ],
+  "внутреннее мошенничество": [
+    {
+      "column": "d6_base_of_knowledge_ior.incdnt_type_lvl_1_name",
+      "value": "Внутреннее мошенничество",
+      "count": 1243
+    }
+  ],
+  "технические сбои": [
+    {
+      "column": "d6_base_of_knowledge_ior.incdnt_type_lvl_1_name",
+      "value": "Технические сбои",
+      "count": 1229
+    }
+  ],
+  "1. ошибки персонала и недостатки процессов": [
+    {
+      "column": "d6_base_of_knowledge_ior.incdnt_type_lvl_1_name",
+      "value": "1. Ошибки персонала и недостатки процессов",
+      "count": 1207
+    }
+  ],
+  "нарушение sla": [
+    {
+      "column": "d6_base_of_knowledge_ior.incdnt_type_lvl_2_name",
+      "value": "Нарушение SLA",
+      "count": 970
+    }
+  ],
+  "подделка документов": [
+    {
+      "column": "d6_base_of_knowledge_ior.incdnt_type_lvl_2_name",
+      "value": "Подделка документов",
+      "count": 954
+    }
+  ],
+  "несоблюдение регламента": [
+    {
+      "column": "d6_base_of_knowledge_ior.incdnt_type_lvl_2_name",
+      "value": "Несоблюдение регламента",
+      "count": 945
+    }
+  ],
+  "неверная классификация клиента": [
+    {
+      "column": "d6_base_of_knowledge_ior.incdnt_type_lvl_2_name",
+      "value": "Неверная классификация клиента",
+      "count": 908
+    }
+  ],
+  "сбой по внешней системы": [
+    {
+      "column": "d6_base_of_knowledge_ior.incdnt_type_lvl_2_name",
+      "value": "Сбой ПО внешней системы",
+      "count": 903
+    }
+  ],
+  "опечатка в реквизитах": [
+    {
+      "column": "d6_base_of_knowledge_ior.incdnt_type_lvl_2_name",
+      "value": "Опечатка в реквизитах",
+      "count": 900
+    }
+  ],
+  "фишинг": [
+    {
+      "column": "d6_base_of_knowledge_ior.incdnt_type_lvl_2_name",
+      "value": "Фишинг",
+      "count": 899
+    }
+  ],
+  "дублирование операции": [
+    {
+      "column": "d6_base_of_knowledge_ior.incdnt_type_lvl_2_name",
+      "value": "Дублирование операции",
+      "count": 898
+    }
+  ],
+  "сбой инфраструктуры": [
+    {
+      "column": "d6_base_of_knowledge_ior.incdnt_type_lvl_2_name",
+      "value": "Сбой инфраструктуры",
+      "count": 881
+    }
+  ],
+  "социальная инженерия": [
+    {
+      "column": "d6_base_of_knowledge_ior.incdnt_type_lvl_2_name",
+      "value": "Социальная инженерия",
+      "count": 871
+    }
+  ],
+  "хищение средств": [
+    {
+      "column": "d6_base_of_knowledge_ior.incdnt_type_lvl_2_name",
+      "value": "Хищение средств",
+      "count": 871
+    }
+  ],
+  "утверждён": [
+    {
+      "column": "d6_base_of_knowledge_ior.incdnt_status_name",
+      "value": "Утверждён",
+      "count": 4091
+    },
+    {
+      "column": "d6_base_of_knowledge_incident_stts_chng.incdnt_status_name",
+      "value": "Утверждён",
+      "count": 10433
+    }
+  ],
+  "закрыт": [
+    {
+      "column": "d6_base_of_knowledge_ior.incdnt_status_name",
+      "value": "Закрыт",
+      "count": 2997
+    },
+    {
+      "column": "d6_base_of_knowledge_incident_stts_chng.incdnt_status_name",
+      "value": "Закрыт",
+      "count": 10660
+    }
+  ],
+  "исследование": [
+    {
+      "column": "d6_base_of_knowledge_ior.incdnt_status_name",
+      "value": "Исследование",
+      "count": 1449
+    },
+    {
+      "column": "d6_base_of_knowledge_incident_stts_chng.incdnt_status_name",
+      "value": "Исследование",
+      "count": 3685
+    }
+  ],
+  "возмещение": [
+    {
+      "column": "d6_base_of_knowledge_ior.incdnt_status_name",
+      "value": "Возмещение",
+      "count": 508
+    },
+    {
+      "column": "d6_base_of_knowledge_incident_stts_chng.incdnt_status_name",
+      "value": "Возмещение",
+      "count": 1287
+    }
+  ],
+  "согласование": [
+    {
+      "column": "d6_base_of_knowledge_ior.incdnt_status_name",
+      "value": "Согласование",
+      "count": 500
+    },
+    {
+      "column": "d6_base_of_knowledge_incident_stts_chng.incdnt_status_name",
+      "value": "Согласование",
+      "count": 1270
+    }
+  ],
+  "черновик": [
+    {
+      "column": "d6_base_of_knowledge_ior.incdnt_status_name",
+      "value": "Черновик",
+      "count": 455
+    },
+    {
+      "column": "d6_base_of_knowledge_incident_stts_chng.incdnt_status_name",
+      "value": "Черновик",
+      "count": 1188
+    }
+  ],
+  "регулятор": [
+    {
+      "column": "d6_base_of_knowledge_ior.src_type_lvl_1_name",
+      "value": "Регулятор",
+      "count": 1714
+    }
+  ],
+  "внешний контрагент": [
+    {
+      "column": "d6_base_of_knowledge_ior.src_type_lvl_1_name",
+      "value": "Внешний контрагент",
+      "count": 1690
+    }
+  ],
+  "аудит": [
+    {
+      "column": "d6_base_of_knowledge_ior.src_type_lvl_1_name",
+      "value": "Аудит",
+      "count": 1689
+    }
+  ],
+  "система мониторинга": [
+    {
+      "column": "d6_base_of_knowledge_ior.src_type_lvl_1_name",
+      "value": "Система мониторинга",
+      "count": 1640
+    }
+  ],
+  "сотрудник банка": [
+    {
+      "column": "d6_base_of_knowledge_ior.src_type_lvl_1_name",
+      "value": "Сотрудник банка",
+      "count": 1637
+    },
+    {
+      "column": "d6_base_of_knowledge_ior.incdnt_client_type_name",
+      "value": "Сотрудник банка",
+      "count": 2037
+    }
+  ],
+  "клиент": [
+    {
+      "column": "d6_base_of_knowledge_ior.src_type_lvl_1_name",
+      "value": "Клиент",
+      "count": 1630
+    }
+  ],
+  "авто": [
+    {
+      "column": "d6_base_of_knowledge_ior.src_type_lvl_2_name",
+      "value": "Авто",
+      "count": 3358
+    }
+  ],
+  "прямой канал": [
+    {
+      "column": "d6_base_of_knowledge_ior.src_type_lvl_2_name",
+      "value": "Прямой канал",
+      "count": 3346
+    }
+  ],
+  "косвенный": [
+    {
+      "column": "d6_base_of_knowledge_ior.src_type_lvl_2_name",
+      "value": "Косвенный",
+      "count": 3296
+    }
+  ],
+  "ип": [
+    {
+      "column": "d6_base_of_knowledge_ior.incdnt_client_type_name",
+      "value": "ИП",
+      "count": 2058
+    }
+  ],
+  "контрагент": [
+    {
+      "column": "d6_base_of_knowledge_ior.incdnt_client_type_name",
+      "value": "Контрагент",
+      "count": 1988
+    }
+  ],
+  "юридическое лицо": [
+    {
+      "column": "d6_base_of_knowledge_ior.incdnt_client_type_name",
+      "value": "Юридическое лицо",
+      "count": 1982
+    }
+  ],
+  "физическое лицо": [
+    {
+      "column": "d6_base_of_knowledge_ior.incdnt_client_type_name",
+      "value": "Физическое лицо",
+      "count": 1935
+    }
+  ],
+  "цб рф": [
+    {
+      "column": "d6_base_of_knowledge_ior.incdnt_source_name",
+      "value": "ЦБ РФ",
+      "count": 2015
+    }
+  ],
+  "внутренний аудит": [
+    {
+      "column": "d6_base_of_knowledge_ior.incdnt_source_name",
+      "value": "Внутренний аудит",
+      "count": 2000
+    }
+  ],
+  "мониторинг абс": [
+    {
+      "column": "d6_base_of_knowledge_ior.incdnt_source_name",
+      "value": "Мониторинг АБС",
+      "count": 1972
+    }
+  ],
+  "обращение клиента": [
+    {
+      "column": "d6_base_of_knowledge_ior.incdnt_source_name",
+      "value": "Обращение клиента",
+      "count": 1962
+    }
+  ],
+  "ba-011": [
+    {
+      "column": "d6_base_of_knowledge_ior.busn_area_id",
+      "value": "BA-011",
+      "count": 552
+    }
+  ],
+  "ba-010": [
+    {
+      "column": "d6_base_of_knowledge_ior.busn_area_id",
+      "value": "BA-010",
+      "count": 540
+    }
+  ],
+  "ba-004": [
+    {
+      "column": "d6_base_of_knowledge_ior.busn_area_id",
+      "value": "BA-004",
+      "count": 538
+    }
+  ],
+  "ba-012": [
+    {
+      "column": "d6_base_of_knowledge_ior.busn_area_id",
+      "value": "BA-012",
+      "count": 525
+    }
+  ],
+  "ba-009": [
+    {
+      "column": "d6_base_of_knowledge_ior.busn_area_id",
+      "value": "BA-009",
+      "count": 515
+    }
+  ],
+  "ba-013": [
+    {
+      "column": "d6_base_of_knowledge_ior.busn_area_id",
+      "value": "BA-013",
+      "count": 513
+    }
+  ],
+  "ba-016": [
+    {
+      "column": "d6_base_of_knowledge_ior.busn_area_id",
+      "value": "BA-016",
+      "count": 507
+    }
+  ],
+  "ba-018": [
+    {
+      "column": "d6_base_of_knowledge_ior.busn_area_id",
+      "value": "BA-018",
+      "count": 503
+    }
+  ],
+  "ba-007": [
+    {
+      "column": "d6_base_of_knowledge_ior.busn_area_id",
+      "value": "BA-007",
+      "count": 499
+    }
+  ],
+  "ba-015": [
+    {
+      "column": "d6_base_of_knowledge_ior.busn_area_id",
+      "value": "BA-015",
+      "count": 494
+    }
+  ],
+  "ba-020": [
+    {
+      "column": "d6_base_of_knowledge_ior.busn_area_id",
+      "value": "BA-020",
+      "count": 492
+    }
+  ],
+  "ba-005": [
+    {
+      "column": "d6_base_of_knowledge_ior.busn_area_id",
+      "value": "BA-005",
+      "count": 491
+    }
+  ],
+  "ba-008": [
+    {
+      "column": "d6_base_of_knowledge_ior.busn_area_id",
+      "value": "BA-008",
+      "count": 487
+    }
+  ],
+  "ba-006": [
+    {
+      "column": "d6_base_of_knowledge_ior.busn_area_id",
+      "value": "BA-006",
+      "count": 487
+    }
+  ],
+  "ba-002": [
+    {
+      "column": "d6_base_of_knowledge_ior.busn_area_id",
+      "value": "BA-002",
+      "count": 486
+    }
+  ],
+  "ba-014": [
+    {
+      "column": "d6_base_of_knowledge_ior.busn_area_id",
+      "value": "BA-014",
+      "count": 485
+    }
+  ],
+  "ba-019": [
+    {
+      "column": "d6_base_of_knowledge_ior.busn_area_id",
+      "value": "BA-019",
+      "count": 480
+    }
+  ],
+  "ba-003": [
+    {
+      "column": "d6_base_of_knowledge_ior.busn_area_id",
+      "value": "BA-003",
+      "count": 475
+    }
+  ],
+  "ba-017": [
+    {
+      "column": "d6_base_of_knowledge_ior.busn_area_id",
+      "value": "BA-017",
+      "count": 472
+    }
+  ],
+  "ba-001": [
+    {
+      "column": "d6_base_of_knowledge_ior.busn_area_id",
+      "value": "BA-001",
+      "count": 459
+    }
+  ],
+  "розничные брокерские услуги": [
+    {
+      "column": "d6_base_of_knowledge_ior.busn_area_lvl_1_name",
+      "value": "Розничные брокерские услуги",
+      "count": 1313
+    }
+  ],
+  "коммерческое банковское дело": [
+    {
+      "column": "d6_base_of_knowledge_ior.busn_area_lvl_1_name",
+      "value": "Коммерческое банковское дело",
+      "count": 1270
+    }
+  ],
+  "агентские услуги": [
+    {
+      "column": "d6_base_of_knowledge_ior.busn_area_lvl_1_name",
+      "value": "Агентские услуги",
+      "count": 1254
+    }
+  ],
+  "торговля и продажи": [
+    {
+      "column": "d6_base_of_knowledge_ior.busn_area_lvl_1_name",
+      "value": "Торговля и продажи",
+      "count": 1252
+    }
+  ],
+  "управление активами": [
+    {
+      "column": "d6_base_of_knowledge_ior.busn_area_lvl_1_name",
+      "value": "Управление активами",
+      "count": 1248
+    }
+  ],
+  "платежи и расчёты": [
+    {
+      "column": "d6_base_of_knowledge_ior.busn_area_lvl_1_name",
+      "value": "Платежи и расчёты",
+      "count": 1232
+    }
+  ],
+  "розничный банковский бизнес": [
+    {
+      "column": "d6_base_of_knowledge_ior.busn_area_lvl_1_name",
+      "value": "Розничный банковский бизнес",
+      "count": 1220
+    }
+  ],
+  "корпоративные финансы": [
+    {
+      "column": "d6_base_of_knowledge_ior.busn_area_lvl_1_name",
+      "value": "Корпоративные финансы",
+      "count": 1211
+    }
+  ],
+  "базель-ii категория": [
+    {
+      "column": "d6_base_of_knowledge_ior.busn_area_lvl_2_name",
+      "value": "Базель-II категория",
+      "count": 10000
+    }
+  ],
+  "n": [
+    {
+      "column": "d6_base_of_knowledge_ior.incdnt_autoreg_flag",
+      "value": "N",
+      "count": 5032
+    },
+    {
+      "column": "d6_base_of_knowledge_incident_fin_impact.fin_impact_monitoring_flag",
+      "value": "N",
+      "count": 7023
+    }
+  ],
+  "y": [
+    {
+      "column": "d6_base_of_knowledge_ior.incdnt_autoreg_flag",
+      "value": "Y",
+      "count": 4968
+    },
+    {
+      "column": "d6_base_of_knowledge_incident_fin_impact.fin_impact_monitoring_flag",
+      "value": "Y",
+      "count": 7236
+    }
+  ],
+  "потеря третьих лиц": [
+    {
+      "column": "d6_base_of_knowledge_incident_fin_impact.fin_impact_type_name",
+      "value": "Потеря третьих лиц",
+      "count": 2974
+    }
+  ],
+  "прямая потеря": [
+    {
+      "column": "d6_base_of_knowledge_incident_fin_impact.fin_impact_type_name",
+      "value": "Прямая потеря",
+      "count": 2835
+    }
+  ],
+  "нереализовавшаяся потеря": [
+    {
+      "column": "d6_base_of_knowledge_incident_fin_impact.fin_impact_type_name",
+      "value": "Нереализовавшаяся потеря",
+      "count": 2833
+    }
+  ],
+  "косвенная потеря": [
+    {
+      "column": "d6_base_of_knowledge_incident_fin_impact.fin_impact_type_name",
+      "value": "Косвенная потеря",
+      "count": 2817
+    }
+  ],
+  "прибыль": [
+    {
+      "column": "d6_base_of_knowledge_incident_fin_impact.fin_impact_type_name",
+      "value": "Прибыль",
+      "count": 2800
+    }
+  ],
+  "восстановление за счёт страховки": [
+    {
+      "column": "d6_base_of_knowledge_incident_fin_impact.fin_impact_kind_name",
+      "value": "Восстановление за счёт страховки",
+      "count": 1833
+    }
+  ],
+  "потеря по операциям мошенничества": [
+    {
+      "column": "d6_base_of_knowledge_incident_fin_impact.fin_impact_kind_name",
+      "value": "Потеря по операциям мошенничества",
+      "count": 1821
+    }
+  ],
+  "ошибка операции - двойное списание": [
+    {
+      "column": "d6_base_of_knowledge_incident_fin_impact.fin_impact_kind_name",
+      "value": "Ошибка операции - двойное списание",
+      "count": 1792
+    }
+  ],
+  "штрафные пени по ставке цб": [
+    {
+      "column": "d6_base_of_knowledge_incident_fin_impact.fin_impact_kind_name",
+      "value": "Штрафные пени по ставке ЦБ",
+      "count": 1782
+    }
+  ],
+  "расходы на иб-реагирование": [
+    {
+      "column": "d6_base_of_knowledge_incident_fin_impact.fin_impact_kind_name",
+      "value": "Расходы на ИБ-реагирование",
+      "count": 1777
+    }
+  ],
+  "возврат комиссии": [
+    {
+      "column": "d6_base_of_knowledge_incident_fin_impact.fin_impact_kind_name",
+      "value": "Возврат комиссии",
+      "count": 1772
+    }
+  ],
+  "компенсация клиенту по жалобе": [
+    {
+      "column": "d6_base_of_knowledge_incident_fin_impact.fin_impact_kind_name",
+      "value": "Компенсация клиенту по жалобе",
+      "count": 1764
+    }
+  ],
+  "возмещение со стороны сотрудника": [
+    {
+      "column": "d6_base_of_knowledge_incident_fin_impact.fin_impact_kind_name",
+      "value": "Возмещение со стороны сотрудника",
+      "count": 1718
+    }
+  ],
+  "утечка защищаемой информации": [
+    {
+      "column": "d6_base_of_knowledge_incident_nonfin_impact.nonfin_impact_kind_name",
+      "value": "Утечка защищаемой информации",
+      "count": 633
+    }
+  ],
+  "угроза непрерывности деятельности": [
+    {
+      "column": "d6_base_of_knowledge_incident_nonfin_impact.nonfin_impact_kind_name",
+      "value": "Угроза непрерывности деятельности",
+      "count": 623
+    }
+  ],
+  "воздействие со стороны регулятора": [
+    {
+      "column": "d6_base_of_knowledge_incident_nonfin_impact.nonfin_impact_kind_name",
+      "value": "Воздействие со стороны регулятора",
+      "count": 611
+    }
+  ],
+  "ущерб репутации": [
+    {
+      "column": "d6_base_of_knowledge_incident_nonfin_impact.nonfin_impact_kind_name",
+      "value": "Ущерб репутации",
+      "count": 600
+    }
+  ],
+  "жалобы и обращения клиентов": [
+    {
+      "column": "d6_base_of_knowledge_incident_nonfin_impact.nonfin_impact_kind_name",
+      "value": "Жалобы и обращения клиентов",
+      "count": 592
+    }
+  ],
+  "освещение в сми": [
+    {
+      "column": "d6_base_of_knowledge_incident_nonfin_impact.nonfin_impact_kind_name",
+      "value": "Освещение в СМИ",
+      "count": 562
+    }
+  ],
+  "высокий": [
+    {
+      "column": "d6_base_of_knowledge_incident_nonfin_impact.nonfin_impact_influence_class_name",
+      "value": "Высокий",
+      "count": 973
+    }
+  ],
+  "средний": [
+    {
+      "column": "d6_base_of_knowledge_incident_nonfin_impact.nonfin_impact_influence_class_name",
+      "value": "Средний",
+      "count": 907
+    }
+  ],
+  "низкий": [
+    {
+      "column": "d6_base_of_knowledge_incident_nonfin_impact.nonfin_impact_influence_class_name",
+      "value": "Низкий",
+      "count": 898
+    }
+  ],
+  "очень высокий": [
+    {
+      "column": "d6_base_of_knowledge_incident_nonfin_impact.nonfin_impact_influence_class_name",
+      "value": "Очень высокий",
+      "count": 843
+    }
+  ],
+  "компенсация от сотрудника": [
+    {
+      "column": "d6_base_of_knowledge_incident_recovery.recovery_type_name",
+      "value": "Компенсация от сотрудника",
+      "count": 1281
+    }
+  ],
+  "возврат третьих лиц": [
+    {
+      "column": "d6_base_of_knowledge_incident_recovery.recovery_type_name",
+      "value": "Возврат третьих лиц",
+      "count": 1278
+    }
+  ],
+  "страховое возмещение": [
+    {
+      "column": "d6_base_of_knowledge_incident_recovery.recovery_type_name",
+      "value": "Страховое возмещение",
+      "count": 1264
+    }
+  ],
+  "восстановление при техническом сбое": [
+    {
+      "column": "d6_base_of_knowledge_incident_recovery.recovery_type_name",
+      "value": "Восстановление при техническом сбое",
+      "count": 1239
+    }
+  ],
+  "регрессный иск": [
+    {
+      "column": "d6_base_of_knowledge_incident_recovery.recovery_type_name",
+      "value": "Регрессный иск",
+      "count": 1219
+    }
+  ],
+  "создание иор": [
+    {
+      "column": "d6_base_of_knowledge_incident_stts_chng.stts_chng_action_name",
+      "value": "Создание ИОР",
+      "count": 10000
+    }
+  ],
+  "утверждение": [
+    {
+      "column": "d6_base_of_knowledge_incident_stts_chng.stts_chng_action_name",
+      "value": "Утверждение",
+      "count": 10000
+    }
+  ],
+  "изменение полей": [
+    {
+      "column": "d6_base_of_knowledge_incident_stts_chng.stts_chng_action_name",
+      "value": "Изменение полей",
+      "count": 5017
+    }
+  ],
+  "закрытие": [
+    {
+      "column": "d6_base_of_knowledge_incident_stts_chng.stts_chng_action_name",
+      "value": "Закрытие",
+      "count": 2997
+    }
+  ],
+  "удаление после утверждения": [
+    {
+      "column": "d6_base_of_knowledge_incident_stts_chng.stts_chng_action_name",
+      "value": "Удаление после утверждения",
+      "count": 509
+    }
+  ],
+  "approve": [
+    {
+      "column": "d6_base_of_knowledge_incident_stts_chng.stts_chng_action_code",
+      "value": "APPROVE",
+      "count": 10000
+    }
+  ],
+  "create": [
+    {
+      "column": "d6_base_of_knowledge_incident_stts_chng.stts_chng_action_code",
+      "value": "CREATE",
+      "count": 10000
+    }
+  ],
+  "update": [
+    {
+      "column": "d6_base_of_knowledge_incident_stts_chng.stts_chng_action_code",
+      "value": "UPDATE",
+      "count": 5017
+    }
+  ],
+  "close": [
+    {
+      "column": "d6_base_of_knowledge_incident_stts_chng.stts_chng_action_code",
+      "value": "CLOSE",
+      "count": 2997
+    }
+  ],
+  "delete": [
+    {
+      "column": "d6_base_of_knowledge_incident_stts_chng.stts_chng_action_code",
+      "value": "DELETE",
+      "count": 509
+    }
+  ]
+}

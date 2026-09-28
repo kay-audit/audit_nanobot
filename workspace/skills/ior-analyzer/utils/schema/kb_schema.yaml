@@ -1,0 +1,423 @@
+# Auto-generated schema БД ИОР для Planner'а агента.
+# Источник: структура production-витрин ИОР после миграции в Greenplum.
+# При появлении новых колонок - regenerate через scripts/refresh_schema.py.
+
+tables:
+  d6_base_of_knowledge_incident_fin_impact:
+    full_name: s_grnplm_ld_audit_da_project_34.t_db_oarb_ior_d6_base_of_knowledge_incident_fin_impact
+    description: "Финансовые последствия. 1 row = 1 fin_impact, у одного incident может быть много fin_impact'ов. Связь с инцидентом через incdnt_id."
+    row_count: 9481749
+    columns:
+      - name: incdnt_id
+        type: bigint
+        filled_pct: 100.0
+        description: "FK к d6_base_of_knowledge_ior.incdnt_id - связь с инцидентом"
+      - name: fin_impact_id
+        type: bigint
+        filled_pct: 100.0
+        description: "Собственный ключ строки fin_impact (PK), НЕ связь с инцидентом"
+      - name: fin_impact_type_name
+        type: string
+        filled_pct: 100.0
+        enum_values: ["Прямая потеря", "Косвенная потеря", "Нереализовавшаяся потеря", "Потеря третьих лиц", "Прибыль"]
+        description: "Тип финансового последствия. Определяет какой вид ущерба (прямой/косвенный/нереализ./третьих лиц/прибыль)."
+      - name: fin_impact_sid
+        type: string
+        filled_pct: 100.0
+      - name: fin_impact_rub_amt
+        type: decimal(18,4)
+        filled_pct: 99.84
+      - name: fin_impact_local_crncy_code
+        type: string
+        filled_pct: 100.0
+      - name: fin_impact_detection_dt
+        type: timestamp
+        filled_pct: 100.0
+      - name: fin_impact_creation_dttm
+        type: timestamp
+        filled_pct: 99.99
+      - name: fin_impact_account_num
+        type: string
+        filled_pct: 82.93
+      - name: fin_impact_docum_num
+        type: string
+        filled_pct: 75.5
+      - name: fin_impact_reg_dt
+        type: timestamp
+        filled_pct: 88.33
+      - name: fin_impact_crncy_code
+        type: string
+        filled_pct: 99.92
+      - name: fin_impact_kind_name
+        type: string
+        filled_pct: 73.38
+      - name: fin_impact_monitoring_flag
+        type: string
+        filled_pct: 99.8
+      - name: fin_impact_local_ccy_amt
+        type: decimal(18,4)
+        filled_pct: 17.9
+      - name: fin_impact_ccy_amt
+        type: decimal(18,4)
+        filled_pct: 99.93
+      - name: fi_busn_area_id
+        type: string
+        description: "ID бизнес-области финансового последствия"
+      - name: fi_org_struct_id
+        type: string
+        description: "ID оргструктуры финансового последствия"
+    foreign_keys:
+      - column: incdnt_id
+        references: d6_base_of_knowledge_ior.incdnt_id
+        note: "Связь с инцидентом через incdnt_id. fin_impact_id - собственный ключ строки fin_impact, не FK."
+
+  d6_base_of_knowledge_incident_nonfin_impact:
+    full_name: s_grnplm_ld_audit_da_project_34.t_db_oarb_ior_d6_base_of_knowledge_incident_nonfin_impact
+    description: "Нефинансовые последствия (репутация, регулятор, утечки). 1 row = 1 nonfin_impact. Join по incdnt_id."
+    row_count: 238963
+    columns:
+      - name: incdnt_id
+        type: bigint
+        filled_pct: 100.0
+      - name: nonfin_impact_sid
+        type: string
+        filled_pct: 100.0
+      - name: nonfin_impact_kind_name
+        type: string
+        filled_pct: 99.27
+      - name: nonfin_impact_influence_class_name
+        type: string
+        filled_pct: 80.92
+    foreign_keys:
+      - column: incdnt_id
+        references: d6_base_of_knowledge_ior.incdnt_id
+
+  d6_base_of_knowledge_incident_recovery:
+    full_name: s_grnplm_ld_audit_da_project_34.t_db_oarb_ior_d6_base_of_knowledge_incident_recovery
+    description: Возмещения по ИОР. 1 row = 1 recovery. Join по incdnt_id.
+    row_count: 1942565
+    columns:
+      - name: incdnt_id
+        type: bigint
+        filled_pct: 100.0
+      - name: recovery_sid
+        type: string
+        filled_pct: 100.0
+      - name: recovery_type_name
+        type: string
+        filled_pct: 100.0
+      - name: recovery_local_crncy_code
+        type: string
+        filled_pct: 31.1
+      - name: recovery_src_account_num
+        type: string
+        filled_pct: 98.47
+      - name: recovery_doc_num
+        type: string
+        filled_pct: 93.87
+      - name: recovery_crncy_code
+        type: string
+        filled_pct: 99.99
+      - name: recovery_creation_dttm
+        type: timestamp
+        filled_pct: 100.0
+      - name: recovery_reg_dt
+        type: timestamp
+        filled_pct: 99.97
+      - name: recovery_ccy_amt
+        type: decimal(18,4)
+        filled_pct: 100.0
+      - name: recovery_rub_amt
+        type: decimal(18,4)
+        filled_pct: 99.98
+      - name: recovery_local_ccy_amt
+        type: decimal(18,4)
+        filled_pct: 31.1
+    foreign_keys:
+      - column: incdnt_id
+        references: d6_base_of_knowledge_ior.incdnt_id
+
+  d6_base_of_knowledge_incident_stts_chng:
+    full_name: s_grnplm_ld_audit_da_project_34.t_db_oarb_ior_d6_base_of_knowledge_incident_stts_chng
+    description: Журнал изменений статусов. Кто/когда/что сделал с ИОР. Join по incdnt_id.
+    row_count: 1151278
+    columns:
+      - name: stts_chng_action_code
+        type: string
+        filled_pct: 100.0
+      - name: incdnt_id
+        type: bigint
+        filled_pct: 99.96
+      - name: incdnt_status_name
+        type: string
+        filled_pct: 100.0
+        enum_values: ["Утверждён", "Закрыт", "Исследование", "Черновик", "Согласование", "Возмещение"]
+        description: "Статус ИОР после события. «Закрыт» = закрытый/завершённый; остальные = «незакрытый» (фильтр незакрытых: != 'Закрыт')."
+      - name: incdnt_status_code
+        type: string
+        filled_pct: 100.0
+      - name: stts_chng_action_name
+        type: string
+        filled_pct: 99.53
+      - name: stts_chng_comment_txt
+        type: string
+        filled_pct: 100.0
+      - name: stts_chng_action_dttm
+        type: timestamp
+        filled_pct: 100.0
+      - name: stts_chng_user_num
+        type: string
+        filled_pct: 81.27
+      - name: start_dt
+        type: timestamp
+        filled_pct: 100.0
+    foreign_keys:
+      - column: incdnt_id
+        references: d6_base_of_knowledge_ior.incdnt_id
+
+  d6_base_of_knowledge_ior:
+    full_name: s_grnplm_ld_audit_da_project_34.t_db_oarb_ior_d6_base_of_knowledge_ior
+    description: "Основная таблица инцидентов операционного риска. 1 row = 1 инцидент. Содержит все атрибуты ИОР + готовые агрегаты по типам потерь (incdnt_drct_dmg_sum, incdnt_indrct_dmg_sum, ...)."
+    row_count: 980504
+    columns:
+      - name: incdnt_sid
+        type: string
+        filled_pct: 100.0
+      - name: risk_profile_id
+        type: string
+        filled_pct: 99.99
+      - name: org_struct_id
+        type: string
+        filled_pct: 100.0
+      - name: incdnt_summary_descr_txt
+        type: string
+        filled_pct: 99.99
+      - name: incdnt_status_name
+        type: string
+        filled_pct: 99.99
+        enum_values: ["Утверждён", "Закрыт", "Исследование", "Черновик", "Согласование", "Возмещение"]
+        description: "Статус ИОР. «Закрыт» = закрытый/завершённый; ВСЕ остальные значения = «незакрытый» (используй != 'Закрыт' для фильтра незакрытых)."
+      - name: incdnt_start_dt
+        type: timestamp
+        filled_pct: 99.95
+      - name: incdnt_source_name
+        type: string
+        filled_pct: 99.99
+      - name: incdnt_mistake_cnt
+        type: int
+        filled_pct: 93.08
+      - name: incdnt_last_validate_dttm
+        type: timestamp
+        filled_pct: 88.59
+      - name: incdnt_full_descr_txt
+        type: string
+        filled_pct: 99.98
+      - name: incdnt_first_validated_dttm
+        type: timestamp
+        filled_pct: 94.22
+      - name: incdnt_entry_dt
+        type: timestamp
+        filled_pct: 100.0
+      - name: incdnt_detection_person_name
+        type: string
+        filled_pct: 99.96
+      - name: incdnt_detection_dt
+        type: timestamp
+        filled_pct: 99.95
+      - name: incdnt_client_type_name
+        type: string
+        filled_pct: 99.99
+      - name: incdnt_autoreg_flag
+        type: string
+        filled_pct: 100.0
+      - name: funct_block_id
+        type: string
+        filled_pct: 99.96
+      - name: incdnt_appl_num
+        type: string
+        filled_pct: 66.31
+      - name: incdnt_agr_num
+        type: string
+        filled_pct: 15.05
+      - name: incdnt_agr_sid
+        type: string
+        filled_pct: 13.61
+      - name: incdnt_id
+        type: bigint
+        filled_pct: 100.0
+      - name: risk_profile_name
+        type: string
+        filled_pct: 99.99
+      - name: process_lvl_4_name
+        type: string
+        filled_pct: 98.9
+      - name: process_lvl_3_name
+        type: string
+        filled_pct: 98.9
+      - name: process_lvl_2_name
+        type: string
+        filled_pct: 98.9
+      - name: process_lvl_1_name
+        type: string
+        filled_pct: 98.9
+      - name: org_struct_lvl_9_name
+        type: string
+        filled_pct: 0.88
+      - name: org_struct_lvl_8_name
+        type: string
+        filled_pct: 3.48
+      - name: org_struct_lvl_7_name
+        type: string
+        filled_pct: 4.42
+      - name: org_struct_lvl_6_name
+        type: string
+        filled_pct: 5.11
+      - name: org_struct_lvl_5_name
+        type: string
+        filled_pct: 8.96
+      - name: org_struct_lvl_4_name
+        type: string
+        filled_pct: 75.19
+      - name: org_struct_lvl_3_name
+        type: string
+        filled_pct: 97.45
+      - name: org_struct_lvl_2_name
+        type: string
+        filled_pct: 99.69
+        enum_values: ["ПАО Сбербанк (ЦА)", "Территориальные банки", "Подразделения центрального подчинения"]
+        description: "Верхний уровень оргструктуры - всего 3 категории. Не содержит названий ТБ! Конкретные территориальные банки (Сибирский, Волго-Вятский, Северо-Западный...) лежат в org_struct_lvl_3_name."
+      - name: org_struct_lvl_10_name
+        type: string
+        filled_pct: 0.09
+      - name: src_type_lvl_2_name
+        type: string
+        filled_pct: 94.78
+        enum_values: ["Авто", "Косвенный", "Прямой канал"]
+      - name: src_type_lvl_1_name
+        type: string
+        filled_pct: 99.99
+        enum_values: ["Аудит", "Внешний контрагент", "Клиент", "Регулятор", "Система мониторинга", "Сотрудник банка"]
+      - name: incdnt_type_lvl_2_name
+        type: string
+        filled_pct: 99.99
+      - name: incdnt_type_lvl_1_name
+        type: string
+        filled_pct: 99.99
+        enum_values: ["1. Ошибки персонала и недостатки процессов", "2. Нарушение и сбои систем и оборудования", "3. Нарушение прав клиентов и контрагентов", "4. Нарушение кадровой политики и безопасности труда", "5. Преднамеренные действия персонала", "6. Ущерб материальным активам", "7. Преднамеренные действия третьих лиц"]
+        description: "Тип инцидента 1-го уровня - реальные значения с номером в начале. Точное совпадение из enum."
+      - name: funct_block_lvl_4_name
+        type: string
+        filled_pct: 80.99
+      - name: funct_block_lvl_3_name
+        type: string
+        filled_pct: 95.46
+      - name: funct_block_lvl_2_name
+        type: string
+        filled_pct: 95.51
+      - name: clntpth_lvl_4_name
+        type: string
+        filled_pct: 0.92
+      - name: recovery_rub_amt_aggr
+        type: decimal(28,4)
+        filled_pct: 39.22
+      - name: incdnt_sum
+        type: decimal(28,4)
+        filled_pct: 2.26
+      - name: incdnt_security_risk_flag
+        type: boolean
+        filled_pct: 73.86
+      - name: incdnt_infrmtn_sys_risk_flag
+        type: boolean
+        filled_pct: 73.86
+      - name: incdnt_behavior_risk_flag
+        type: boolean
+        filled_pct: 73.86
+      - name: incdnt_model_risk_flag
+        type: boolean
+        filled_pct: 73.86
+      - name: incdnt_unrlzd_dmg_sum
+        type: decimal(28,4)
+        filled_pct: 2.26
+      - name: incdnt_unrlzd_dmg_noncred_rub_amt
+        type: decimal(28,4)
+        filled_pct: 2.26
+      - name: incdnt_unrlzd_dmg_cred_rub_amt
+        type: decimal(28,4)
+        filled_pct: 2.26
+      - name: incdnt_thrd_prt_sum
+        type: decimal(28,4)
+        filled_pct: 2.26
+      - name: incdnt_thrd_prt_noncred_rub_amt
+        type: decimal(28,4)
+        filled_pct: 2.26
+      - name: incdnt_thrd_prt_cred_rub_amt
+        type: decimal(28,4)
+        filled_pct: 2.26
+      - name: incdnt_indrct_dmg_sum
+        type: decimal(28,4)
+        filled_pct: 2.26
+      - name: incdnt_indrct_dmg_noncred_rub_amt
+        type: decimal(28,4)
+        filled_pct: 2.26
+      - name: incdnt_indrct_dmg_cred_rub_amt
+        type: decimal(28,4)
+        filled_pct: 2.26
+      - name: incdnt_gain_sum
+        type: decimal(28,4)
+        filled_pct: 2.26
+      - name: incdnt_gain_noncred_rub_amt
+        type: decimal(28,4)
+        filled_pct: 2.26
+      - name: incdnt_gain_cred_rub_amt
+        type: decimal(28,4)
+        filled_pct: 2.26
+      - name: incdnt_drct_dmg_sum
+        type: decimal(28,4)
+        filled_pct: 2.26
+      - name: incdnt_drct_dmg_noncred_rub_amt
+        type: decimal(28,4)
+        filled_pct: 2.26
+      - name: incdnt_drct_dmg_cred_rub_amt
+        type: decimal(28,4)
+        filled_pct: 2.26
+    # Типичные фильтры для query() (LLM подсказка):
+    common_filters:
+      period:
+        columns: [incdnt_entry_dt, incdnt_detection_dt, incdnt_start_dt]
+        note: для фильтра по периоду используй incdnt_entry_dt (дата ввода в систему)
+      by_tb:
+        column: org_struct_lvl_3_name
+        note: |
+          ТБ (территориальный банк) - в org_struct_lvl_3_name (НЕ lvl_2!). Точные значения:
+          'Сибирский банк', 'Волго-Вятский банк', 'Северо-Западный банк' и т.д.
+          Аббревиатуры (СЗБ/ВВБ) разворачиваются через synonyms.yaml -> aliases.
+      by_type:
+        column: incdnt_type_lvl_1_name
+        note: тип события уровня 1 (Технические сбои, Внешнее мошенничество, ...)
+      by_status:
+        column: incdnt_status_name
+        note: Утверждён, Закрыт, Исследование, Возмещение, Черновик
+      by_sid:
+        column: incdnt_sid
+        note: бизнес-ID, формат EVE-NNNNNNN
+      by_sum_range:
+        column: incdnt_sum
+        note: |
+          ⚠ incdnt_sum и ВСЕ incdnt_*_dmg_sum в main заполнены лишь ~2.26% - НЕ использовать
+          для фильтра/агрегатов по суммам (вернут почти пусто). Реальные суммы потерь - join к
+          fin_impact (fin_impact_rub_amt, 99.78%; тип потери - fin_impact_type_name); возмещения -
+          recovery (recovery_rub_amt, 99.98%). См. synonyms.yaml -> financial.
+
+    # ⚠ ВНИМАНИЕ: эти «готовые агрегаты» в main заполнены лишь ~2.26% (кроме
+    # recovery_rub_amt_aggr ~39%) - по реальной витрине они почти пусты и НЕ годятся
+    # для фильтра/агрегатов по суммам. Для сумм потерь по типу - join к fin_impact
+    # (fin_impact_rub_amt + fin_impact_type_name), для возмещений - recovery. См. synonyms.yaml -> financial.
+    ready_aggregates_in_main:
+      - incdnt_drct_dmg_sum: 'Прямые потери (итого) - ⚠ ~2.26% заполнено, использовать fin_impact'
+      - incdnt_drct_dmg_cred_rub_amt: 'Прямые с кредитным риском'
+      - incdnt_drct_dmg_noncred_rub_amt: 'Прямые без кредитного'
+      - incdnt_indrct_dmg_sum: 'Косвенные потери'
+      - incdnt_unrlzd_dmg_sum: 'Нереализовавшиеся потери'
+      - incdnt_thrd_prt_sum: 'Потери третьих лиц'
+      - incdnt_gain_sum: 'Прибыль'
+      - recovery_rub_amt_aggr: 'Сумма возмещения (агрегат)'

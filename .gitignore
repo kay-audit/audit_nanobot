@@ -1,61 +1,18 @@
-```
-# Logs and temp files
+# runtime cache and logs - excluded from VCS
+logs/
 *.log
-*.tmp
-
-# Environment files
-.env
-.env.local
-*.env.*
-
-# Editor/IDE files
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# Dependency directories
-node_modules/
-venv/
-.venv/
+*.log.*
+workspace/data_store/cache/
+workspace/data_store/generated_charts/
+workspace/data_store/generated_files/
+workspace/memory/
+workspace/sessions/
 __pycache__/
-.mypy_cache/
+*.pyc
 .pytest_cache/
-dist/
-build/
-target/
-.gradle/
 
-# System files
-.DS_Store
-Thumbs.db
-
-# Coverage reports
-coverage/
-htmlcov/
-.coverage
-
-# Compressed files
-*.zip
-*.gz
-*.tar
-*.tgz
-*.bz2
-*.xz
-*.7z
-*.rar
-*.zst
-*.lz4
-*.lzh
-*.cab
-*.arj
-*.rpm
-*.deb
-*.Z
-*.lz
-*.lzo
-*.tar.gz
-*.tar.bz2
-*.tar.xz
-*.tar.zst
-```
+# secrets and project-state backups
+.secrets.env
+project.json.bak-*
+project.json
+.pytest_cache/
