@@ -26,6 +26,7 @@ from rich.console import Console
 
 if TYPE_CHECKING:
     from nanobot.agent import AgentHookContext, AgentRunHookContext
+from nanobot.agent.hook import AgentHook
 
 logger = logging.getLogger(__name__)
 
@@ -264,7 +265,7 @@ def _usage_to_dict(usage: Any) -> dict | None:
     return None
 
 
-class DatabaseLoggingHook:
+class DatabaseLoggingHook(AgentHook):
     """Агентский хук — пересылает tool- и run-события в DbLoggingService.
 
     Живёт в ``lib/hooks/``: это фреймворковый хук, а не плагин
@@ -300,6 +301,7 @@ class DatabaseLoggingHook:
         request_id: str | None = None,
         print_llm_calls: bool = False,
     ) -> None:
+        super().__init__()
         self._service = db_logging_service
         self._tool_start_times: dict[str, float] = {}
         self._agent_id = agent_id
