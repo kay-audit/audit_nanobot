@@ -174,7 +174,6 @@ isolation:
   # overlays.project_json.
   files_added:
     - docs/D6.md
-    - .gitignore
     - workspace/skills/ior-analyzer/**
     - workspace/tools/ior_analyzer.py
     - sql/migrations/V006__d6_ior_tables_real.sql
