@@ -6,8 +6,8 @@
 # - V006-миграция — production-схема таблиц IOR (5 связанных таблиц);
 # - testing-инфраструктура:
 #     * data_generator → ior.json (JSON-кэш для smoke);
-#     * seed_test_data.py → public.t_db_oarb_ior_d6_* (идемпотентный seed:
-#       CREATE TABLE IF NOT EXISTS + заполнение, если таблица пуста).
+#     * pg_loader (seed_test_data.py) → public.t_db_oarb_ior_d6_*
+#       (идемпотентный: CREATE TABLE IF NOT EXISTS + заполнение, если таблица пуста).
 #
 # Навык НЕ требует модификации lib/, sql/audit-*. runtime-aware выбор
 # backend'а (cache vs greenplum) делается в data_store.py напрямую через
@@ -74,13 +74,6 @@ skills:
     #   * 5 production-таблиц IOR (t_db_oarb_ior_d6_*) для sync в DuckDB-кэш;
     #   * без cli.*/llm.*/vector_indexes — tool-only skill.
     config_section: skills.ior-analyzer
-  # Очистка при rollback: DROP CASCADE для 5 таблиц.
-  cleanup_on_remove:
-    - DROP TABLE IF EXISTS public.t_db_oarb_ior_d6_base_of_knowledge_ior CASCADE
-    - DROP TABLE IF EXISTS public.t_db_oarb_ior_d6_base_of_knowledge_incident_stts_chng CASCADE
-    - DROP TABLE IF EXISTS public.t_db_oarb_ior_d6_base_of_knowledge_incident_recovery CASCADE
-    - DROP TABLE IF EXISTS public.t_db_oarb_ior_d6_base_of_knowledge_incident_fin_impact CASCADE
-    - DROP TABLE IF EXISTS public.t_db_oarb_ior_d6_base_of_knowledge_incident_nonfin_impact CASCADE
 
 tools:
   - name: ior_analyzer
@@ -164,17 +157,19 @@ testing:
     deterministic: true
     seed: 20260921
     record_count: 1000
-  seed_test_data:
-    # Создаёт 5 production-таблиц (если их нет) и заполняет тестовыми
-    # инцидентами (если они пусты). Идемпотентен — повторный запуск
-    # НЕ дропает существующие таблицы и НЕ перезаписывает данные.
-    # Требует: V006 миграция применена (audit_bridge apply копирует
-    # файл, но НЕ выполняет DDL — это разделение сознательно,
-    # V006 применяется через `python tools/migrate.py --apply`).
+  pg_loader:
+    # Дополнительный шаг после data_generator: заливает JSON в production-
+    # таблицы IOR (public.t_db_oarb_ior_d6_*) для SQL-flow через
+    # workspace.utils.db. Идемпотентен — повторный запуск НЕ дропает
+    # существующие таблицы и НЕ перезаписывает данные
+    # (CREATE TABLE IF NOT EXISTS + INSERT skip-if-populated).
+    # Требует: V006 миграция применена (`python tools/migrate.py --apply`).
+    # audit_bridge apply копирует файл, но НЕ выполняет DDL —
+    # это сознательное разделение.
     path: workspace/skills/ior-analyzer/testing/seed_test_data.py
     command: "python workspace/skills/ior-analyzer/testing/seed_test_data.py --json workspace/data_store/cache/testing/ior/ior.json"
     requires_migration: V006__d6_ior_tables_real
-    idempotent: true   # CREATE TABLE IF NOT EXISTS + skip if populated
+    idempotent: true
   pytest:
     command: "C:\\Users\\pasco\\opencode_projects\\audit_point\\audit_bridge\\venvs\\bot_venv\\Scripts\\python.exe -m pytest tests/test_tools_ior_analyzer.py tests/test_ior_bge_followup_contract.py -q --tb=short -p no:cacheprovider"
     marker_required_strict: true
@@ -202,11 +197,3 @@ isolation:
     - skills.ior_analyzer.enabled
     - skills.ior_analyzer.tables
   config_keys_removed: []
-  # Безопасный откат: удалить 5 таблиц IOR, вернуть project.json через
-  # overlay-rollback (audit_bridge делает автоматически из backup).
-  rollback_sql:
-    - DROP TABLE IF EXISTS public.t_db_oarb_ior_d6_base_of_knowledge_ior CASCADE
-    - DROP TABLE IF EXISTS public.t_db_oarb_ior_d6_base_of_knowledge_incident_stts_chng CASCADE
-    - DROP TABLE IF EXISTS public.t_db_oarb_ior_d6_base_of_knowledge_incident_recovery CASCADE
-    - DROP TABLE IF EXISTS public.t_db_oarb_ior_d6_base_of_knowledge_incident_fin_impact CASCADE
-    - DROP TABLE IF EXISTS public.t_db_oarb_ior_d6_base_of_knowledge_incident_nonfin_impact CASCADE
