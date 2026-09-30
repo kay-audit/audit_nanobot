@@ -150,12 +150,14 @@ isolation:
   # overlays.project_json.
   files_added:
     - docs/D5.md
+    - tests/test_follow_up_skill.py
     - workspace/skills/follow_up/**
     - workspace/tools/follow_up.py
     - sql/migrations/V007__d5_followup_tables.sql
+    - scripts/d5_smoke_seed.py
+    - feature.yaml
   files_modified:
     - project.json        # + skills.follow-up (таблицы для sync) — overlay only
-    - feature.yaml        # манифест ветки
   config_keys_added:
     - gateway.follow_up.enable
     - skills.follow_up.enabled
