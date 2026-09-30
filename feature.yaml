@@ -130,7 +130,7 @@ testing:
     target_storage: postgres
     postgres:
       dsn_env: DATABASE_URL
-      schema: public
+      schema_name: public
     idempotent: true
     deterministic: false
   runner: null
