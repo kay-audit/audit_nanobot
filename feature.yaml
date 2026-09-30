@@ -160,6 +160,6 @@ isolation:
     - project.json        # + skills.follow-up (таблицы для sync) — overlay only
   config_keys_added:
     - gateway.follow_up.enable
-    - skills.follow-up.enabled
-    - skills.follow-up.tables
+    - skills.follow_up.enabled
+    - skills.follow_up.tables
   config_keys_removed: []
