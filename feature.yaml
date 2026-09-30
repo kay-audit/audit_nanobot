@@ -121,13 +121,21 @@ testing:
   runtime_env: NANOBOT_SKILLS_RUNTIME
   runtime_value: testing
   runtime_data_backend: testing_pg
-  # data_generator: skill самостоятельно инициализирует схему через ensure_schema()
-  # при старте backend'а. Отдельный data_generator-скрипт для follow-up не нужен
-  # (схема известна и фиксирована, в отличие от ior-analyzer).
-  data_generator: null
+  # data_generator: схема идемпотентно создаётся через ensure_schema() при старте
+  # backend'а. Скрипт-обёртка для явного preflight-вызова — scripts/d5_smoke_seed.py
+  # (он же seedит минимальные фикстуры: чек-листы, KM-методы, реестр поручений).
+  data_generator:
+    path: scripts/d5_smoke_seed.py
+    command: "python scripts/d5_smoke_seed.py"
+    target_storage: postgres
+    postgres:
+      dsn_env: DATABASE_URL
+      schema: public
+    idempotent: true
+    deterministic: false
   runner: null
   pytest: null
-  # pg_loader: отдельный seed-скрипт, идемпотентен.
+  # pg_loader: тестовые фикстуры для dev-БД (тот же скрипт — идемпотентен).
   pg_loader:
     path: scripts/d5_smoke_seed.py
     command: "python scripts/d5_smoke_seed.py"
