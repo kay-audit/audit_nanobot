@@ -16,7 +16,7 @@
 
 feature:
   id: d5_followup
-  name: follow-up
+  name: follow_up
   version: 1.0.0
   description: >
     Follow-up по результатам аудита: работа с поручениями, KM-методами,
@@ -54,13 +54,13 @@ requires:
   sql_migrations: []
 
 skills:
-  - name: follow-up
+  - name: follow_up
     path: workspace/skills/follow_up
     pattern: full
     # Регистрируется в project.json::skills.follow-up (см. overlays.project_json).
     # Содержит полный backend (90+ файлов): agents, rag, indexing, storage,
     # llm-клиент, sync. Tool-only skill: целиком живёт в workspace/.
-    config_section: skills.follow-up
+    config_section: skills.follow_up
 
 tools:
   - name: follow_up
@@ -78,13 +78,13 @@ overlays:
         config_key="follow_up" обязателен даже при наличии safety-дефолта в tool'е
         (явная запись в git diff — единственный source of truth для аудита).
     - op: upsert
-      path: skills.follow-up.enabled
+      path: skills.follow_up.enabled
       value: true
       rationale: >
         Активация skill'а follow-up. Без этой записи ApplicationContext._auto_register_skills
         не зарегистрирует skill в TableRegistry, и LLM не увидит tools follow_up.
     - op: upsert
-      path: skills.follow-up.tables
+      path: skills.follow_up.tables
       value:
         - name: public.t_fu_checklist
           tracking_column: updated_at
@@ -160,6 +160,6 @@ isolation:
     - project.json        # + skills.follow-up (таблицы для sync) — overlay only
   config_keys_added:
     - gateway.follow_up.enable
-    - skills.follow_up.enabled
-    - skills.follow_up.tables
+    - skills.follow-up.enabled
+    - skills.follow-up.tables
   config_keys_removed: []
