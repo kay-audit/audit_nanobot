@@ -1,0 +1,155 @@
+# feature.yaml — обязательный манифест ветки feature/d5_followup.
+#
+# Описывает содержимое ветки d5_followup для apply через audit_bridge:
+# - skill follow_up (паттерн full, native-tool registration);
+# - tool follow_up (config_key=follow_up);
+# - V007-миграция — 18 production-таблиц D5 (t_fu_*);
+# - testing seed-скрипт — минимальные фикстуры для dev-БД.
+#
+# Ветка основана на origin/master. Навык НЕ требует модификации lib/,
+# sql/audit-*. runtime-aware выбор backend'а (PG/Greenplum) делается
+# через функцию ensure_schema() в skill при старте backend'а.
+# Для локальной dev-БД DDL транслирован из Greenplum (DISTRIBUTED BY +
+# WITH (...) storage clauses) в plain PostgreSQL — см. V007.
+#
+# Все пути относительно корня audit_nanobot.
+
+feature:
+  id: d5_followup
+  name: follow-up
+  version: 1.0.0
+  description: >
+    Follow-up по результатам аудита: работа с поручениями, KM-методами,
+    реестром актов, гипотезами и уточнениями. Поддерживает диалог по
+    ранее выявленным нарушениям, привязку к репозиториям-источникам,
+    извлечение доказательств и постановку новых задач аудитору.
+  documentation: docs/D5.md
+  maintainer: "@kay-audit/audit-team"
+
+requires:
+  nanobot_version: ">=2.5.0"
+  system_deps:
+    - python>=3.12
+  env_vars:
+    - name: NANOBOT_SKILLS_RUNTIME
+      required: false
+      default: production
+      allowed: [production, testing]
+      description: "Режим работы skill'ов (production/testing). testing → cache (DuckDB), иначе → greenplum/postgres."
+    - name: FOLLOWUP_BACKEND
+      required: false
+      default: ""
+      description: "Backend follow-up: пусто → автодетект (PG из channels.postgres.dsn, иначе GP из DATABASE__GP__HOST)."
+    - name: IOR_DATA_BACKEND
+      required: false
+      default: ""
+      description: "Явный override backend'а skill'а ior_analyzer (наследуется из d6_ior-clean)."
+  secrets:
+    - name: DATABASE_URL
+      source: existing
+    - name: OPENAI_API_KEY
+      source: existing
+    - name: providers__minimax__apiKey
+      source: existing
+  sql_migrations: []
+
+skills:
+  - name: follow-up
+    path: workspace/skills/follow_up
+    pattern: full
+    # Регистрируется в project.json::skills.follow-up (см. overlays.project_json).
+    # Содержит полный backend (90+ файлов): agents, rag, indexing, storage,
+    # llm-клиент, sync. Tool-only skill: целиком живёт в workspace/.
+    config_section: skills.follow-up
+
+tools:
+  - name: follow_up
+    path: workspace/tools/follow_up.py
+    config_key: follow_up
+    config_section: gateway.follow_up
+
+overlays:
+  project_json:
+    - op: upsert
+      path: gateway.follow_up.enable
+      value: true
+      rationale: >
+        Регистрация native tool follow_up через RuntimePatcher.patch_project_tools.
+        config_key="follow_up" обязателен даже при наличии safety-дефолта в tool'е
+        (явная запись в git diff — единственный source of truth для аудита).
+    - op: upsert
+      path: skills.follow-up.enabled
+      value: true
+      rationale: >
+        Активация skill'а follow-up. Без этой записи ApplicationContext._auto_register_skills
+        не зарегистрирует skill в TableRegistry, и LLM не увидит tools follow_up.
+    - op: upsert
+      path: skills.follow-up.tables
+      value:
+        - name: public.t_fu_checklist
+          tracking_column: updated_at
+        - name: public.t_fu_km_method
+          tracking_column: created_at
+        - name: public.t_fu_poruch_shadow
+          tracking_column: first_seen
+        - name: public.t_fu_act_docs
+          tracking_column: created_at
+        - name: public.t_fu_repo_index
+          tracking_column: parsed_at
+        - name: public.t_fu_repo_files
+          tracking_column: id
+      rationale: >
+        tracking_column per-table — Pk-эквивалент для инкрементального sync'а через
+        PgDuckDbSyncService. Без этой записи DuckDB-снапшот для follow-up таблиц
+        не создаётся, и skill получает "схема не существует" при попытке чтения
+        через DuckDB-cache.
+  env_files: []
+  templates: []
+  sql_migrations:
+    # V007 создаёт 18 production-таблиц follow-up (t_fu_*) под схемой public в
+    # локальной PostgreSQL. DDL транслирован из Greenplum (удалены DISTRIBUTED BY
+    # и WITH (...) storage clauses). На ПРОМе (Greenplum) таблицы уже
+    # существуют (DDL создаётся runtime-функцией ensure_schema() в skill при
+    # старте backend'а), миграция идемпотентна.
+    - sql/migrations/V007__d5_followup_tables.sql
+
+# lib_additions: НЕТ. Навык полностью живёт в workspace/skills/follow_up/.
+# Модификации runtime-инфраструктуры (Nanobot gateway, lib/) не требуются —
+# runtime-aware выбор backend'а делается внутри skill'а.
+
+testing:
+  runtime_env: NANOBOT_SKILLS_RUNTIME
+  runtime_value: testing
+  runtime_data_backend: testing_pg
+  # data_generator: skill самостоятельно инициализирует схему через ensure_schema()
+  # при старте backend'а. Отдельный data_generator-скрипт для follow-up не нужен
+  # (схема известна и фиксирована, в отличие от ior-analyzer).
+  data_generator: null
+  runner: null
+  pytest: null
+  # pg_loader: отдельный seed-скрипт, идемпотентен.
+  pg_loader:
+    path: scripts/d5_smoke_seed.py
+    command: "python scripts/d5_smoke_seed.py"
+    requires_migration: V007__d5_followup_tables
+    idempotent: true
+
+isolation:
+  removable: true
+  strategy: files_and_config
+  # Полный список файлов этой ветки. Не модифицирует master-файлы в lib/,
+  # config.json, project.json. Изменения конфигурации идут только через
+  # overlays.project_json.
+  files_added:
+    - docs/D5.md
+    - workspace/skills/follow_up/**
+    - workspace/tools/follow_up.py
+    - sql/migrations/V007__d5_followup_tables.sql
+  files_modified:
+    - project.json        # + skills.follow-up (таблицы для sync) — overlay only
+    - feature.yaml        # манифест ветки
+  config_keys_added:
+    - gateway.follow_up.enable
+    - skills.follow_up.enabled
+    - skills.follow_up.tables
+  config_keys_removed: []
