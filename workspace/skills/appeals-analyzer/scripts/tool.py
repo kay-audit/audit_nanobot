@@ -41,7 +41,9 @@ except ImportError:
 BaseTool = Tool
 logger = logging.getLogger(__name__)
 
-from appeals_reports import run_appeals_report
+from cli import load_standalone_runner
+
+run_appeals_report = load_standalone_runner()
 
 
 @tool_parameters({
@@ -78,8 +80,17 @@ class AppealsAnalyzerTool(BaseTool):
     ) -> str:
         logger.info(f"[appeals_analyzer] 🛠️ Tool execute called | prompt='{prompt}' | session_id='{session_id}'")
         try:
+            try:
+                from nanobot.agent.tools.context import current_request_context, current_request_session_key
+            except ImportError:
+                request_context, request_session = None, None
+            else:
+                request_context = current_request_context()
+                request_session = current_request_session_key()
+            if request_context is not None and not request_session:
+                raise RuntimeError("Current request has no session key")
             res = await run_appeals_report(
-                session_id=session_id or "webui_session",
+                session_id=request_session or session_id or "webui_session",
                 user_prompt=prompt or "",
             )
             logger.info(f"[appeals_analyzer] 🎯 Tool execution finished | response_len={len(res)} chars")

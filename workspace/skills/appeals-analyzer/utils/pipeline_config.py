@@ -1,15 +1,15 @@
-"""Single tuning point for the legacy-style appeals retrieval pipeline."""
+"""Reference search parameters and report limits."""
+from __future__ import annotations
 from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
 class PipelineConfig:
-    faiss_k: int = 2500
-    bm25_total_k: int = 2000
+    faiss_k: int = 2048
+    bm25_total_k: int = 1372
     rrf_k: int = 60
     rrf_alpha: float = 0.3
     score_threshold: float = 0.5
-    fallback_top_k: int = 2048
     reranker_batch_size: int = 8
     embedding_batch_size: int = 8
     bm25_chunk: int = 1_000_000

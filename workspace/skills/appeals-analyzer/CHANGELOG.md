@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased — shared Osiris runtime and idle lifecycle
+
+- Generic `workspace/utils/osiris_runtime` now owns profile-based SDK discovery, lifecycle lock, start/status/stop, typed errors, NFS transport and worker idle accounting. `osiris_job.py` is the operator CLI; `appeals_osiris_job.py` remains a compatibility wrapper.
+- Manual and request-triggered start share one implementation. `osiris.create(..., restart=False)` prevents an idle-exited worker from being relaunched; confirmed `osiris.delete(actual_name)` handles operator stop.
+- Idle TTL defaults to 3600 seconds and resets after each request. Startup wait defaults to 300 seconds, while retrieve/rerank execution deadlines remain separate. Appeals returns a 15-minute retry message only for startup unavailability.
+- Existing closed-contour image, token source and pinned worker packages are retained; pip receives the private index through environment rather than argv. BGE/FAISS/BM25/RRF/reranker logic is unchanged.
+
+
+## Unreleased — shared snapshot and Osiris production pipeline
+
+- Native Tool reads only the shared Gateway DuckDB snapshot; standalone CLI explicitly retains direct Greenplum with `--profile` and its existing pool lifecycle.
+- Osiris protocol v2 supports retrieval and rerank on one CUDA GPU; Gateway imports no ML/index runtime. Imports no longer start Osiris.
+- Global FAISS selectors and BM25 shard masks preserve reference RRF parameters (2048/1372, 0.3/60); no subset indexes or threshold fallback.
+- Canonical frontend values/dates are authoritative; independent structural groups use AND. Canonical IDs and joins use `app_row_id`.
+- Hydration retains CRM dialogue fallback and task records without Cartesian multiplication. One text helper feeds reranking and evidence.
+- All scores >= 0.5 feed four hypotheses and one session-scoped XLSX, delivered with the full report through MessageTool. Follow-up uses final IDs.
+- Appeals table registration is declared but disabled pending a safe shared initial-only sync API; see PRODUCTION.md. No Nanobot core change or fake tracking column.
+- Offline production contracts cover SQL/backend separation, masking, score/ID correlation, request cleanup, session/media and CLI behavior.
+
 ## Single-job hydration
 
 - Full RRF hydration now runs BASE, DIALOGS and TASKS on one shared connection in one `db.run()` job.

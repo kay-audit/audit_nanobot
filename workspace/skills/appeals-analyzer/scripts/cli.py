@@ -108,8 +108,7 @@ def start_standalone_db_runtime(shared_db) -> None:
 
 
 def load_standalone_runner() -> Callable:
-    """Load the copied skill privately after pinning shared workspace imports."""
-    load_shared_db()
+    """Import orchestration only; main owns explicit Greenplum initialization."""
     package_name = "appeals_analyzer_standalone"
     package_init = _SKILL_DIR / "__init__.py"
     loaded = sys.modules.get(package_name)
@@ -157,9 +156,10 @@ def _read_prompt(args: argparse.Namespace, parser: argparse.ArgumentParser) -> s
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Standalone appeals-analyzer runner (corporate GigaChat, no vLLM by default)",
-        epilog='Пример: ./appeals_analyze.sh \'"Кредиты", "", "IVR", "жалобы за 2026 год"\'',
+        epilog='Пример: ./appeals_analyze.sh --profile prod \'"Кредиты", "", "IVR", "жалобы за 2026 год"\'',
     )
-    parser.add_argument("positional_prompt", nargs="*", help="Structured four-field prompt")
+    parser.add_argument("--profile", choices=("prod", "test"), required=True, help="Project configuration profile")
+    parser.add_argument("positional_prompt", nargs="*", help="Structured Appeals prompt")
     parser.add_argument("--prompt", help="Structured four-field prompt")
     parser.add_argument("--prompt-file", type=Path, help="UTF-8 file containing the prompt")
     parser.add_argument("--session-id", default="cli_default_session", help="Session identifier")
@@ -188,11 +188,16 @@ def main() -> int:
     db_started = False
     try:
         shared_db = load_shared_db()
+        from config import _initialize_settings, is_settings_initialized
+        if not is_settings_initialized():
+            _initialize_settings(args.profile)
         start_standalone_db_runtime(shared_db)
         db_started = True
         logger.info("Standalone shared DB pool started by appeals CLI")
         runner = load_standalone_runner()
-        result = asyncio.run(runner(session_id=args.session_id, user_prompt=prompt))
+        backend = importlib.import_module("appeals_analyzer_standalone.utils.data_store")
+        with backend.backend_scope("greenplum"):
+            result = asyncio.run(runner(session_id=args.session_id, user_prompt=prompt))
     except KeyboardInterrupt:
         logger.warning("Standalone run interrupted by user")
         return 130

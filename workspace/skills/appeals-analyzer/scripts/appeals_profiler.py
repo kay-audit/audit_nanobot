@@ -15,6 +15,7 @@ _PROFILE_EXCLUDED_COLUMNS = {
     "short_description", "короткое описание", "транскрибация диалога",
     "msg_pprb_chat", "msg_crm_chat", "msg_sc_chat", "app_content", "req_desc",
     "метрика сва", "sva_metric",
+    "msg_crm_call", "task_answer", "task_answer_full",
 }
 
 

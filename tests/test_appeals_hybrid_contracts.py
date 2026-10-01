@@ -43,7 +43,7 @@ def test_structured_parser_and_exact_canonicalization():
     parsed = gp.parse_structured_analytical_request('" кредиты ", "", " IVR ", "жалобы за 2026 год"')
     assert parsed == {
         "products": ["Кредиты"], "subproducts": [], "channels": ["IVR"],
-        "query": "жалобы за 2026 год",
+        "query": "жалобы за 2026 год", "date_range": None, "format": "legacy",
     }
     assert gp.parse_structured_analytical_request(
         '"Кредиты, Кредитные карты", "Потребительский кредит", "СБОЛ", "текст"'
@@ -104,7 +104,7 @@ def test_gp_date_prefilter_is_parameterized_on_req_reg_date_only():
     assert not any(value in sql for value in (
         "a.created", "a.req_created", "a.app_created", "CAST(a.req_reg_date", "COALESCE(a.req_reg_date",
     ))
-    assert sql.count("SELECT ") == 1
+    assert sql.count("SELECT ") == 2
     assert "req_reg_date" not in sql.split(" FROM ", 1)[0]
 
 
@@ -113,7 +113,7 @@ def test_gp_year_pruning_uses_only_supported_intersecting_tables():
         ["Кредиты"], [], date_range=("2026-01-01", "2026-12-31"),
     )
     cross_year_sql, _ = gp.build_product_prefilter_sql(
-        ["Кредиты"], [], date_range=("2025-11-01", "2026-02-01"),
+        ["Кредиты"], [], years=[2025, 2026], date_range=("2025-11-01", "2026-02-01"),
     )
     all_years_sql, _ = gp.build_product_prefilter_sql(["Кредиты"], [], date_range=None)
     assert "appeal_2026" in one_year_sql and "appeal_2025" not in one_year_sql
@@ -156,35 +156,35 @@ def test_hydration_collapses_task_dialog_cartesian_product():
     rows = []
     for dialogue in ("fragment one", "fragment two"):
         for task in ("a", "b", "c"):
-            rows.append({"id": "123", "short_description": "x", "msg_pprb_chat": dialogue, "task_id": task})
+            rows.append({"id": "123", "short_description": "x", "msg_pprb_chat": dialogue, "task_answer": task})
     result = gp.normalize_hydrated_appeals(pd.DataFrame(rows))
     assert len(result) == 1
     semantic_dialogue = result.loc[0, "msg_pprb_chat"]
     assert semantic_dialogue.count("fragment one") == 1
     assert semantic_dialogue.count("fragment two") == 1
-    assert result.loc[0, "task_id"] == ["a", "b", "c"]
+    assert result.loc[0, "task_answer"] == ["a", "b", "c"]
 
 
 def test_hydration_design_aggregates_relations_before_merge_and_preserves_tasks():
     sql = gp.build_hydration_sql(["123"], years=[2026])
     assert "appeal_dialogs" not in sql and "appeal_task" not in sql and " JOIN " not in sql
     assert "CAST(a.cust_epk_id AS VARCHAR) AS cust_epk_id" in sql
-    assert "CAST(a.req_reg_date AS VARCHAR) AS req_reg_date" in sql
+    assert "a.req_reg_date," in sql
     assert "CAST(a.req_reg_date AS VARCHAR) AS date" in sql
     assert "COALESCE(CAST(a.created AS VARCHAR)" not in sql
     base = pd.DataFrame([{
-        "source_year": 2026, "app_row_id": "row-1", "id": "123",
+        "source_year": 2026, "_join_app_row_id": "row-1", "app_row_id": "row-1", "id": "row-1",
         "cust_epk_id": "epk-456", "req_reg_date": "2026-06-15",
         "date": "2026-06-15", "created": "2025-12-31", "short_description": "x",
     }])
     dialogs = pd.DataFrame([
-        {"source_year": 2026, "app_row_id": "row-1", "msg_pprb_chat": "fragment one"},
-        {"source_year": 2026, "app_row_id": "row-1", "msg_pprb_chat": "fragment two"},
+        {"source_year": 2026, "_join_app_row_id": "row-1", "msg_pprb_chat": "fragment one"},
+        {"source_year": 2026, "_join_app_row_id": "row-1", "msg_pprb_chat": "fragment two"},
     ])
     tasks = pd.DataFrame([
-        {"source_year": 2026, "app_row_id": "row-1", "task_id": "1", "task_status": "A", "task_result": "R1"},
-        {"source_year": 2026, "app_row_id": "row-1", "task_id": "2", "task_status": "B", "task_result": "R2"},
-        {"source_year": 2026, "app_row_id": "row-1", "task_id": "2", "task_status": "B", "task_result": "R2"},
+        {"source_year": 2026, "_join_app_row_id": "row-1", "task_answer": "A", "task_answer_full": "R1"},
+        {"source_year": 2026, "_join_app_row_id": "row-1", "task_answer": "B", "task_answer_full": "R2"},
+        {"source_year": 2026, "_join_app_row_id": "row-1", "task_answer": "B", "task_answer_full": "R2"},
     ])
     result = gp.merge_hydration_frames(base, dialogs, tasks)
     assert len(result) == 1
@@ -193,19 +193,19 @@ def test_hydration_design_aggregates_relations_before_merge_and_preserves_tasks(
     assert result.loc[0, "date"] == result.loc[0, "req_reg_date"]
     assert result.loc[0, "msg_pprb_chat"].count("fragment one") == 1
     assert result.loc[0, "msg_pprb_chat"].count("fragment two") == 1
-    assert [(task["task_id"], task["task_status"], task["task_result"]) for task in result.loc[0, "tasks"]] == [
-        ("1", "A", "R1"), ("2", "B", "R2")
+    assert [(task["task_answer"], task["task_answer_full"]) for task in result.loc[0, "tasks"]] == [
+        ("A", "R1"), ("B", "R2")
     ]
 
 
-def test_threshold_keeps_all_passes_and_fallback_is_scored_only():
+def test_threshold_keeps_all_passes_without_fallback():
     scores = pd.DataFrame({"id": range(3000), "score": np.full(3000, .51)})
     final, fallback = bge.select_threshold_or_fallback(scores)
     assert len(final) == 3000 and not fallback
     final, fallback = bge.select_threshold_or_fallback(
         pd.DataFrame({"id": range(3000), "score": np.full(3000, .49)})
     )
-    assert len(final) == 2048 and fallback
+    assert final.empty and not fallback
     with pytest.raises(RuntimeError):
         bge.select_threshold_or_fallback(pd.DataFrame({"id": [1]}))
 
@@ -330,16 +330,15 @@ def test_session_index_clear_and_replacement(monkeypatch):
     assert [row["id"] for row in bge.search_small_index("lifecycle", "semantic_query")] == ["new"]
 
 
-def test_failed_new_search_clears_old_session_index(monkeypatch):
+def test_failed_new_search_clears_old_final_ids(monkeypatch):
     session_id = "failed-new-search"
-    clear_session_extract(session_id)
-    bge._SMALL_FAISS_SESSION_CACHE[session_id] = {"rows": [{"id": "old"}], "index": None}
+    set_session_extract(session_id, pd.DataFrame({"id": ["old"]}), extra={"final_ids": ["old"]})
     monkeypatch.setattr(reports, "extract_search_params", lambda query: {"date_range": None})
-    monkeypatch.setattr(reports, "retrieve_hybrid_adaptive", lambda *args: [])
-    result = asyncio.run(reports.run_appeals_report(session_id, '"", "", "", "new query"'))
-    assert "не найдено" in result
-    assert session_id not in bge._SMALL_FAISS_SESSION_CACHE
-    assert bge.search_small_index(session_id, "old") == []
+    monkeypatch.setattr(reports, "fetch_candidate_ids_by_product", lambda *args: ["new"])
+    monkeypatch.setattr(reports, "retrieve_via_srb_d3", lambda *args: [])
+    result = asyncio.run(reports.run_appeals_report(session_id, ''"", "", "", "new query"''))
+    assert "не подтверждены" in result
+    assert session_manager.get_session_extract(session_id)["final_ids"] == []
 
 
 def test_missing_local_models_never_calls_remote_identifier(monkeypatch):
@@ -617,7 +616,7 @@ def test_retrieve_hybrid_masks_before_faiss_and_bm25(monkeypatch):
     fake_faiss.SearchParametersIVF = Params
     monkeypatch.setitem(sys.modules, "faiss", fake_faiss)
     monkeypatch.setattr(bge, "load_pipeline_meta_and_indices", lambda: None)
-    monkeypatch.setattr(bge, "get_bge_models", lambda: (_FakeEmbed(), None))
+    monkeypatch.setitem(bge._BGE_CACHE, "embed", _FakeEmbed())
     monkeypatch.setattr(bge, "doc_ids", ["global-best", "wrong-date", "allowed", "wrong-product"])
     monkeypatch.setattr(bge, "req_reg_dates", ["2026-06-01", "2025-06-01", "2026-07-01", "2026-08-01"])
     monkeypatch.setattr(bge, "id_to_positions", {"global-best": [0], "wrong-date": [1], "allowed": [2], "wrong-product": [3]})
@@ -632,15 +631,16 @@ def test_followup_does_not_call_initial_greenplum(monkeypatch):
     session_id = "followup-contract"
     clear_session_extract(session_id)
     frame = pd.DataFrame([{"id": "12345"}])
-    set_session_extract(session_id, frame, extra={"id_to_text_map": {"12345": {"id": "12345", "desc": "x", "dialogue": "y"}}, "hypothesis": "h"})
+    set_session_extract(session_id, frame, extra={"final_ids": ["12345"], "hypothesis": "h"})
     monkeypatch.setattr(reports, "fetch_candidate_ids_by_product", lambda *args: pytest.fail("initial GP prefilter called"))
     monkeypatch.setattr(reports, "fetch_appeals_by_ids", lambda *args: pytest.fail("initial GP hydration called"))
+    monkeypatch.setattr(reports, "classify_complaint_intent", lambda prompt: "dialog")
     monkeypatch.setattr(reports, "answer_complaint_dialog", lambda *args, **kwargs: "follow-up")
     result = asyncio.run(reports.run_appeals_report(session_id, "поясни вывод"))
     assert result == "follow-up"
 
 
-def test_pipeline_passes_same_date_range_to_gp_and_cache(monkeypatch):
+def test_pipeline_prefilters_date_before_osiris(monkeypatch):
     session_id = "date-wiring-contract"
     clear_session_extract(session_id)
     expected = ("2026-01-01", "2026-12-31")
@@ -654,23 +654,22 @@ def test_pipeline_passes_same_date_range_to_gp_and_cache(monkeypatch):
         seen["channels"] = list(channels)
         seen["gp"] = date_range
         return ["1"]
-    def retrieve(query, allowed_ids, date_range=None):
-        seen["cache"] = date_range
+    def retrieve(session_id, query, allowed_ids):
+        seen["allowed"] = allowed_ids
         return ["1"]
     monkeypatch.setattr(reports, "fetch_candidate_ids_by_product", gp_prefilter)
-    monkeypatch.setattr(reports, "retrieve_hybrid_adaptive", retrieve)
-    monkeypatch.setattr(reports, "fetch_appeals_by_ids", lambda ids: hydrated)
-    monkeypatch.setattr(reports, "rerank_dataframe", lambda query, frame: frame.assign(score=.9))
-    monkeypatch.setattr(reports, "export_complaints_excel", lambda frame, query: {
-        "xlsx_path": "x", "csv_path": "c", "name": "x", "count": len(frame),
+    monkeypatch.setattr(reports, "retrieve_via_srb_d3", retrieve)
+    monkeypatch.setattr(reports, "fetch_appeals_by_ids", lambda ids, date_range=None: hydrated)
+    monkeypatch.setattr(reports, "rerank_via_srb_d3", lambda session_id, query, frame: frame.assign(score=.9))
+    monkeypatch.setattr(reports, "export_complaints_excel", lambda frame, query, session_id: {
+        "xlsx_path": "x", "name": "x", "count": len(frame),
     })
-    monkeypatch.setattr(reports, "build_and_cache_small_index", lambda *args, **kwargs: True)
     async def narrative(*args, **kwargs):
         return "report"
     monkeypatch.setattr(reports, "generate_complaint_hypothesis_narrative", narrative)
     result = asyncio.run(reports.run_appeals_report(session_id, '"Кредиты", "", "IVR", "жалобы за 2026"'))
     assert result.startswith("report")
-    assert seen == {"channels": ["IVR"], "gp": expected, "cache": expected}
+    assert seen == {"channels": ["IVR"], "gp": expected, "allowed": ["1"]}
 
 
 def test_hydration_precedes_rerank_and_active_pipeline_skips_sva(monkeypatch):
@@ -682,18 +681,18 @@ def test_hydration_precedes_rerank_and_active_pipeline_skips_sva(monkeypatch):
         {"id": "2", "short_description": "b", "description": "b"},
         {"id": "3", "short_description": "c", "description": "c"},
     ])
+    monkeypatch.setattr(reports, "fetch_candidate_ids_by_product", lambda *args: ["1", "2", "3"])
     monkeypatch.setattr(reports, "extract_search_params", lambda query: {"date_range": None})
-    monkeypatch.setattr(reports, "retrieve_hybrid_adaptive", lambda *args: calls.append("retrieve") or ["1", "2", "3"])
-    monkeypatch.setattr(reports, "fetch_appeals_by_ids", lambda ids: calls.append(("hydrate", list(ids))) or hydrated)
-    def rerank(query, frame):
+    monkeypatch.setattr(reports, "retrieve_via_srb_d3", lambda *args: calls.append("retrieve") or ["1", "2", "3"])
+    monkeypatch.setattr(reports, "fetch_appeals_by_ids", lambda ids, date_range=None: calls.append(("hydrate", list(ids))) or hydrated)
+    def rerank(session_id, query, frame):
         calls.append(("rerank", list(frame.id)))
         result = frame.copy()
         result["score"] = [.9, .7, .1]
         return result
-    monkeypatch.setattr(reports, "rerank_dataframe", rerank)
+    monkeypatch.setattr(reports, "rerank_via_srb_d3", rerank)
     monkeypatch.setattr(sva, "batch_classify_sva_metrics", lambda texts: pytest.fail("SVA classifier called"))
-    monkeypatch.setattr(reports, "export_complaints_excel", lambda frame, query: calls.append(("export", list(frame.id))) or {"xlsx_path": "x", "csv_path": "c", "name": "x", "count": len(frame)})
-    monkeypatch.setattr(reports, "build_and_cache_small_index", lambda session_id, mapping: calls.append(("index", list(mapping))) or True)
+    monkeypatch.setattr(reports, "export_complaints_excel", lambda frame, query, session_id: calls.append(("export", list(frame.id))) or {"xlsx_path": "x", "name": "x", "count": len(frame)})
     async def narrative(*args, **kwargs):
         calls.append(("hypotheses", list(args[1].id)))
         return "report"
@@ -703,7 +702,7 @@ def test_hydration_precedes_rerank_and_active_pipeline_skips_sva(monkeypatch):
     assert calls == [
         "retrieve", ("hydrate", ["1", "2", "3"]),
         ("rerank", ["1", "2", "3"]), ("export", ["1", "2"]),
-        ("index", ["1", "2"]), ("hypotheses", ["1", "2"]),
+        ("hypotheses", ["1", "2"]),
     ]
     assert not hasattr(reports, "batch_classify_sva_metrics")
     assert not hasattr(reports, "prepare_texts_for_metrics")
@@ -718,12 +717,12 @@ def test_full_final_dataset_is_exported_while_hypothesis_evidence_is_capped(monk
         "description": ["full dialogue " * 100] * 500,
     })
     observed = {}
+    monkeypatch.setattr(reports, "fetch_candidate_ids_by_product", lambda *args: ["1", "2", "3"])
     monkeypatch.setattr(reports, "extract_search_params", lambda query: {"date_range": None})
-    monkeypatch.setattr(reports, "retrieve_hybrid_adaptive", lambda *args: hydrated["id"].tolist())
-    monkeypatch.setattr(reports, "fetch_appeals_by_ids", lambda ids: hydrated)
-    monkeypatch.setattr(reports, "rerank_dataframe", lambda query, frame: frame.assign(score=.9))
-    monkeypatch.setattr(reports, "export_complaints_excel", lambda frame, query: observed.update(export_count=len(frame)) or {"xlsx_path": "x", "csv_path": "c", "name": "x", "count": len(frame)})
-    monkeypatch.setattr(reports, "build_and_cache_small_index", lambda *args, **kwargs: True)
+    monkeypatch.setattr(reports, "retrieve_via_srb_d3", lambda *args: hydrated["id"].tolist())
+    monkeypatch.setattr(reports, "fetch_appeals_by_ids", lambda ids, date_range=None: hydrated)
+    monkeypatch.setattr(reports, "rerank_via_srb_d3", lambda session_id, query, frame: frame.assign(score=.9))
+    monkeypatch.setattr(reports, "export_complaints_excel", lambda frame, query, session_id: observed.update(export_count=len(frame)) or {"xlsx_path": "x", "name": "x", "count": len(frame)})
     async def narrative(query, frame, export, total_db_count):
         sample = hypothesis.select_hypothesis_sample(frame)
         batches = hypothesis.build_evidence_batches(sample)
@@ -748,9 +747,10 @@ def test_full_final_dataset_is_exported_while_hypothesis_evidence_is_capped(monk
 
 
 def test_depth_constants_are_preserved():
-    assert (bge.CONFIG.faiss_k, bge.CONFIG.bm25_total_k) == (2500, 2000)
+    assert (bge.CONFIG.faiss_k, bge.CONFIG.bm25_total_k) == (2048, 1372)
     assert (bge.CONFIG.rrf_k, bge.CONFIG.rrf_alpha) == (60, .3)
-    assert (bge.CONFIG.score_threshold, bge.CONFIG.fallback_top_k) == (.5, 2048)
+    assert bge.CONFIG.score_threshold == .5
+    assert not hasattr(bge.CONFIG, "fallback_top_k")
 
 
 class _AppealsCursor:
@@ -784,185 +784,48 @@ class _AppealsConnection:
         return self._cursor
 
 
-def test_appeals_query_uses_canonical_shared_db_run(monkeypatch):
-    expected_db = ROOT / "workspace/utils/db.py"
-    assert Path(gp.db._shared_db.__file__).resolve() == expected_db.resolve()
+def test_standalone_query_uses_shared_gp_pool_and_closes_cursor(monkeypatch):
+    backend = importlib.import_module(f"{PACKAGE}.utils.data_store")
+    db = importlib.import_module(f"{PACKAGE}.utils.db")
     cursor = _AppealsCursor(rows=(("10",), ("20",)))
-    connection = _AppealsConnection(cursor)
+    monkeypatch.setattr(db, "run", lambda work: work(_AppealsConnection(cursor)))
+    with backend.backend_scope("greenplum"):
+        result = gp._run_sql("SELECT app_row_id FROM appeals WHERE app_row_id = %s", [10])
+    assert result.id.tolist() == ["10", "20"]
+    assert cursor.executed[1] == (10,)
+    assert cursor.closed
+    assert backend._backend.get() == "cache"
+
+
+def test_hydration_keeps_all_4500_candidate_ids(monkeypatch):
+    ids = [str(i) for i in range(4500)]
+    seen = []
+    base = pd.DataFrame([{"source_year": 2026, "id": "1", "app_row_id": "1", "_join_app_row_id": "1"}])
+    frames = iter([base, pd.DataFrame(), pd.DataFrame()])
+    monkeypatch.setattr(gp, "configured_years", lambda: [2026])
+    monkeypatch.setattr(gp, "_run_sql", lambda sql, params=None: seen.append(sql) or next(frames))
+    result = gp.fetch_appeals_by_ids(ids)
+    assert len(seen) == 3
+    assert all("'" + cid + "'" in seen[0] for cid in ids)
+    assert result.id.tolist() == ["1"]
+
+
+@pytest.mark.parametrize("failed_phase", [0, 1, 2])
+def test_hydration_phase_errors_propagate_without_merge(monkeypatch, failed_phase):
     calls = []
-
-    def run(work):
-        calls.append(work)
-        return work(connection)
-
-    monkeypatch.setattr(gp.db, "run", run)
-    result = gp._run_sql("SELECT id FROM appeals WHERE id = %s", [10])
-
-    assert len(calls) == 1
-    assert result.to_dict("records") == [{"id": "10"}, {"id": "20"}]
-    assert cursor.executed == ("SELECT id FROM appeals WHERE id = %s", (10,))
-    assert cursor.closed is True
-
-
-def test_appeals_sql_error_closes_cursor_and_next_job_can_run(monkeypatch):
-    failing = _AppealsCursor(fail=ValueError("query failed"))
-    succeeding = _AppealsCursor(rows=(("ok",),))
-    connections = iter((_AppealsConnection(failing), _AppealsConnection(succeeding)))
-    monkeypatch.setattr(gp.db, "run", lambda work: work(next(connections)))
-
-    with pytest.raises(ValueError, match="query failed"):
-        gp._run_sql("SELECT broken")
-    result = gp._run_sql("SELECT healthy")
-
-    assert failing.closed is True
-    assert succeeding.closed is True
-    assert result.loc[0, "id"] == "ok"
-
-
-def test_hydration_uses_one_db_job_one_connection_and_all_4500_ids(monkeypatch):
-    candidate_ids = [str(index) for index in range(4500)]
-    connection = object()
-    db_run_calls = []
-    sql_calls = []
-    builder_inputs = []
-    state = {"inside_db_run": False}
-    base = pd.DataFrame([{
-        "source_year": 2026, "id": "1", "app_row_id": "app-1",
-        "short_description": "appeal",
-    }])
-    dialogs = pd.DataFrame([{
-        "source_year": 2026, "app_row_id": "app-1", "msg_pprb_chat": "dialog",
-    }])
-    tasks = pd.DataFrame([{
-        "source_year": 2026, "app_row_id": "app-1", "task_id": "task-1",
-    }])
-    frames_by_label = {
-        "hydration base": base,
-        "hydration dialogs": dialogs,
-        "hydration tasks": tasks,
-    }
-
-    def run(work):
-        db_run_calls.append(work)
-        state["inside_db_run"] = True
-        try:
-            return work(connection)
-        finally:
-            state["inside_db_run"] = False
-
-    def execute_on_connection(conn, sql, params=None, *, label="query"):
-        assert state["inside_db_run"] is True
-        sql_calls.append((label, conn, sql))
-        return frames_by_label[label]
-
-    def build_base(ids, years=gp.DEFAULT_YEARS):
-        builder_inputs.append(list(ids))
-        return "BASE SQL"
-
-    original_merge = gp.merge_hydration_frames
-
-    def merge_after_release(*args):
-        assert state["inside_db_run"] is False
-        return original_merge(*args)
-
-    monkeypatch.setattr(gp.db, "run", run)
-    monkeypatch.setattr(gp, "_run_sql_on_connection", execute_on_connection)
-    monkeypatch.setattr(gp, "build_hydration_sql", build_base)
-    monkeypatch.setattr(gp, "build_dialog_hydration_sql", lambda ids: "DIALOGS SQL")
-    monkeypatch.setattr(gp, "build_task_hydration_sql", lambda ids: "TASKS SQL")
-    monkeypatch.setattr(gp, "merge_hydration_frames", merge_after_release)
-
-    result = gp.fetch_appeals_by_ids(candidate_ids)
-
-    assert len(db_run_calls) == 1
-    assert builder_inputs == [candidate_ids]
-    assert [label for label, _, _ in sql_calls] == [
-        "hydration base", "hydration dialogs", "hydration tasks",
-    ]
-    assert all(conn is connection for _, conn, _ in sql_calls)
-    assert result.loc[0, "id"] == "1"
-    assert result.loc[0, "msg_pprb_chat"] == "dialog"
-    assert result.loc[0, "task_id"] == "task-1"
-
-
-def test_empty_hydration_base_skips_related_queries(monkeypatch):
-    labels = []
-    db_run_calls = []
-
-    def run(work):
-        db_run_calls.append(work)
-        return work(object())
-
-    def execute_on_connection(conn, sql, params=None, *, label="query"):
-        labels.append(label)
-        return pd.DataFrame()
-
-    monkeypatch.setattr(gp.db, "run", run)
-    monkeypatch.setattr(gp, "_run_sql_on_connection", execute_on_connection)
-    monkeypatch.setattr(gp, "build_dialog_hydration_sql", lambda ids: pytest.fail("dialogs built"))
-    monkeypatch.setattr(gp, "build_task_hydration_sql", lambda ids: pytest.fail("tasks built"))
-    monkeypatch.setattr(gp, "merge_hydration_frames", lambda *args: pytest.fail("empty base merged"))
-
-    result = gp.fetch_appeals_by_ids(["1", "2"])
-
-    assert len(db_run_calls) == 1
-    assert labels == ["hydration base"]
-    assert result.empty
-
-
-@pytest.mark.parametrize(
-    "failed_label",
-    ["hydration base", "hydration dialogs", "hydration tasks"],
-)
-def test_hydration_phase_errors_propagate_without_merge(monkeypatch, failed_label):
-    labels = []
-    base = pd.DataFrame([{
-        "source_year": 2026, "id": "1", "app_row_id": "app-1",
-    }])
-
-    def execute_on_connection(conn, sql, params=None, *, label="query"):
-        labels.append(label)
-        if label == failed_label:
-            raise ValueError(f"{label} failed")
-        return base if label == "hydration base" else pd.DataFrame()
-
-    run_calls = []
-    monkeypatch.setattr(gp.db, "run", lambda work: run_calls.append(work) or work(object()))
-    monkeypatch.setattr(gp, "_run_sql_on_connection", execute_on_connection)
+    base = pd.DataFrame([{"source_year": 2026, "id": "1", "app_row_id": "1", "_join_app_row_id": "1"}])
+    def query(sql, params=None):
+        phase = len(calls)
+        calls.append(sql)
+        if phase == failed_phase:
+            raise ValueError("hydration failed")
+        return base if phase == 0 else pd.DataFrame()
+    monkeypatch.setattr(gp, "configured_years", lambda: [2026])
+    monkeypatch.setattr(gp, "_run_sql", query)
     monkeypatch.setattr(gp, "merge_hydration_frames", lambda *args: pytest.fail("failed hydration merged"))
-
-    with pytest.raises(ValueError, match="failed"):
+    with pytest.raises(ValueError, match="hydration failed"):
         gp.fetch_appeals_by_ids(["1"])
-
-    assert len(run_calls) == 1
-    assert failed_label in labels
-
-
-def test_parallel_appeals_queries_are_submitted_to_bounded_shared_runner(monkeypatch):
-    active = 0
-    maximum = 0
-    lock = threading.Lock()
-    slots = threading.Semaphore(4)
-
-    def run(work):
-        nonlocal active, maximum
-        with slots:
-            with lock:
-                active += 1
-                maximum = max(maximum, active)
-            try:
-                time.sleep(0.02)
-                return work(_AppealsConnection(_AppealsCursor()))
-            finally:
-                with lock:
-                    active -= 1
-
-    monkeypatch.setattr(gp.db, "run", run)
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        frames = list(executor.map(lambda _: gp._run_sql("SELECT 1"), range(10)))
-
-    assert len(frames) == 10
-    assert 1 < maximum <= 4
+    assert len(calls) == failed_phase + 1
 
 
 def test_appeals_active_runtime_contains_no_private_connection_path():

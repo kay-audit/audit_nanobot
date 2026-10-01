@@ -31,8 +31,9 @@ _SMALL_FAISS_SESSION_CACHE: Dict[str, Dict[str, Any]] = {}
 _loaded = False
 doc_ids: List[Any] = []
 req_reg_dates: List[Any] = []
-id_to_positions: Dict[str, List[int]] = {}
+id_to_positions: Dict[str, int | List[int]] = {}
 faiss_loaded: Any = None
+_gpu_resources: Any = None
 bm25_indexes: List[Tuple[Any, int]] = []
 
 
@@ -402,12 +403,16 @@ def load_pipeline_meta_and_indices(path: Optional[os.PathLike] = None) -> None:
         doc_ids = list(meta.get("doc_ids", []))
         raw_dates = meta.get("req_reg_dates")
         req_reg_dates = [None] * len(doc_ids) if raw_dates is None else list(raw_dates)
+        mapping = meta.get("id_to_index")
+        if mapping is None:
+            mapping = {normalize_id(cid): position for position, cid in enumerate(doc_ids)}
         id_to_positions = {}
-        for pos, doc_id in enumerate(doc_ids):
-            id_to_positions.setdefault(normalize_id(doc_id), []).append(pos)
-        collisions = {key: positions for key, positions in id_to_positions.items() if len(positions) > 1}
-        if collisions:
-            logger.warning("Normalized cache ID collisions: %s keys", len(collisions))
+        for cid, position in mapping.items():
+            position = int(position)
+            if not 0 <= position < len(doc_ids) or normalize_id(doc_ids[position]) != normalize_id(cid):
+                raise RuntimeError("RAG cache integrity error: invalid id_to_index mapping.")
+            id_to_positions[normalize_id(cid)] = position
+        del mapping, meta
         faiss_loaded = faiss.read_index(str(root / "faiss_index"))
         validate_cache_metadata(doc_ids, req_reg_dates, faiss_loaded)
         bm_dir = next((root / name for name in ("bm25s_shards2", "bm25s_shards") if (root / name).is_dir()), None)
@@ -456,6 +461,32 @@ def load_pipeline_meta_and_indices(path: Optional[os.PathLike] = None) -> None:
         raise
 
 
+def initialize_retrieval(embed_model, path=None, *, use_gpu=True):
+    """Load the global indexes once in Osiris; GPU requires selector support."""
+    global faiss_loaded, _gpu_resources
+    load_pipeline_meta_and_indices(path)
+    _BGE_CACHE["embed"] = embed_model
+    if not use_gpu or _gpu_resources is not None:
+        return
+    import faiss
+
+    cpu = faiss_loaded
+    try:
+        resources = faiss.StandardGpuResources()
+        gpu = faiss.index_cpu_to_gpu(resources, 0, cpu)
+        params = faiss.SearchParametersIVF()
+        params.nprobe = cpu.nprobe
+        selector = faiss.IDSelectorBatch(np.asarray([0], dtype="int64"))
+        params.sel = selector
+        _, found = gpu.search(np.zeros((1, cpu.d), dtype="float32"), 1, params=params)
+        if any(int(position) not in {-1, 0} for position in found[0]):
+            raise RuntimeError("GPU FAISS ignored the allowed-ID selector")
+        faiss_loaded, _gpu_resources = gpu, resources
+    except Exception as exc:
+        logger.info("Using CPU FAISS inside Osiris: %s", exc)
+        faiss_loaded = cpu
+
+
 def build_allowed_mask(
     allowed_candidate_ids: Optional[Sequence[Any]] = None,
     date_range: Optional[Tuple[Optional[str], Optional[str]]] = None,
@@ -463,16 +494,11 @@ def build_allowed_mask(
     """Build one global mask shared by both retrieval engines; None means unrestricted."""
     structural_mask = None
     if allowed_candidate_ids is not None:
-        # allowed_candidate_ids — уже union ID из OR-групп prd/s_prd/chnl.
         structural_mask = np.zeros(len(doc_ids), dtype=bool)
-        missing = 0
         for candidate_id in dict.fromkeys(normalize_id(v) for v in allowed_candidate_ids):
             positions = id_to_positions.get(candidate_id)
-            if positions:
+            if positions is not None:
                 structural_mask[positions] = True
-            else:
-                missing += 1
-        logger.info("Structural OR IDs in cache=%s missing=%s", int(structural_mask.sum()), missing)
     date_mask = None
     if date_range is not None:
         start, end = date_range
@@ -519,8 +545,7 @@ def retrieve_hybrid_adaptive(
     allowed_candidate_ids: Optional[Sequence[Any]] = None,
     date_range: Optional[Tuple[Optional[str], Optional[str]]] = None,
 ) -> List[Any]:
-    load_pipeline_meta_and_indices()
-    embed, _ = get_bge_models()
+    embed = _BGE_CACHE.get("embed")
     if faiss_loaded is None or embed is None:
         raise RuntimeError("BGE embedding model or FAISS index is unavailable; semantic retrieval cannot continue.")
     allowed_mask = build_allowed_mask(allowed_candidate_ids, date_range)
@@ -553,7 +578,10 @@ def retrieve_hybrid_adaptive(
         if local_mask is not None: kwargs["weight_mask"] = local_mask
         results, _ = index.retrieve([tokenize(query)], k=min(per_shard, allowed), **kwargs)
         for rank, local_id in enumerate(results[0], 1):
-            global_pos = offset + int(local_id)
+            local_id = int(local_id)
+            if not 0 <= local_id < size:
+                continue
+            global_pos = offset + local_id
             if 0 <= global_pos < len(doc_ids) and (local_mask is None or local_mask[int(local_id)]):
                 _record_best_rank(bm25_ranks, global_pos, rank)
     logger.info("Hybrid retrieval: allowed=%s FAISS=%s BM25=%s", None if allowed_mask is None else int(allowed_mask.sum()), len(faiss_ranks), len(bm25_ranks))
@@ -602,10 +630,10 @@ def rerank_dataframe(query: str, df: pd.DataFrame) -> pd.DataFrame:
 
 
 def select_threshold_or_fallback(scored: pd.DataFrame) -> Tuple[pd.DataFrame, bool]:
-    if scored.empty or "score" not in scored:
+    if "score" not in scored:
         raise RuntimeError("Reranker produced no scores.")
     accepted = scored[scored["score"] >= CONFIG.score_threshold].copy()
-    return (accepted, False) if not accepted.empty else (scored.head(CONFIG.fallback_top_k).copy(), True)
+    return accepted, False
 
 
 def build_and_cache_small_index(session_id: str, df_or_map: Any, **_: Any) -> bool:

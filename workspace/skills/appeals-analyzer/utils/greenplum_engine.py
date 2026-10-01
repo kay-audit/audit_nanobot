@@ -1,4 +1,4 @@
-"""Greenplum structural population filter and full-row hydration for appeals."""
+"""Structural SQL and hydration: shared DuckDB, or explicitly scoped CLI Greenplum."""
 from __future__ import annotations
 
 import csv
@@ -13,18 +13,19 @@ from typing import List, Dict, Any, Optional, Tuple, Sequence
 import pandas as pd
 
 try:
-    from . import db
+    from .data_store import configured_years, query_sql
+    from .appeal_text import appeal_parts, normalize_text
 except ImportError:
-    import db
+    from utils.data_store import configured_years, query_sql
+    from utils.appeal_text import appeal_parts, normalize_text
 
 logger = logging.getLogger(__name__)
 
 
 TABLE_PREFIX = "40_kaluginvs_anofl_"
-DEFAULT_YEARS = [2023, 2024, 2025, 2026]
+DEFAULT_YEARS = [2026]
 DEFAULT_SCHEMA = "s_grnplm_ld_audit_da_project_27"
 
-# Единственный источник канонических значений для skill и WEB-интерфейса.
 _CANONICAL_FILTERS_PATH = Path(__file__).resolve().parents[1] / "canonical_filters.json"
 with _CANONICAL_FILTERS_PATH.open("r", encoding="utf-8") as _catalog_file:
     _CANONICAL_FILTERS = json.load(_catalog_file)
@@ -42,7 +43,7 @@ _CANONICAL_GROUPS = {
 
 
 def normalize_id(value: Any) -> str:
-    return str(value).strip()
+    return normalize_text(value)
 
 
 def _canonicalize_field(value: str, canonical: Sequence[str], label: str) -> List[str]:
@@ -95,12 +96,8 @@ def _canonicalize_json_values(value: Any, canonical: Sequence[str], label: str) 
         raise ValueError(f"Фильтр {label} должен быть JSON-массивом.")
     if any(not isinstance(item, str) for item in value):
         raise ValueError(f"Все значения фильтра {label} должны быть строками.")
-    allowed = set(canonical)
-    unknown = [item for item in value if item not in allowed]
-    if unknown:
-        raise ValueError(
-            f"Фильтр {label} содержит неизвестные значения: {', '.join(unknown)}."
-        )
+    if any(not item.strip() for item in value):
+        raise ValueError(f"Фильтр {label} содержит пустое значение.")
     return list(dict.fromkeys(value))
 
 
@@ -335,11 +332,9 @@ def build_product_prefilter_sql(
     date_range: Optional[Tuple[Optional[str], Optional[str]]] = None,
 ) -> Tuple[str, List[Any]]:
     """Return an ID-only structural query with optional canonical req_reg_date pushdown."""
-    if not products and not subproducts and not channels:
-        raise ValueError("SQL structural prefilter requires product, subproduct or channel filters.")
     selected_years = select_gp_years(date_range, years)
     if not selected_years:
-        raise ValueError("date_range does not intersect configured Greenplum years")
+        raise ValueError("date_range does not intersect configured source years")
     structural_conditions = []
     condition_params: List[Any] = []
     if products:
@@ -352,9 +347,7 @@ def build_product_prefilter_sql(
         structural_conditions.append(f"a.chnl IN ({', '.join(['%s'] * len(channels))})")
         condition_params.extend(channels)
 
-    # Независимые группы prd/s_prd/chnl образуют единую OR-группу. Период
-    # добавляется ниже как отдельное AND-ограничение ко всему результату.
-    condition_templates = [f"({' OR '.join(structural_conditions)})"]
+    condition_templates = list(structural_conditions)
     bounds = _date_bounds(date_range)
     if bounds is not None:
         start_date, exclusive_end = bounds
@@ -364,10 +357,10 @@ def build_product_prefilter_sql(
         if exclusive_end is not None:
             condition_templates.append("a.req_reg_date < %s")
             condition_params.append(exclusive_end)
-    where = " AND ".join(condition_templates)
+    where = " AND ".join(condition_templates) or "TRUE"
     sql = "\nUNION ALL\n".join(
-        f"SELECT COALESCE(CAST(a.id AS VARCHAR), CAST(a.app_row_id AS VARCHAR), "
-        f"CAST(a.req_row_id AS VARCHAR)) AS id FROM {_appeal_table(year)} a WHERE {where}"
+        f"SELECT CAST(a.app_row_id AS VARCHAR) AS id "
+        f"FROM {_appeal_table(year)} a WHERE {where} AND {_text_population_sql(year)}"
         for year in selected_years
     )
     return sql, condition_params * len(selected_years)
@@ -403,9 +396,15 @@ def _run_sql_on_connection(
 
 
 def _run_sql(sql: str, params: Optional[Sequence[Any]] = None) -> Optional[pd.DataFrame]:
-    logger.debug("[appeals] executing GP query via shared db pool")
-    return db.run(
-        lambda conn: _run_sql_on_connection(conn, sql, params, label="query")
+    return query_sql(sql, params)
+
+
+def _text_population_sql(year: int) -> str:
+    return (
+        "(NULLIF(TRIM(a.req_desc), '') IS NOT NULL OR EXISTS ("
+        f"SELECT 1 FROM {_dialog_table(year)} d WHERE d.app_row_id = a.app_row_id "
+        "AND (NULLIF(TRIM(d.msg_pprb_chat), '') IS NOT NULL "
+        "OR NULLIF(TRIM(d.msg_crm_call), '') IS NOT NULL)))"
     )
 
 
@@ -415,59 +414,90 @@ def fetch_candidate_ids_by_product(
     channels: Sequence[str] = (),
     date_range: Optional[Tuple[Optional[str], Optional[str]]] = None,
 ) -> List[str]:
-    if not products and not subproducts and not channels:
-        raise ValueError("Structural prefilter must be skipped when product, subproduct and channel are empty.")
-    selected_years = select_gp_years(date_range)
-    logger.info("GP structural prefilter date_range=%s selected_years=%s", date_range, selected_years)
+    selected_years = select_gp_years(date_range, configured_years())
+    logger.info("SQL structural prefilter date_range=%s selected_years=%s", date_range, selected_years)
     if not selected_years:
-        logger.info("GP structural population count after product/subproduct/channel/date=0")
+        logger.info("SQL structural population count after product/subproduct/channel/date=0")
         return []
     sql, params = build_product_prefilter_sql(
         products, subproducts, channels, years=selected_years, date_range=date_range,
     )
     frame = _run_sql(sql, params)
     if frame is None or frame.empty:
-        logger.info("GP structural population count after product/subproduct/channel/date=0")
+        logger.info("SQL structural population count after product/subproduct/channel/date=0")
         return []
     ids = list(dict.fromkeys(normalize_id(value) for value in frame["id"] if normalize_id(value)))
-    logger.info("GP structural population count after product/subproduct/channel/date=%s", len(ids))
+    logger.info("SQL structural population count after product/subproduct/channel/date=%s", len(ids))
     return ids
 
 
-def build_hydration_sql(candidate_ids: Sequence[str], years: Sequence[int] = DEFAULT_YEARS) -> str:
-    """Fetch base appeal rows only; related rows are hydrated separately."""
-    normalized = list(dict.fromkeys(normalize_id(value) for value in candidate_ids if normalize_id(value)))
+def build_hydration_sql(
+    candidate_ids: Sequence[str],
+    years: Sequence[int] = DEFAULT_YEARS,
+    date_range: Optional[Tuple[Optional[str], Optional[str]]] = None,
+) -> str:
+    """Fetch only the base appeal fields used downstream.
+
+    ``app_row_id`` is the canonical ID; ``id`` is its compatibility alias.
+    """
+    normalized = list(dict.fromkeys(
+        normalize_id(value) for value in candidate_ids if normalize_id(value)
+    ))
     if not normalized:
         raise ValueError("Hydration requires at least one candidate ID.")
+
+    selected_years = select_gp_years(date_range, years)
+    if not selected_years:
+        raise ValueError("date_range does not intersect configured source years")
+
     ids = _quote_literals(normalized)
+    bounds = _date_bounds(date_range)
+    date_conditions: List[str] = []
+    if bounds is not None:
+        start_date, exclusive_end = bounds
+        if start_date is not None:
+            date_conditions.append(
+                f"a.req_reg_date >= DATE '{start_date.isoformat()}'"
+            )
+        if exclusive_end is not None:
+            date_conditions.append(
+                f"a.req_reg_date < DATE '{exclusive_end.isoformat()}'"
+            )
+    date_sql = "" if not date_conditions else " AND " + " AND ".join(date_conditions)
+
+    # Keep only columns that are actually consumed by the report/rerank/hypothesis
+    # pipeline. req_desc is intentionally retained: it is the short description
+    # used together with the dialog text by reranking and hypothesis generation.
     select_clause = """SELECT {year} AS source_year,
-        COALESCE(CAST(a.id AS VARCHAR), CAST(a.app_row_id AS VARCHAR), CAST(a.req_row_id AS VARCHAR)) AS id,
-        CAST(a.app_row_id AS VARCHAR) AS app_row_id, CAST(a.req_row_id AS VARCHAR) AS req_row_id,
+        CAST(a.app_row_id AS VARCHAR) AS id,
+        CAST(a.app_row_id AS VARCHAR) AS app_row_id,
+        CAST(a.app_row_id AS VARCHAR) AS _join_app_row_id,
         CAST(a.cust_epk_id AS VARCHAR) AS cust_epk_id,
-        CAST(a.req_reg_date AS VARCHAR) AS req_reg_date, CAST(a.req_reg_date AS VARCHAR) AS date,
-        CAST(a.created AS VARCHAR) AS created, CAST(a.req_created AS VARCHAR) AS req_created,
-        CAST(a.app_created AS VARCHAR) AS app_created,
+        CAST(a.req_reg_date AS VARCHAR) AS date,
+        a.req_reg_date,
         a.grp, a.prd, a.s_prd, a.chnl, a.kanal_reg, a.subj, a.s_subj,
-        CAST(a.toxic_flag AS VARCHAR) AS toxic_flag, CAST(a.toxic_flag_rep AS VARCHAR) AS toxic_flag_rep,
-        a.req_cons_res_val, a.req_status, a.app_status, a.req_desc AS short_description, a.app_content"""
+        a.req_cons_res_val, a.req_desc, a.req_desc AS short_description"""
+
     return "\nUNION ALL\n".join(
         f"{select_clause.format(year=year)} FROM {_appeal_table(year)} a "
-        f"WHERE COALESCE(CAST(a.id AS VARCHAR), CAST(a.app_row_id AS VARCHAR), "
-        f"CAST(a.req_row_id AS VARCHAR)) IN ({ids})"
-        for year in years
+        f"WHERE CAST(a.app_row_id AS VARCHAR) IN ({ids}){date_sql} AND {_text_population_sql(year)}"
+        for year in selected_years
     )
 
 
 def _related_ids_by_year(base: pd.DataFrame) -> Dict[int, List[str]]:
+    """Collect private app_row_id join keys per already-pruned source year."""
     result: Dict[int, List[str]] = {}
-    for _, row in base.iterrows():
-        app_row_id = normalize_id(row.get("app_row_id"))
-        if not app_row_id:
-            continue
-        year = int(row.get("source_year"))
-        result.setdefault(year, [])
-        if app_row_id not in result[year]:
-            result[year].append(app_row_id)
+    if base is None or base.empty or "_join_app_row_id" not in base:
+        return result
+    for year, group in base.groupby("source_year", sort=False):
+        values = list(dict.fromkeys(
+            normalize_id(value)
+            for value in group["_join_app_row_id"]
+            if normalize_id(value)
+        ))
+        if values:
+            result[int(year)] = values
     return result
 
 
@@ -476,8 +506,8 @@ def build_dialog_hydration_sql(ids_by_year: Dict[int, Sequence[str]]) -> str:
     for year in sorted(ids_by_year):
         ids = _quote_literals(ids_by_year[year])
         selects.append(
-            f"SELECT {year} AS source_year, CAST(d.app_row_id AS VARCHAR) AS app_row_id, "
-            f"d.msg_crm_chat, d.msg_pprb_chat, d.msg_sc_chat FROM {_dialog_table(year)} d "
+            f"SELECT {year} AS source_year, CAST(d.app_row_id AS VARCHAR) AS _join_app_row_id, "
+            f"d.msg_crm_call, d.msg_pprb_chat FROM {_dialog_table(year)} d "
             f"WHERE CAST(d.app_row_id AS VARCHAR) IN ({ids})"
         )
     if not selects:
@@ -490,10 +520,8 @@ def build_task_hydration_sql(ids_by_year: Dict[int, Sequence[str]]) -> str:
     for year in sorted(ids_by_year):
         ids = _quote_literals(ids_by_year[year])
         selects.append(
-            f"SELECT {year} AS source_year, CAST(t.app_row_id AS VARCHAR) AS app_row_id, "
-            "t.task_id, t.task_type AS task_name, t.task_status, "
-            "COALESCE(t.task_text_sol, t.task_answer_full, t.task_answer) AS task_desc, "
-            "t.task_result, COALESCE(t.task_executor_division, t.task_div_name, t.task_executor) AS exec_dept "
+            f"SELECT {year} AS source_year, CAST(t.app_row_id AS VARCHAR) AS _join_app_row_id, "
+            "t.task_answer, t.task_answer_full "
             f"FROM {_task_table(year)} t WHERE CAST(t.app_row_id AS VARCHAR) IN ({ids})"
         )
     if not selects:
@@ -539,14 +567,14 @@ def normalize_hydrated_appeals(df: pd.DataFrame) -> pd.DataFrame:
     if df is None or df.empty:
         return pd.DataFrame(columns=[] if df is None else df.columns)
     work = df.copy()
-    work["id"] = work["id"].map(normalize_id)
-    task_field_names = ("task_id", "task_name", "task_status", "task_desc", "task_result", "exec_dept")
+    work["id"] = work["app_row_id" if "app_row_id" in work else "id"].map(normalize_id)
+    task_field_names = ("task_answer", "task_answer_full")
     task_columns = {
         column for column in task_field_names
         if column in work
     }
     dialog_columns = {
-        column for column in ("msg_pprb_chat", "msg_crm_chat", "msg_sc_chat")
+        column for column in ("msg_pprb_chat", "msg_crm_call")
         if column in work
     }
     rows = []
@@ -581,13 +609,9 @@ def normalize_hydrated_appeals(df: pd.DataFrame) -> pd.DataFrame:
         for column in task_field_names:
             values = [record[column] for record in task_records if record.get(column)]
             row[column] = values if len(values) > 1 else (values[0] if values else None)
-        row["description"] = (
-            row.get("msg_pprb_chat")
-            or row.get("msg_crm_chat")
-            or row.get("msg_sc_chat")
-            or row.get("app_content")
-            or row.get("short_description")
-        )
+        description, dialogue = appeal_parts(row)
+        row["short_description"] = row["Короткое описание"] = description
+        row["description"] = row["Транскрибация диалога"] = dialogue
         rows.append(row)
     return _standardize_df_columns(pd.DataFrame(rows))
 
@@ -595,12 +619,12 @@ def normalize_hydrated_appeals(df: pd.DataFrame) -> pd.DataFrame:
 def merge_hydration_frames(base: pd.DataFrame, dialogs: Optional[pd.DataFrame], tasks: Optional[pd.DataFrame]) -> pd.DataFrame:
     """Aggregate each one-to-many relation before attaching it to base rows."""
     work = base.copy()
-    key_columns = ["source_year", "app_row_id"]
+    key_columns = ["source_year", "_join_app_row_id"]
     if dialogs is not None and not dialogs.empty:
         dialog_rows = []
         for key, group in dialogs.groupby(key_columns, sort=False, dropna=False):
             row = dict(zip(key_columns, key if isinstance(key, tuple) else (key,)))
-            for column in ("msg_pprb_chat", "msg_crm_chat", "msg_sc_chat"):
+            for column in ("msg_pprb_chat", "msg_crm_call"):
                 if column in group:
                     row[column] = _join_fragments(group[column])
             dialog_rows.append(row)
@@ -614,7 +638,7 @@ def merge_hydration_frames(base: pd.DataFrame, dialogs: Optional[pd.DataFrame], 
             for _, source in group.iterrows():
                 record = {
                     column: (str(source.get(column)).strip() if pd.notna(source.get(column)) and str(source.get(column)).strip() else None)
-                    for column in ("task_id", "task_name", "task_status", "task_desc", "task_result", "exec_dept")
+                    for column in ("task_answer", "task_answer_full")
                 }
                 fingerprint = tuple(record.items())
                 if any(record.values()) and fingerprint not in seen:
@@ -623,41 +647,51 @@ def merge_hydration_frames(base: pd.DataFrame, dialogs: Optional[pd.DataFrame], 
             row["tasks"] = records
             task_rows.append(row)
         work = work.merge(pd.DataFrame(task_rows), on=key_columns, how="left", validate="many_to_one")
+    work = work.drop(columns=["_join_app_row_id"], errors="ignore")
     return normalize_hydrated_appeals(work)
 
 
-def fetch_appeals_by_ids(candidate_ids: Sequence[Any]) -> pd.DataFrame:
+def fetch_appeals_by_ids(
+    candidate_ids: Sequence[Any],
+    date_range: Optional[Tuple[Optional[str], Optional[str]]] = None,
+) -> pd.DataFrame:
     ids = list(dict.fromkeys(normalize_id(value) for value in candidate_ids if normalize_id(value)))
     if not ids:
         return pd.DataFrame()
 
-    logger.info("Hydration batch started: candidates=%s", len(ids))
+    selected_years = select_gp_years(date_range, configured_years())
+    logger.info(
+        "Hydration batch started: candidates=%s date_range=%s selected_years=%s",
+        len(ids), date_range, selected_years,
+    )
+    if not selected_years:
+        return pd.DataFrame()
     started = time.monotonic()
 
-    def _hydrate(conn: Any) -> Tuple[
+    def _hydrate() -> Tuple[
         Optional[pd.DataFrame], Optional[pd.DataFrame], Optional[pd.DataFrame]
     ]:
-        base = _run_sql_on_connection(
-            conn, build_hydration_sql(ids), label="hydration base",
+        base = _run_sql(
+            build_hydration_sql(ids, years=selected_years, date_range=date_range),
         )
         if base is None or base.empty:
             return base, None, None
         ids_by_year = _related_ids_by_year(base)
         dialogs = (
-            _run_sql_on_connection(
-                conn, build_dialog_hydration_sql(ids_by_year), label="hydration dialogs",
+            _run_sql(
+                build_dialog_hydration_sql(ids_by_year),
             )
             if ids_by_year else None
         )
         tasks = (
-            _run_sql_on_connection(
-                conn, build_task_hydration_sql(ids_by_year), label="hydration tasks",
+            _run_sql(
+                build_task_hydration_sql(ids_by_year),
             )
             if ids_by_year else None
         )
         return base, dialogs, tasks
 
-    base, dialogs, tasks = db.run(_hydrate)
+    base, dialogs, tasks = _hydrate()
     logger.info(
         "Hydration DB phase finished: candidates=%s elapsed=%.2fs",
         len(ids), time.monotonic() - started,

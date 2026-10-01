@@ -1,6 +1,6 @@
 ---
 name: appeals-analyzer
-description: "Поиск релевантных клиентских обращений, аналитический отчёт и гипотезы, Excel/CSV и уточнения по сохранённой выгрузке."
+description: "Поиск релевантных клиентских обращений, аналитический отчёт и гипотезы, XLSX и уточнения по сохранённой выгрузке."
 metadata: {"nanobot":{"emoji":"📩"}}
 ---
 
@@ -9,8 +9,8 @@ metadata: {"nanobot":{"emoji":"📩"}}
 `FINAL_DELIVERY_MODE: APPEALS_REPORT_VERBATIM_V1`
 
 Формирует выборку обращений, математический профиль, четыре заземлённые
-гипотезы и Excel/CSV. Смысловую релевантность определяет локальный гибридный
-поиск FAISS + BM25 + RRF + BGE reranker.
+гипотезы и XLSX. Смысловую релевантность определяет гибридный
+поиск FAISS + BM25 + RRF + BGE reranker в Osiris.
 
 ## Контракт вызова и ответа
 
@@ -50,7 +50,7 @@ metadata: {"nanobot":{"emoji":"📩"}}
 - СБОЛ
 
 Период:
-с 01.01.2025
+с 01.01.2026
 
 Запрос:
 Найди жалобы клиентов на блокировку перевода
@@ -66,15 +66,18 @@ JSON-контракт сохранён для обратной совмести�
     "prd": ["Кредиты"],
     "s_prd": [],
     "chnl": ["СБОЛ"],
-    "date_from": "2025-01-01",
+    "date_from": "2026-01-01",
     "date_to": null
   },
   "prompt": "Найди жалобы клиентов на блокировку перевода"
 }
 ```
 
-Для JSON даты берутся только из `filters`; текст `prompt` не используется для
-извлечения периода. Значения фильтров валидируются по `canonical_filters.json`.
+Для canonical даты берутся только из секции `Период:`, для JSON — из `filters`.
+Semantic query не переопределяет период, LLM-разбор дат не вызывается.
+Значения frontend-фильтров authoritative: `Офис` и `Чат` передаются как есть,
+без проверки по legacy dictionary или семантической подмены.
+Словарь `canonical_filters.json` используется только для legacy CSV.
 
 Legacy-контракт сохранён без изменений. Передавай исходную строку целиком:
 
@@ -83,31 +86,42 @@ Legacy-контракт сохранён без изменений. Переда
 ```
 
 Внутри каждого поля действует OR/IN, непустые группы `prd`/`s_prd`/`chnl`
-также объединяются через OR. Период применяется через AND ко всей OR-группе. Значения
+объединяются через AND. Пустые группы не добавляют ограничений; период — ещё один AND. Значения
 `prd`/`s_prd`/`chnl` должны быть каноническими; внутренние запятые и
 CSV-escaped кавычки поддерживаются. Корректная четвёрка всегда начинает новую
 выгрузку, обычный текст после неё считается follow-up.
 
 ## Pipeline новой выгрузки
 
-1. Greenplum возвращает population ID по точным `prd`/`s_prd`/`chnl` и
-   parameterized half-open диапазону `req_reg_date`. Все SQL-задания проходят
-   через общий `workspace/utils/db.py`; skill не создаёт собственных соединений.
-2. Та же product/date mask применяется к FAISS и BM25 до retrieval.
-3. Результаты объединяются RRF и оцениваются локальным BGE reranker.
-4. Все sigmoid scores `>= 0.5` входят в final dataset; если таких строк нет,
-   используется scored fallback до 2048 строк.
-5. Greenplum отдельно гидратирует base appeals, dialogs и tasks без Cartesian
-   multiplication в рамках одного shared DB job; merge/normalize выполняются
-   после освобождения connection. Каноническая дата — `req_reg_date`.
+1. Native Nanobot Tool читает structural population из общего Gateway DuckDB
+   snapshot. Только 2026 по текущей конфигурации; используется `app_row_id`.
+   Population содержит непустой `req_desc` либо `msg_pprb_chat`/`msg_crm_call`.
+   При недоступности snapshot возвращается ошибка, прямого GP fallback нет.
+2. Osiris получает query + allowed IDs; переводит IDs в позиции глобального
+   корпуса и применяет FAISS selector / BM25 shard-local weight masks до поиска.
+   Индексы не перестраиваются; неизвестные vector IDs молча пропускаются.
+3. Weighted RRF использует FAISS_K=2048, BM25_TOTAL_K=1372, ALPHA=0.3, K_RRF=60.
+   Весь fused pool возвращается Gateway, без дополнительного top-K.
+4. Gateway гидратирует кандидатов из того же DuckDB. Appeals, dialogs и tasks
+   читаются раздельно, связи агрегируются до merge по `app_row_id`.
+5. Canonical text: `req_desc` + непустой `msg_pprb_chat`, иначе `msg_crm_call`.
+   Osiris reranker возвращает ID/score. Все scores >= 0.5 входят в итог.
+   При отсутствии прошедших порог: «Релевантные обращения не подтверждены.»;
+   XLSX и гипотезы не создаются, fallback top-2048 отсутствует.
 6. Профиль и counts считаются по полной final-выборке. LLM формирует ровно
-   четыре подробные гипотезы; детерминированный отчёт не переписывается
-   моделью.
+   четыре гипотезы. Создаётся ровно один XLSX без CSV в
+   `workspace/data_store/cache/sessions/<safe_session_key>/results/`.
+7. Native Tool использует настоящий request session key и штатный MessageTool:
+   полный отчёт + media=[путь к XLSX]. Повторно отправлять отчёт не нужно,
+   если он уже доставлен инструментом. Самостоятельно формировать ссылки
+   на локальные пути или искать файлы по каталогам не нужно.
+8. Follow-up использует сохранённые final IDs. Тематический поиск повторяет
+   global retrieval/rerank с этой маской; per-session FAISS не создаётся.
 
 Смысловой `ILIKE` не используй. Не раскрывай внутреннюю методику sampling и не
 выводи технические имена колонок.
 
-## Семантический поиск и модели
+## Семантический поиск и модели (только Osiris)
 
 - cache: `workspace/data_store/cache/caches_pipelines/cache_le_finale2`;
 - BGE-M3: `workspace/data_store/cache/caches_pipelines/BAAI:bge-m3`;
@@ -116,14 +130,33 @@ CSV-escaped кавычки поддерживаются. Корректная ч
 Переопределения: `APPEALS_RAG_CACHE_DIR`, `APPEALS_BGE_MODEL_PATH`,
 `APPEALS_RERANKER_MODEL_PATH`. `meta.pkl` — основной источник metadata;
 `meta_final.pkl` допустим только как fallback или через
-`APPEALS_RAG_META_FILE`.
+`APPEALS_RAG_META_FILE`. Для online search не нужны documents, req_descs,
+msg_pprb_chats, tokenized_corpus или загрузка embeddings.memmap. BGE и reranker
+работают на CUDA:0; FAISS — GPU при поддержке selector, иначе CPU внутри Osiris.
+Импорт модулей не запускает Osiris. Пользовательский запрос через Gateway или
+standalone CLI вызывает общий `ensure_ready`: при остановленном worker сервис
+стартует один раз под NFS lock и ждёт READY до 5 минут. При неудаче старта
+пользователь получает просьбу повторить запрос через 15 минут. Оператор
+может отдельно вызвать `python osiris_job.py start|status|stop` либо
+совместимый `appeals_osiris_job.py`. Неиспользуемый worker выключается по
+idle TTL (по умолчанию 1 час). Детали — [PRODUCTION.md](PRODUCTION.md).
 
 ## CLI
 
 ```bash
-bash skills/appeals-analyzer/appeals_analyze.sh \
+bash workspace/skills/appeals-analyzer/appeals_analyze.sh --profile prod \
   --prompt '"Кредиты", "", "IVR", "жалобы за 2026 год"' \
   --session-id sess_001
 ```
 
 `--prompt` всегда содержит полную исходную строку пользователя.
+
+Standalone CLI явно использует direct Greenplum через существующий общий DB pool,
+без инициализации Gateway/DuckDB. Это отдельный режим, не fallback Tool.
+После structural IDs используется тот же Osiris pipeline. Аргумент `filters`
+у `run_appeals_report` сохранён для совместимости, источником фильтров остаётся prompt.
+
+**Production blocker:** shared sync API пока не поддерживает initial-only для
+этих таблиц без неподтверждённого tracking column. Регистрация
+`skills.appeals_analyzer` оставлена `enabled: false`; включать её с текущим
+polling небезопасно. Подробности и проверки — в [PRODUCTION.md](PRODUCTION.md).
