@@ -36,10 +36,15 @@ requires:
       default: production
       allowed: [production, testing]
       description: "Режим работы skill'ов (production/testing). testing → cache (DuckDB), иначе → greenplum/postgres."
-    - name: FOLLOWUP_BACKEND
+    - name: GP_ENABLED
       required: false
-      default: ""
-      description: "Backend follow-up: пусто → автодетект (PG из channels.postgres.dsn, иначе GP из DATABASE__GP__HOST)."
+      default: "false"
+      allowed: ["true", "false"]
+      description: >
+        Включение общего GP-контура follow_up. В dev — false (БД PostgreSQL,
+        Greenplum нет): follow_up работает в локальном режиме (SQLite followup.db),
+        таблицы t_fu_* читаются агентом через DuckDB-кэш из public.*. gp_enabled
+        читается skill'ом из env (pydantic BaseSettings, case-insensitive).
     - name: IOR_DATA_BACKEND
       required: false
       default: ""
@@ -141,6 +146,17 @@ testing:
     command: "python scripts/d5_smoke_seed.py"
     requires_migration: V007__d5_followup_tables
     idempotent: true
+
+# dev_env — записывается audit_bridge в audit_nanobot/.secrets.env ТОЛЬКО при
+# --env=dev. follow_up не имеет cache-backend'а: его данные локально живут в
+# SQLite (followup.db), а GP — опциональный «общий контур знаний». В dev БД —
+# PostgreSQL, Greenplum нет, поэтому GP_ENABLED=false пинит локальный режим
+# (skill читает gp_enabled из env через pydantic BaseSettings; при explicit
+# false adopt_agent_gp не подключает GP даже если у агента нашлась бы схема).
+# Таблицы t_fu_* агент читает через DuckDB-кэш из public.* (skills.follow_up.tables).
+# На ПРОМ (--env=prod) блок пропускается — там GP включается настройками площадки.
+dev_env:
+  GP_ENABLED: "false"
 
 isolation:
   removable: true
