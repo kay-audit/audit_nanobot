@@ -1,6 +1,7 @@
 """Contracts for the copyable appeals-analyzer standalone CLI."""
 from __future__ import annotations
 
+import importlib
 import importlib.util
 import logging
 import sys
@@ -36,7 +37,7 @@ def test_standalone_loader_rejects_foreign_utils(monkeypatch):
     foreign_utils.__path__ = ["foreign-utils"]
     monkeypatch.setitem(sys.modules, "utils", foreign_utils)
     with pytest.raises(RuntimeError, match="another top-level utils"):
-        cli.load_standalone_runner()
+        cli.load_shared_db()
 
 
 def test_standalone_loader_uses_workspace_shared_db():
@@ -44,7 +45,7 @@ def test_standalone_loader_uses_workspace_shared_db():
     _drop_runtime()
     shared_db = cli.load_shared_db()
     runner = cli.load_standalone_runner()
-    facade = sys.modules["appeals_analyzer_standalone.utils.db"]
+    facade = importlib.import_module("appeals_analyzer_standalone.utils.db")
     assert runner.__module__ == "appeals_analyzer_standalone.scripts.appeals_reports"
     assert Path(shared_db.__file__).resolve() == (ROOT / "workspace/utils/db.py").resolve()
     assert facade.run is shared_db.run
@@ -105,7 +106,7 @@ def test_standalone_main_stops_runtime_it_started(monkeypatch):
     args = SimpleNamespace(
         prompt='"", "", "", "query"', prompt_file=None,
         positional_prompt=[], session_id="test", log_file=None,
-        console_only=True, log_level="INFO", allow_vllm=False,
+        console_only=True, log_level="INFO", allow_vllm=False, profile="test",
     )
     monkeypatch.setattr(cli, "build_parser", lambda: SimpleNamespace(parse_args=lambda: args))
     monkeypatch.setattr(cli, "configure_logging", lambda *args: None)
@@ -116,6 +117,7 @@ def test_standalone_main_stops_runtime_it_started(monkeypatch):
     async def runner(**kwargs):
         return "ok"
 
+    cli.load_standalone_runner()
     monkeypatch.setattr(cli, "load_standalone_runner", lambda: runner)
     assert cli.main() == 0
     assert starts == [True]
@@ -129,7 +131,7 @@ def test_standalone_main_stops_runtime_when_analysis_fails(monkeypatch):
     args = SimpleNamespace(
         prompt='"", "", "", "query"', prompt_file=None,
         positional_prompt=[], session_id="test", log_file=None,
-        console_only=True, log_level="INFO", allow_vllm=False,
+        console_only=True, log_level="INFO", allow_vllm=False, profile="test",
     )
     monkeypatch.setattr(cli, "build_parser", lambda: SimpleNamespace(parse_args=lambda: args))
     monkeypatch.setattr(cli, "configure_logging", lambda *args: None)
@@ -144,6 +146,7 @@ def test_standalone_main_stops_runtime_when_analysis_fails(monkeypatch):
         calls.append("runner")
         raise RuntimeError("analysis failed")
 
+    cli.load_standalone_runner()
     monkeypatch.setattr(cli, "load_standalone_runner", lambda: failing_runner)
     assert cli.main() == 1
     assert calls == ["start", "runner", "shutdown"]

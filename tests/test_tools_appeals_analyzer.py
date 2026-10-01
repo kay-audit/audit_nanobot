@@ -16,31 +16,18 @@ def _drop_appeals_runtime_modules() -> None:
             sys.modules.pop(name, None)
 
 
-def test_native_loader_rejects_foreign_utils_instead_of_using_wrong_db(monkeypatch):
+def test_native_loader_ignores_foreign_utils_without_loading_gp(monkeypatch):
     from workspace.tools.appeals_analyzer import AppealsAnalyzerTool
 
     _drop_appeals_runtime_modules()
     foreign_utils = ModuleType("utils")
     foreign_utils.__path__ = ["foreign-utils-path"]
-    foreign_bge = ModuleType("utils.bge_search_engine")
-    foreign_bge.FOREIGN = True
     monkeypatch.setitem(sys.modules, "utils", foreign_utils)
-    monkeypatch.setitem(sys.modules, "utils.bge_search_engine", foreign_bge)
-    with pytest.raises(RuntimeError, match="gateway shared workspace/utils"):
-        AppealsAnalyzerTool._load_runner()
-
-
-def test_native_loader_uses_canonical_shared_db():
-    from workspace.tools.appeals_analyzer import AppealsAnalyzerTool
-
-    _drop_appeals_runtime_modules()
-    shared_db = AppealsAnalyzerTool._require_shared_db(ROOT / "workspace")
     runner = AppealsAnalyzerTool._load_runner()
-    facade = sys.modules["appeals_analyzer_runtime.utils.db"]
-
     assert runner.__module__ == "appeals_analyzer_runtime.scripts.appeals_reports"
-    assert Path(shared_db.__file__).resolve() == (ROOT / "workspace/utils/db.py").resolve()
-    assert facade.run is shared_db.run
+    assert "appeals_analyzer_runtime.utils.db" not in sys.modules
+    assert "appeals_analyzer_runtime.utils.bge_search_engine" not in sys.modules
+    assert sys.modules["utils"] is foreign_utils
 
 
 def test_skill_directory_resolution_is_deterministic(tmp_path):

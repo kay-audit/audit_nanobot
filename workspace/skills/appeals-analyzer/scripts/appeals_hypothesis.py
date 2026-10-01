@@ -13,9 +13,11 @@ import pandas as pd
 try:
     from ..utils.local_qwen import def_ask_gigachat
     from ..utils.pipeline_config import CONFIG
+    from ..utils.appeal_text import canonical_appeal_text
 except ImportError:
     from utils.local_qwen import def_ask_gigachat
     from utils.pipeline_config import CONFIG
+    from utils.appeal_text import canonical_appeal_text
 
 try:
     from .appeals_profiler import (
@@ -349,9 +351,7 @@ def build_evidence_batches(df: pd.DataFrame) -> List[Dict[str, Any]]:
     chars = 0
     for _, row in df.iterrows():
         appeal_id = _normalize_id(row.get("id"))[:200]
-        dialogue = row.get("Транскрибация диалога", row.get("msg_pprb_chat", row.get("description", "")))
-        description = str(row.get("Короткое описание", row.get("short_description", "")))
-        appeal_text = f"Описание: {description}\nДиалог: {dialogue}"
+        appeal_text = canonical_appeal_text(row)
         header = f"ID: {appeal_id}\nДата: {str(row.get('date', '—'))[:100]}\nТекст обращения:\n"
         appeal_text_budget = min(
             CONFIG.hypothesis_chars_per_appeal,

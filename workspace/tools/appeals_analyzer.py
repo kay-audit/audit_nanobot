@@ -2,7 +2,7 @@
 
 The skill-level ``tool.py`` remains a compatibility shim.  Gateway discovers
 this module through ``RuntimePatcher.patch_project_tools`` and loads the
-heavy retrieval stack only when the tool is invoked.
+Appeals orchestration lazily. Retrieval models and indexes live in Osiris.
 """
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 from nanobot.agent.tools.base import Tool, ToolResult, tool_parameters
+from nanobot.agent.tools.context import current_request_context, current_request_session_key
 from pydantic import BaseModel
 from lib.services.skill_runtime_mode import (
     current_tool_session_id,
@@ -36,8 +37,8 @@ class AppealsAnalyzerToolConfig(BaseModel):
         "prompt": {
             "type": "string",
             "description": ('Полный исходный запрос пользователя без сокращения. '
-                            'Новый анализ: ровно четыре quoted CSV-поля: '
-                            '"продукты", "субпродукты", "каналы", "смысловой запрос". '
+                            'Новый анализ: canonical «Анализ обращений», appeals_analysis JSON '
+                            'или legacy quoted CSV. '
                             'В сессии допускается обычный follow-up вопрос.'),
         },
         "session_id": {
@@ -83,10 +84,13 @@ class AppealsAnalyzerTool(Tool):
         except Exception:
             logger.exception("Invalid gateway.appeals_analyzer configuration; using defaults")
             config = cls.config_cls()()
-        return cls(config=config)
+        agent = getattr(ctx, "_agent_ref", None)
+        message_tool = agent.tools.get("message") if agent is not None else None
+        return cls(config=config, message_tool=message_tool)
 
-    def __init__(self, *, config: AppealsAnalyzerToolConfig) -> None:
+    def __init__(self, *, config: AppealsAnalyzerToolConfig, message_tool: Any = None) -> None:
         self.config = config
+        self._message_tool = message_tool
 
     @property
     def name(self) -> str:
@@ -95,7 +99,7 @@ class AppealsAnalyzerTool(Tool):
     @property
     def description(self) -> str:
         return ("Анализирует обращения клиентов и сотрудников: точный product/subproduct/channel prefilter, "
-                "BGE semantic retrieval, метрики СВА, Excel-выгрузка и follow-up по выборке.")
+                "гибридный поиск в Osiris, четыре гипотезы, XLSX-вложение и follow-up по выборке.")
 
     @staticmethod
     def _resolve_skill_dir(workspace_dir: Path) -> Path:
@@ -111,29 +115,9 @@ class AppealsAnalyzerTool(Tool):
             raise RuntimeError(f"Appeals skill directory not found; checked: {names}")
         return existing[0]
 
-    @staticmethod
-    def _require_shared_db(workspace_dir: Path):
-        """Resolve only the gateway-wide workspace/utils/db.py module."""
-        expected_utils = (workspace_dir / "utils").resolve()
-        shared_utils = import_module("utils")
-        loaded_paths = {
-            Path(path).resolve()
-            for path in getattr(shared_utils, "__path__", ())
-        }
-        if expected_utils not in loaded_paths:
-            raise RuntimeError(
-                "Appeals requires the gateway shared workspace/utils package; "
-                "another top-level utils package is loaded."
-            )
-        shared_db = import_module("utils.db")
-        if Path(getattr(shared_db, "__file__", "")).resolve() != expected_utils / "db.py":
-            raise RuntimeError("Appeals loaded a non-workspace utils.db module.")
-        return shared_db
-
     @classmethod
     def _load_runner(cls):
         workspace_dir = Path(__file__).resolve().parents[1]
-        cls._require_shared_db(workspace_dir)
         skill_dir = cls._resolve_skill_dir(workspace_dir)
         scripts_dir = skill_dir / "scripts"
         package_init = skill_dir / "__init__.py"
@@ -169,19 +153,50 @@ class AppealsAnalyzerTool(Tool):
     async def execute(self, *, prompt: str, session_id: str = "webui_session", **_kwargs: Any) -> str:
         try:
             runtime = log_skill_runtime("appeals-analyzer", logger)
-            resolved_session = current_tool_session_id(
-                None if session_id == "webui_session" else session_id
-            )
             if runtime == "testing":
+                resolved_session = current_tool_session_id(
+                    None if session_id == "webui_session" else session_id
+                )
                 runner = load_testing_module("appeals-analyzer", "runner")
                 return await runner.run_testing_report(
                     session_id=resolved_session,
                     user_prompt=prompt,
                 )
             runner = self._load_runner()
-            return await runner(session_id=resolved_session, user_prompt=prompt)
+            context = current_request_context()
+            request_session = current_request_session_key()
+            if context is not None and not request_session:
+                raise RuntimeError("Current request has no session key")
+            resolved_session = request_session or session_id or "webui_session"
+            if context is not None and self._message_tool is None:
+                raise RuntimeError("MessageTool is unavailable for Appeals artifact delivery")
+            artifacts = import_module("appeals_analyzer_runtime.utils.appeals_artifacts")
+            backend = import_module("appeals_analyzer_runtime.utils.data_store")
+            paths: list[Path] = []
+            with backend.backend_scope("cache"), artifacts.artifact_scope(
+                artifacts.session_results(resolved_session), paths,
+            ):
+                report = await runner(session_id=resolved_session, user_prompt=prompt)
+            if paths and context is not None:
+                delivery = await self._message_tool.execute(
+                    content=report, media=[str(path) for path in paths],
+                )
+                if getattr(delivery, "is_error", False):
+                    raise RuntimeError("Appeals artifact delivery failed")
+            return report
         except Exception as exc:
             logger.exception("Appeals analysis failed")
+            from workspace.utils.osiris_runtime import OsirisUnavailableError
+            if isinstance(exc, OsirisUnavailableError):
+                loaded_config = sys.modules.get("appeals_analyzer_runtime.utils.osiris_config")
+                retry_seconds = getattr(getattr(loaded_config, "SERVICE", None), "retry_after_sec", 900)
+                return ToolResult.error(
+                    "В данный момент сервис обработки недоступен. "
+                    f"Попробуйте повторить запрос через {max(1, round(retry_seconds / 60))} минут."
+                )
+            osiris_config = sys.modules.get("appeals_analyzer_runtime.utils.osiris_config")
+            if osiris_config is not None and isinstance(exc, osiris_config.OsirisWorkerNotReady):
+                return ToolResult.error(str(exc))
             return ToolResult.error(
                 "Не удалось выполнить анализ обращений "
                 f"(ошибка {type(exc).__name__}). Подробности записаны в журнал сервера."

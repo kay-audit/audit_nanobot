@@ -1,4 +1,4 @@
-"""Primary analytical flow: structural GP filter -> hybrid BGE -> hydration -> rerank."""
+"""Explicit SQL backend -> Osiris retrieval -> hydration -> Osiris rerank -> report."""
 from __future__ import annotations
 import asyncio
 import json
@@ -6,35 +6,26 @@ import logging
 import re
 import uuid
 from datetime import date
-from pathlib import Path
 from typing import Any, Dict, Optional
 import pandas as pd
+from openpyxl import Workbook
+from openpyxl.utils.dataframe import dataframe_to_rows
 
-try:
-    from ..utils.bge_search_engine import (build_and_cache_small_index,
-        clear_small_index, rerank_dataframe, retrieve_hybrid_adaptive,
-        search_small_index, select_threshold_or_fallback)
-    from ..utils.greenplum_engine import (fetch_appeals_by_ids, fetch_candidate_ids_by_product,
-        parse_structured_analytical_request)
-    from ..utils.intent_router import Intent, route_intent
-    from ..utils.local_qwen import def_ask_gigachat
-    from ..utils.session_extract_manager import get_session_extract, set_session_extract
-    from .appeals_hypothesis import (answer_complaint_details, answer_complaint_dialog,
-        answer_complaint_follow_up, classify_complaint_intent, generate_complaint_hypothesis_narrative)
-except ImportError:  # direct script/CLI compatibility
-    from utils.bge_search_engine import (build_and_cache_small_index,
-        clear_small_index, rerank_dataframe, retrieve_hybrid_adaptive,
-        search_small_index, select_threshold_or_fallback)
-    from utils.greenplum_engine import (fetch_appeals_by_ids, fetch_candidate_ids_by_product,
-        parse_structured_analytical_request)
-    from utils.intent_router import Intent, route_intent
-    from utils.local_qwen import def_ask_gigachat
-    from utils.session_extract_manager import get_session_extract, set_session_extract
-    from appeals_hypothesis import (answer_complaint_details, answer_complaint_dialog,
-        answer_complaint_follow_up, classify_complaint_intent, generate_complaint_hypothesis_narrative)
+from ..utils.greenplum_engine import (fetch_appeals_by_ids, fetch_candidate_ids_by_product,
+                                     parse_structured_analytical_request)
+from ..utils.intent_router import Intent, route_intent
+from ..utils.local_qwen import def_ask_gigachat
+from ..utils.session_extract_manager import get_session_extract, set_session_extract
+from ..utils.srb_d3 import rerank_via_srb_d3, retrieve_via_srb_d3
+from ..utils.osiris_config import SERVICE
+from workspace.utils.osiris_runtime import OsirisUnavailableError
+from ..utils.appeal_text import appeal_parts
+from ..utils.appeals_artifacts import output_directory, register_artifact
+from ..utils.pipeline_config import CONFIG
+from .appeals_hypothesis import (answer_complaint_details, answer_complaint_dialog,
+    answer_complaint_follow_up, classify_complaint_intent, generate_complaint_hypothesis_narrative)
 
 logger = logging.getLogger(__name__)
-_SKILL_DIR = Path(__file__).resolve().parents[1]
 
 
 def validate_date_range(value: Any) -> Optional[tuple[str, str]]:
@@ -75,7 +66,7 @@ def extract_search_params(semantic_query: str) -> Dict[str, Any]:
 
 
 def _excel_safe_value(value: Any) -> Any:
-    if value is None or (not isinstance(value, (list, dict)) and pd.isna(value)):
+    if value is None or (not isinstance(value, (list, dict, tuple, set)) and pd.isna(value)):
         return ""
     if isinstance(value, (list, dict, tuple, set)):
         value = json.dumps(value, ensure_ascii=False, default=str)
@@ -84,87 +75,139 @@ def _excel_safe_value(value: Any) -> Any:
     return "".join(ch for ch in value if ord(ch) in (9, 10, 13) or 32 <= ord(ch) <= 0xD7FF or 0xE000 <= ord(ch) <= 0xFFFD or 0x10000 <= ord(ch) <= 0x10FFFF)[:32767]
 
 
-def export_complaints_excel(final_df: pd.DataFrame, query_title: str) -> Dict[str, Any]:
-    target = _SKILL_DIR / "data_store" / "generated_files"; target.mkdir(parents=True, exist_ok=True)
-    token = uuid.uuid4().hex[:8]; name = re.sub(r"[^\w-]", "_", query_title[:30]) or "appeals"
-    xlsx, csv = target / f"appeals_{name}_{token}.xlsx", target / f"appeals_{name}_{token}.csv"
+def export_complaints_excel(final_df: pd.DataFrame, query_title: str, session_id: str) -> Dict[str, Any]:
+    """Export accepted appeals as one session-scoped XLSX."""
+    target = output_directory(session_id)
+    target.mkdir(parents=True, exist_ok=True)
+
+    token = uuid.uuid4().hex[:8]
+    name = re.sub(r"[^\w-]", "_", query_title[:30]) or "appeals"
+    xlsx = target / f"appeals_{name}_{token}.xlsx"
+
     safe = final_df.copy()
-    for col in safe: safe[col] = safe[col].map(_excel_safe_value)
-    safe.to_csv(csv, index=False, encoding="utf-8")
-    with pd.ExcelWriter(xlsx, engine="openpyxl") as writer:
-        safe.to_excel(writer, sheet_name="appeals", index=False)
+    for col in safe.columns:
+        safe[col] = safe[col].map(_excel_safe_value)
+
+
+    workbook = Workbook()
+    worksheet = workbook.active
+    worksheet.title = "appeals"
+
+    for row in dataframe_to_rows(safe, index=False, header=True):
+        worksheet.append(list(row))
+
+    worksheet.freeze_panes = "A2"
+    if worksheet.max_row >= 1 and worksheet.max_column >= 1:
+        worksheet.auto_filter.ref = worksheet.dimensions
+
+    workbook.save(xlsx)
+    register_artifact(xlsx)
+
     logger.info("Final Excel count=%s", len(safe))
-    return {"xlsx_path": str(xlsx), "csv_path": str(csv), "name": xlsx.name, "count": len(safe)}
+    return {
+        "xlsx_path": str(xlsx),
+        "name": xlsx.name,
+        "count": len(safe),
+    }
 
 
 def _empty(message: str, session_id: str) -> str:
-    clear_small_index(session_id)
-    set_session_extract(session_id, pd.DataFrame(), skill_name="appeals-analyzer", extra={"id_to_text_map": {}, "hypothesis": message})
+    set_session_extract(session_id, pd.DataFrame(), skill_name="appeals-analyzer",
+                        extra={"final_ids": [], "hypothesis": message})
     return message
 
 
+def select_accepted(scored: pd.DataFrame) -> pd.DataFrame:
+    if "score" not in scored:
+        raise RuntimeError("Reranker produced no scores")
+    scores = pd.to_numeric(scored["score"], errors="coerce")
+    if not scores.between(0, 1).all():
+        raise RuntimeError("Reranker produced invalid scores")
+    return scored.loc[scores >= CONFIG.score_threshold].copy().reset_index(drop=True)
+
+
+def _rows_for_answer(frame):
+    rows = []
+    for _, row in frame.iterrows():
+        description, dialogue = appeal_parts(row)
+        rows.append({"id": str(row["id"]), "desc": description,
+                     "dialogue": dialogue, "date": str(row.get("date", ""))})
+    return rows
+
+
+async def _search_population(session_id, query, allowed_ids, date_range=None):
+    candidates = await asyncio.to_thread(retrieve_via_srb_d3, session_id, query, allowed_ids)
+    if not candidates:
+        return pd.DataFrame()
+    hydrated = await asyncio.to_thread(fetch_appeals_by_ids, candidates, date_range)
+    if hydrated.empty:
+        return pd.DataFrame()
+    scored = await asyncio.to_thread(rerank_via_srb_d3, session_id, query, hydrated)
+    return select_accepted(scored).drop_duplicates("id", keep="first").reset_index(drop=True)
+
+
 async def run_appeals_report(session_id: str, user_prompt: str = "", filters: Optional[dict] = None) -> str:
-    session_id = session_id or "webui_session"
+    """Run with a request-local backend; filters is retained for call compatibility."""
+    if not session_id:
+        raise ValueError("Appeals requires an explicit session key")
     session = get_session_extract(session_id)
     if session and route_intent(user_prompt, True) != Intent.NEW_SEARCH:
-        return _run_follow_up(session_id, user_prompt, session)
-    clear_small_index(session_id)
+        try:
+            return await _run_follow_up(session_id, user_prompt, session)
+        except OsirisUnavailableError:
+            logger.exception("Appeals Osiris startup unavailable during follow-up")
+            return _osiris_unavailable_message()
+    _empty("", session_id)
     try:
         request = parse_structured_analytical_request(user_prompt)
     except ValueError as exc:
         return _empty(str(exc), session_id)
-    products, subproducts, channels, query = (
-        request["products"], request["subproducts"], request["channels"], request["query"],
+    query = request["query"]
+    date_range = (request["date_range"] if request["format"] in {"canonical", "json"}
+                  else extract_search_params(query)["date_range"])
+    allowed_ids = await asyncio.to_thread(
+        fetch_candidate_ids_by_product, request["products"], request["subproducts"],
+        request["channels"], date_range,
     )
-    # Для WEB JSON даты являются явной частью контракта. Legacy CSV сохраняет
-    # прежнее извлечение периода из смыслового запроса.
-    date_range = (
-        request["date_range"]
-        if request.get("format") == "json"
-        else extract_search_params(query)["date_range"]
-    )
-    logger.info(
-        "Parsed products=%s subproducts=%s channels=%s date=%s",
-        products, subproducts, channels, date_range,
-    )
-    allowed_ids = None
-    if products or subproducts or channels:
-        allowed_ids = await asyncio.to_thread(
-            fetch_candidate_ids_by_product, products, subproducts, channels, date_range,
-        )
-        logger.info("Product SQL ID count=%s", len(allowed_ids))
-        if not allowed_ids:
-            return _empty("По указанным продуктам/субпродуктам обращений не найдено.", session_id)
+    if not allowed_ids:
+        return _empty("По указанным фильтрам обращений не найдено.", session_id)
     try:
-        rrf_ids = await asyncio.to_thread(retrieve_hybrid_adaptive, query, allowed_ids, date_range)
-    except RuntimeError as exc:
-        return _empty(f"Невозможно выполнить semantic retrieval: {exc}", session_id)
-    if not rrf_ids:
-        return _empty("После product/date mask и hybrid retrieval подходящих обращений не найдено.", session_id)
-    hydrated = await asyncio.to_thread(fetch_appeals_by_ids, rrf_ids)
-    logger.info("RRF=%s hydrated unique=%s", len(rrf_ids), len(hydrated))
-    if hydrated.empty:
-        return _empty("Greenplum не вернул тексты для hybrid-кандидатов; результат не сформирован.", session_id)
-    try:
-        scored = await asyncio.to_thread(rerank_dataframe, query, hydrated)
-        final_df, fallback = select_threshold_or_fallback(scored)
-    except RuntimeError as exc:
-        return _empty(f"Невозможно выполнить BGE reranking: {exc}", session_id)
-    logger.info("Reranker scored=%s threshold-passed=%s fallback=%s", len(scored), int((scored.score >= .5).sum()), fallback)
-    final_df = final_df.drop_duplicates("id", keep="first").reset_index(drop=True)
-    export = await asyncio.to_thread(export_complaints_excel, final_df, query)
-    id_map = {str(row["id"]): {"id": str(row["id"]), "desc": str(row.get("Короткое описание", row.get("short_description", ""))), "dialogue": str(row.get("Транскрибация диалога", row.get("msg_pprb_chat", row.get("description", "")))), "date": str(row.get("date", ""))} for _, row in final_df.iterrows()}
-    await asyncio.to_thread(build_and_cache_small_index, session_id, id_map)
-    narrative = await generate_complaint_hypothesis_narrative(query, final_df, export, total_db_count=len(final_df))
-    set_session_extract(session_id, final_df, skill_name="appeals-analyzer", extra={"id_to_text_map": id_map, "hypothesis": narrative, "export_info": export, "fallback": fallback})
-    return narrative + f"\n\nВыгрузка: {export['xlsx_path']} ({len(final_df)} уникальных обращений)."
+        final_df = await _search_population(session_id, query, allowed_ids, date_range)
+    except OsirisUnavailableError:
+        logger.exception("Appeals Osiris startup unavailable")
+        return _empty(_osiris_unavailable_message(), session_id)
+    if final_df.empty:
+        return _empty("Релевантные обращения не подтверждены.", session_id)
+    export = await asyncio.to_thread(export_complaints_excel, final_df, query, session_id)
+    narrative = await generate_complaint_hypothesis_narrative(
+        query, final_df, export, total_db_count=len(final_df),
+    )
+    set_session_extract(session_id, final_df, skill_name="appeals-analyzer", extra={
+        "final_ids": final_df["id"].tolist(), "hypothesis": narrative, "export_info": export,
+    })
+    return narrative + f"\n\nВыгрузка: {export['name']} ({len(final_df)} уникальных обращений)."
 
 
-def _run_follow_up(session_id: str, prompt: str, session: Dict[str, Any]) -> str:
-    mapping, hypothesis = session.get("id_to_text_map", {}), session.get("hypothesis", "")
-    matched = [row for key, row in mapping.items() if key in prompt]
-    if matched: return answer_complaint_details(prompt, matched, hypothesis=hypothesis)
+def _osiris_unavailable_message() -> str:
+    minutes = max(1, round(SERVICE.retry_after_sec / 60))
+    return f"В данный момент сервис обработки недоступен. Попробуйте повторить запрос через {minutes} минут."
+
+
+async def _run_follow_up(session_id: str, prompt: str, session: Dict[str, Any]) -> str:
+    final_ids = list(session.get("final_ids", []))
+    hypothesis = session.get("hypothesis", "")
+    if not final_ids:
+        return "Нет сохранённой релевантной выборки. Выполните новый анализ обращений."
+    matched = [cid for cid in final_ids
+               if re.search(r"(?<![\w-])" + re.escape(cid) + r"(?![\w-])", prompt)]
+    if matched:
+        frame = await asyncio.to_thread(fetch_appeals_by_ids, matched)
+        return await asyncio.to_thread(answer_complaint_details, prompt, _rows_for_answer(frame), hypothesis=hypothesis)
     if classify_complaint_intent(prompt) == "search":
-        rows = search_small_index(session_id, prompt)
-        return answer_complaint_follow_up(prompt, rows, hypothesis=hypothesis, total_session_count=len(mapping))
-    return answer_complaint_dialog(prompt, hypothesis=hypothesis, total_count=len(mapping))
+        frame = await _search_population(session_id, prompt, final_ids)
+        if frame.empty:
+            return "Релевантные обращения не подтверждены."
+        return await asyncio.to_thread(answer_complaint_follow_up, prompt, _rows_for_answer(frame),
+                                       hypothesis=hypothesis, total_session_count=len(final_ids))
+    return await asyncio.to_thread(answer_complaint_dialog, prompt, hypothesis=hypothesis,
+                                   total_count=len(final_ids))
