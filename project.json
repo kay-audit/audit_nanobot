@@ -301,6 +301,21 @@
           "llm_max_tokens": 8192                    // Резерв под output.
         }
       }
+    },
+
+    // SQL Assistant KB resources are synchronized by the existing generic
+    // PgDuckDbSyncService. Labels keep them out of generic business schema.
+    "sql_assistant": {
+      "enabled": true,
+      "tables": [
+        {"name": "sqlagent.kb_tables", "label": "kb_tables", "tracking_column": "updated_at"},
+        {"name": "sqlagent.kb_columns", "label": "kb_columns", "tracking_column": "updated_at"},
+        {"name": "sqlagent.kb_examples", "label": "kb_examples", "tracking_column": "updated_at"}
+      ],
+      "llm": {
+        "max_tokens": 8192,
+        "temperature": 0.1
+      }
     }
   },
 
@@ -385,6 +400,45 @@
       "notify_in_history": true,       // Писать заметку о сжатии в agent_conversation_messages (видно в Streamlit)
       "print_to_terminal": false       // Дублировать заметку в терминал gateway (по образцу print_worker_activity)
     },
+    // sql_analyzer - read-only search for existing SQL scripts.
+    "sql_analyzer": {
+      "enable": true
+    },
+
+    "kb_search": {
+      "enable": true,
+      "index_root": "data_store/sql_assistant_indexes",
+      "score_floor": 0.4,
+      "max_top_k": 20,
+      "dense_enabled": true,
+      "reranker_enabled": true,
+      "dense_model": "BAAI/bge-m3",
+      "reranker_model": "BAAI/bge-reranker-v2-m3",
+      "device": "auto",
+      "model_cache_dir": null
+    },
+
+    "kb_describe": {
+      "enable": true,
+      "max_columns": 50,
+      "live_timeout_sec": 30
+    },
+
+    "sql_generate": {
+      "enable": true,
+      "max_repairs": 2,
+      "timeout_sec": 180
+    },
+
+    "sql_validate": {
+      "enable": true,
+      "explain_timeout_sec": 60
+    },
+
+    "sql_facts": {
+      "enable": true
+    },
+
     //  sync.* — параметры фоновой синхронизации PG → DuckDB (PgDuckDbSyncService).
     //  Глобальные runtime-параметры, общие для всех skills. Минимум 4 часа
     //  (см. lib/services/pg_duckdb_sync_service.py). Все ключи опциональны;

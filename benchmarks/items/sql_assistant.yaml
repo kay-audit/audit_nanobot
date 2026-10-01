@@ -1,0 +1,44 @@
+- id: "sql-assistant-ready-exact"
+  name: "Existing script exact delivery"
+  difficulty: 3
+  category: "sql_assistant"
+  type: "single"
+  new_session: true
+  question: "Покажи существующий корпоративный SQL script_id 338 без изменений"
+  max_iterations: 8
+  expect:
+    tools: ["sql_analyzer"]
+    skills: ["sql_assistant"]
+    keywords_include: ["SCRIPT_ID", "KM_ID"]
+    keywords_exclude: ["сгенерировал"]
+
+- id: "sql-assistant-generate-spark"
+  name: "Grounded Spark SQL generation"
+  difficulty: 7
+  category: "sql_assistant"
+  type: "single"
+  new_session: true
+  question: "Напиши Spark SQL для помесячного количества обращений, используй KB и объясни запрос"
+  max_iterations: 20
+  expect:
+    tools: ["kb_search", "kb_describe", "sql_generate", "sql_facts"]
+    skills: ["sql_assistant"]
+    keywords_include: ["Что считает запрос", "Источники и почему они", "Как проверить"]
+    keywords_exclude: ["INSERT", "DROP"]
+    match_type: "llm_judge"
+    goal: "Generated read-only Spark SQL uses selected KB tables/columns and the explanation covers sources, join keys, filters, assumptions, verification and literal-value caveat."
+
+- id: "sql-assistant-ready-no-generation-fallback"
+  name: "Missing exact ID does not generate"
+  difficulty: 4
+  category: "sql_assistant"
+  type: "single"
+  new_session: true
+  question: "Найди готовый существующий script_id 999999999"
+  max_iterations: 8
+  expect:
+    tools: ["sql_analyzer"]
+    skills: ["sql_assistant"]
+    keywords_include: ["не найден"]
+    keywords_exclude: ["sql_generate", "SELECT"]
+

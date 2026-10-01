@@ -22,3 +22,7 @@ chardet==7.6.0
  
 # SQL AST security guard (lib/utils/sql_safety.py)
 sqlglot==30.17.0
+
+# SQL Assistant heavy retrieval runtime (lazy imports; no model load at startup)
+sentence-transformers==6.0.1
+bm25s==0.3.8

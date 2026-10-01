@@ -21,7 +21,7 @@
       "botName": "Aura",
       "botIcon": "🐈",
       "unifiedSession": false,
-      "disabledSkills": [],
+      "disabledSkills": ["sql-analyzer"],
       "idleCompactAfterMinutes": 0,
       "consolidationRatio": 0.5,
       "dream": {
