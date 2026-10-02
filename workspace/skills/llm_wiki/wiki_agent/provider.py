@@ -300,7 +300,7 @@ class MiniMaxProvider:
             )
         self._token = os.getenv("MINIMAX_API_KEY", "").strip()
         if not self._token:
-            raise ProviderUnavailableError("Не задан MINIMAX_API_KEY в .env или окружении.")
+            raise ProviderUnavailableError("Не задан MINIMAX_API_KEY в окружении. Введите ключ через терминал.")
         base = os.getenv("MINIMAX_BASE_URL", "https://api.minimax.io/v1").strip().rstrip("/")
         try:
             parsed = urlparse(base)

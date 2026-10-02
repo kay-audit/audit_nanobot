@@ -34,6 +34,15 @@ class ExternalTests(unittest.TestCase):
         return types.SimpleNamespace(status_code=status, ok=status == 200,
             json=lambda: {"choices": [{"finish_reason": finish, "message": {"content": content}}]})
 
+    def test_api_key_cannot_be_loaded_from_env_file(self):
+        from wiki_agent.config import load_env_file
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / ".env"
+            path.write_text("MINIMAX_API_KEY=not-a-real-key\n", encoding="utf-8")
+            with self.assertRaises(ConfigurationError):
+                load_env_file(path)
+            self.assertEqual(os.environ["MINIMAX_API_KEY"], "test-key-not-a-real-secret")
+
     def test_post_contract_and_reasoning_removed(self):
         with patch("requests.post", return_value=self.response()) as post:
             result = provider_from_settings(self.settings).complete(self.request)

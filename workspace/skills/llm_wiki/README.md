@@ -1,11 +1,61 @@
 # LLM-Wiki — внешняя версия
 
+## Интеграция с audit_nanobot
+
+Навык зарегистрирован в `project.json` как `skills.llm_wiki`,
+инструмент — как `tools.llm_wiki`. Общий загрузчик автоматически обнаруживает
+`workspace/tools/llm_wiki.py`; runtime менять не нужно.
+
+Nanobot запускается на Python 3.12. Инструмент использует тот же Python
+(`sys.executable`) и вызывает `scripts/cli_nanobot.py` отдельным процессом.
+Зависимости Wiki установите из каталога навыка обычной командой выше.
+MiniMax/BGE-M3 и файлы базы остаются внутри `workspace/skills/llm_wiki/`.
+
+Перед запуском nanobot в том же терминале введите ключ:
+
+```bash
+export MINIMAX_API_KEY="$(python3.12 -c 'import getpass; print(getpass.getpass("MiniMax API key: "))')"
+```
+
+В Windows PowerShell:
+
+```powershell
+$secret = Read-Host "MiniMax API key" -AsSecureString
+$env:MINIMAX_API_KEY = [System.Net.NetworkCredential]::new("", $secret).Password
+Remove-Variable secret
+```
+
+После этого запустите nanobot штатной командой проекта из его корня.
+Уже работающий gateway необходимо перезапустить из этого терминала, чтобы
+он получил переменную окружения и обнаружил новый инструмент.
+
+Проверка в чате nanobot:
+
+1. «Проверь статус LLM-Wiki» → `llm_wiki(action="status")`.
+2. Администратор добавляет JSON в `workspace/skills/llm_wiki/raw/sources/`.
+3. «Обнови поисковую базу LLM-Wiki из локальных JSON» → `action="prepare"`.
+4. «Расскажи о DEMO-1001 из LLM-Wiki» → `action="query"`.
+
+`load` с ключом проекта/задачи отбирает существующие локальные JSON, а не
+обращается к Jira API. `prepare/load` обновляют производные карточки/FAISS,
+но не применяют изменения тематической Markdown-Wiki.
+
+Проверка CLI без nanobot, из каталога навыка:
+
+```bash
+python3.12 -c 'import subprocess,sys,json; p=subprocess.run([sys.executable,"scripts/cli_nanobot.py"],input=json.dumps({"action":"status"}),text=True); sys.exit(p.returncode)'
+```
+
+Ошибки возвращаются как JSON с `status="error"`, `error_type`, `message`.
+Таймаут задаётся только для этого инструмента в `tools.llm_wiki.timeout_sec`
+(по умолчанию 600 секунд). Ключ не принимается в аргументах и не хранится в конфиге.
+
 MiniMax отвечает на вопросы; BGE-M3 и FAISS выполняют локальный
 поиск. Админ вручную добавляет выгрузки Jira/Confluence JSON. Spark и
 автоматическая выгрузка в эту версию не входят.
 
 В MiniMax передаются выбранные тексты и вопросы. Используйте только данные,
-разрешённые для внешней передачи. Ключ хранится в `.env` или окружении.
+разрешённые для внешней передачи. Ключ вводится только через терминал и хранится в окружении текущей сессии; в файлы он не записывается.
 В комплекте нет ключей и рабочих выгрузок.
 
 ## Первый запуск
@@ -31,10 +81,33 @@ brew install python@3.12
 `$(brew --prefix python@3.12)/bin/python3.12` вместо `python3.12`.
 На Windows вместо `python3.12` используйте `py -3.12`.
 
-2. Если `.env` ещё нет, скопируйте `.env.example` в `.env`. Впишите
-   `MINIMAX_API_KEY`. При необходимости измените `MINIMAX_MODEL` на доступную
-   вашему тарифу модель. Установите `LLM_WIKI_ALLOW_EXTERNAL_CONTEXT=true`
-   только для разрешённых к внешней передаче данных.
+2. Если `.env` ещё нет, скопируйте `.env.example` в `.env`. Все несекретные
+   настройки уже заполнены; при необходимости измените `MINIMAX_MODEL`.
+   В шаблоне `LLM_WIKI_ALLOW_EXTERNAL_CONTEXT=true`: выбранные тексты могут
+   передаваться MiniMax. Используйте только разрешённые данные.
+   Не добавляйте `MINIMAX_API_KEY` в `.env`: загрузчик отклоняет такой файл.
+
+В терминале Bash/Zsh (Linux/macOS) введите ключ скрыто:
+
+```bash
+export MINIMAX_API_KEY="$(python3.12 -c 'import getpass; print(getpass.getpass("MiniMax API key: "))')"
+```
+
+Ключ не попадает в историю команд; значение существует только в окружении
+терминала и запускаемых им процессов. В новом терминале введите его снова.
+После работы: `unset MINIMAX_API_KEY`.
+
+В PowerShell (Windows):
+
+```powershell
+$secret = Read-Host "MiniMax API key" -AsSecureString
+$credential = [System.Net.NetworkCredential]::new("", $secret)
+$env:MINIMAX_API_KEY = $credential.Password
+Remove-Variable secret, credential
+```
+
+После работы: `Remove-Item Env:MINIMAX_API_KEY`.
+
 
 3. Установите embedding-модель и проверьте API:
 
@@ -78,7 +151,7 @@ python3.12 -m wiki_agent jira query "Расскажи о TRCORE-10047"
 Две задачи DEMO ссылаются на одну страницу: проверяется дедупликация и связи.
 SHOP содержит исторический текст и страницу без текста: предупреждения ожидаемы.
 
-После настройки `.env` и установки модели, в тестовой базе:
+После настройки `.env`, ввода ключа и установки модели, в тестовой базе:
 
 ```bash
 cp -n examples/jira-json/*.json raw/sources/

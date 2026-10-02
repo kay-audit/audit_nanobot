@@ -65,6 +65,8 @@ def load_env_file(path: Path) -> None:
             )
         key, value = line.split("=", 1)
         key = key.strip()
+        if key == "MINIMAX_API_KEY":
+            raise ConfigurationError("MINIMAX_API_KEY нельзя хранить в .env; введите ключ через терминал.")
         value = value.strip()
         if not key or not key.replace("_", "").isalnum():
             raise ConfigurationError(

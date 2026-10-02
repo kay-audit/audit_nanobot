@@ -165,6 +165,12 @@
   //  на уровне gateway.sync.* (общая для всех skills). См. ниже.
   // ---------------------------------------------------------------------------
   "skills": {
+    "llm_wiki": {
+      "enabled": true,
+      "tables": [],
+      "vector_indexes": [],
+      "cli": {"default_mode": "query", "default_format": "json", "timeout_sec": 600}
+    },
     "audit_analyzer": {
       "enabled": true,
 
@@ -307,6 +313,10 @@
   // ---------------------------------------------------------------------------
   //  cli.* — настройки CLI-агента (cli_agent.py)
   // ---------------------------------------------------------------------------
+  "tools": {
+    "llm_wiki": {"enable": true, "timeout_sec": 600}
+  },
+
   "cli": {
     "show_reasoning": true,       // Показывать рассуждения агента
     "show_tool_calls": true,      // Показывать вызовы инструментов
