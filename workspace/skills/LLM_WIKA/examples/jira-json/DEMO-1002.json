@@ -1,0 +1,55 @@
+{
+  "synthetic": true,
+  "dataset_note": "Полностью вымышленные данные для проверки LLM-Wiki; не использовать как рабочую документацию.",
+  "contour": "demo",
+  "project_key": "DEMO",
+  "issue_key": "DEMO-1002",
+  "issue_id": "1002",
+  "summary": "Повторное уведомление при одинаковом event_id",
+  "issuetype_name": "Bug",
+  "status_name": "Open",
+  "description": "Вымышленный дефект: при повторной обработке event_id=evt-demo-42 пользователь получил два уведомления. Ожидается одно уведомление, повтор должен игнорироваться. Дефект ещё не исправлен.",
+  "created": "2026-09-21T09:00:00Z",
+  "updated": "2026-09-22T11:00:00Z",
+  "users": [{"role": "assignee", "user_key": "demo-tester", "display_name": "Вымышленный тестировщик"}],
+  "customfields": [{"field_name": "Приоритет", "string_value": "High"}],
+  "links": [{"linked_issue_key": "DEMO-1001", "direction": "INWARD", "link_type_name": "relates to"}],
+  "remotelinks": [
+    {"link_title": "Тестовый регламент уведомлений", "url": "https://docs.example.invalid/pages/viewpage.action?pageId=90001"},
+    {"link_title": "Тестовое воспроизведение дефекта", "url": "https://docs.example.invalid/pages/viewpage.action?pageId=90002"}
+  ],
+  "comments": [{"comment_id": "102", "author": "demo-tester", "created": "2026-09-22T11:00:00Z", "body": "В тестовом сценарии дефект повторяется дважды из двух запусков."}],
+  "changelog": [],
+  "testcases": [{"test_case_id": "502", "test_case_key": "DEMO-T2", "name": "Дедупликация event_id", "objective": "Дважды обработать evt-demo-42 и проверить, что уведомление только одно."}],
+  "testresults": [{"test_result_id": "602", "test_case_id": "502", "test_result_key": "DEMO-R2", "test_result_status_id": "FAIL", "execution_date": "2026-09-22"}],
+  "attachments": [{"filename": "synthetic-event-log.txt", "filesize": 120, "mimetype": "text/plain"}],
+  "pages": [
+    {
+      "page_id": "90001",
+      "conf_contour": "demo",
+      "page_title": "ВЫМЫШЛЕННО: регламент доставки уведомлений",
+      "page_version": "1",
+      "lastmoddate": "2026-09-18T10:00:00Z",
+      "content_status": "current",
+      "body_text": "Это вымышленная тестовая документация. Уведомление о готовности заказа должно быть доставлено не позднее 30 секунд после события. При недоступности канала выполняются три повторные попытки через 1, 5 и 15 минут после первоначальной попытки. После неудачи всех попыток запись поступает в очередь ошибок. Повторная обработка одинакового event_id не создаёт второе уведомление. Код NTF-101 означает временную недоступность канала. Текст не описывает реальную систему.",
+      "len_public": 464,
+      "status": "ok",
+      "macro_count": 0,
+      "has_excerpt_include": false
+    },
+    {
+      "page_id": "90002",
+      "conf_contour": "demo",
+      "page_title": "ВЫМЫШЛЕННО: воспроизведение дублей уведомления",
+      "page_version": "1",
+      "lastmoddate": "2026-09-22T11:00:00Z",
+      "content_status": "current",
+      "body_text": "Вымышленный тест дефекта DEMO-1002. Шаги: создать тестовый заказ; отправить событие evt-demo-42; повторно отправить то же событие с тем же event_id. Ожидается одно уведомление. Наблюдается два уведомления. Статус Jira Open; исправление в этой выгрузке не подтверждено. Это синтетический пример.",
+      "len_public": 294,
+      "status": "ok",
+      "macro_count": 0,
+      "has_excerpt_include": false
+    }
+  ],
+  "data_quality": {"pages_total": 2, "pages_ok": 2, "pages_outdated": 0, "pages_unavailable": 0, "testcases_count": 1, "testresults_count": 1, "comments_count": 1}
+}

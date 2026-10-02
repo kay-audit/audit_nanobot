@@ -1,0 +1,58 @@
+{
+  "synthetic": true,
+  "dataset_note": "Полностью вымышленные данные для проверки LLM-Wiki; исторический текст и отсутствие текста заданы специально.",
+  "contour": "demo",
+  "project_key": "SHOP",
+  "issue_key": "SHOP-2001",
+  "issue_id": "2001",
+  "summary": "Временное резервирование товара в тестовом магазине",
+  "issuetype_name": "Task",
+  "status_name": "In Progress",
+  "description": "Вымышленная задача другого проекта, не DEMO и не TRCORE. Проверить резервирование товара; актуальный регламент нужно уточнить, потому что один текст исторический, а второй не попал в выгрузку.",
+  "created": "2026-09-15T08:00:00Z",
+  "updated": "2026-09-28T13:00:00Z",
+  "users": [{"role": "assignee", "user_key": "shop-demo-engineer", "display_name": "Вымышленный инженер магазина"}],
+  "customfields": [{"field_name": "Компонент", "string_value": "Резервы"}],
+  "links": [],
+  "remotelinks": [
+    {"link_title": "Исторический тестовый регламент", "url": "https://docs.example.invalid/pages/viewpage.action?pageId=90003"},
+    {"link_title": "Страница без текста в выгрузке", "url": "https://docs.example.invalid/pages/viewpage.action?pageId=90004"}
+  ],
+  "comments": [{"comment_id": "201", "author": "shop-demo-engineer", "body": "Нужно уточнить действующий срок резерва; исторический текст не доказывает текущий регламент."}],
+  "changelog": [],
+  "testcases": [],
+  "testresults": [],
+  "attachments": [],
+  "pages": [
+    {
+      "page_id": "90003",
+      "conf_contour": "demo",
+      "page_title": "ВЫМЫШЛЕННО: исторический регламент резервирования",
+      "page_version": "3",
+      "lastmoddate": "2026-09-28T13:00:00Z",
+      "body_validto": "2026-08-01T12:00:00Z",
+      "content_status": "current",
+      "body_text": "Это вымышленный исторический текст, действительность на текущую дату не подтверждена. В этой версии регламента резерв товара сохраняется 15 минут. Если оплата не завершена, резерв освобождается. После успешной оплаты резерв переводится в списание. На странице был макрос excerpt-include; его содержимое отсутствует в этой выгрузке.",
+      "len_public": 0,
+      "len_hist": 331,
+      "status": "text_outdated",
+      "macro_count": 1,
+      "has_excerpt_include": true
+    },
+    {
+      "page_id": "90004",
+      "conf_contour": "demo",
+      "page_title": "ВЫМЫШЛЕННО: текущие ограничения резервирования",
+      "page_version": "1",
+      "lastmoddate": "2026-09-28T13:00:00Z",
+      "content_status": "current",
+      "body_text": null,
+      "len_public": 0,
+      "len_hist": 0,
+      "status": "text_unavailable",
+      "macro_count": 0,
+      "has_excerpt_include": false
+    }
+  ],
+  "data_quality": {"pages_total": 2, "pages_ok": 0, "pages_outdated": 1, "pages_unavailable": 1, "pages_with_macros": 1, "testcases_count": 0, "testresults_count": 0, "comments_count": 1}
+}
