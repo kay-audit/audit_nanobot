@@ -156,9 +156,23 @@ testing:
 # (skill читает gp_enabled из env через pydantic BaseSettings; при explicit
 # false adopt_agent_gp не подключает GP даже если у агента нашлась бы схема).
 # Таблицы t_fu_* агент читает через DuckDB-кэш из public.* (skills.follow_up.tables).
-# На ПРОМ (--env=prod) блок пропускается — там GP включается настройками площадки.
+#
+# BGE_MODEL_PATH/RERANKER_MODEL_PATH — dev-подмена эмбеддера и реранкера на
+# ПУБЛИЧНЫЕ BAAI-модели. Дообученной `bge-m3-russian-legal` (дефолт skill'а,
+# config.py::bge_model_path) нет в публичном HuggingFace — без подмены
+# SentenceTransformer трактует строку как repo id и падает RepositoryNotFound.
+# В dev GP-корпус выключен (GP_ENABLED=false), семантический ранг идёт по
+# локальной фикстуре поручений, поэтому замена эмбеддера на bge-m3 безопасна
+# (предупреждение из nanobot_config.adopt_agent_models про GP-векторы к dev не
+# относится). MODELS_DEVICE=cpu — GPU резервируется под LLM (см. D5.md).
+# HF_TOKEN в dev_env НЕ кладём — это секрет; модели скачиваются один раз в
+# ~/.cache/huggingface, токен (если нужен) — только в живом .secrets.env.
+# На ПРОМ (--env=prod) блок пропускается — там своя локальная модель площадки.
 dev_env:
   GP_ENABLED: "false"
+  BGE_MODEL_PATH: "BAAI/bge-m3"
+  RERANKER_MODEL_PATH: "BAAI/bge-reranker-v2-m3"
+  MODELS_DEVICE: "cpu"
 
 isolation:
   removable: true
