@@ -191,6 +191,7 @@ isolation:
     - sql/migrations/V008__fu_poruch_data.sql
     - scripts/d5_smoke_seed.py
     - tools/seed_follow_up_data.py
+    - tools/seed_follow_up_extended.py
     - feature.yaml
   files_modified:
     - project.json        # + skills.follow-up (таблицы для sync) — overlay only
