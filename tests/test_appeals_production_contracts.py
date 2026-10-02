@@ -147,7 +147,7 @@ class ParserAndSQLTests(unittest.TestCase):
         self.assertEqual(text.canonical_appeal_text({"req_desc": np.nan, "msg_pprb_chat": None}), "")
 
     def test_unavailable_year_skips_queries(self):
-        with patch.object(sql, "configured_years", return_value=[2026]), patch.object(sql, "_run_sql") as query:
+        with store.backend_scope("greenplum"), patch.object(sql, "configured_years", return_value=[2026]), patch.object(sql, "_run_sql") as query:
             self.assertEqual(sql.fetch_candidate_ids_by_product([], [], [], ("2025-01-01", "2025-12-31")), [])
             self.assertTrue(sql.fetch_appeals_by_ids(["1"], ("2025-01-01", "2025-12-31")).empty)
         query.assert_not_called()
@@ -157,7 +157,13 @@ class BackendTests(unittest.TestCase):
     def test_provider_wait_and_dataframe_contract(self):
         provider = Mock()
         provider.open_cache.side_effect = [False, True]
-        provider.query_sql.return_value = {"status": "success", "rows": [{"id": "123"}], "columns": ["id"]}
+        columns = ("app_row_id", "req_reg_date", "prd", "s_prd", "chnl")
+        types = ("VARCHAR", "TIMESTAMP", "VARCHAR", "VARCHAR", "VARCHAR")
+        provider.query_sql.side_effect = [
+            {"status": "success", "columns": ["column_name", "data_type"],
+             "rows": [{"column_name": name, "data_type": kind} for name, kind in zip(columns, types)]},
+            {"status": "success", "rows": [{"id": "123"}], "columns": ["id"]},
+        ]
         with patch.object(store, "source_years", return_value=[2026]):
             cache = store.SharedCacheStore(provider, wait_seconds=1, poll_interval=.001)
         frame = cache.query_sql("SELECT id WHERE id=%s", ["123"])

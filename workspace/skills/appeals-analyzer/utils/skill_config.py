@@ -18,6 +18,12 @@ def build_cache_provider():
     return shared.build_cache_provider(SKILL_NAME, SKILL_ROOT)
 
 
+def structural_snapshot_path():
+    from lib.core import skill_config as shared
+
+    return shared.get_in_memory_cache_path(SKILL_ROOT)
+
+
 def source_years() -> list[int]:
     from lib.core import skill_config as shared
 

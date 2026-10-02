@@ -186,6 +186,9 @@ class AppealsAnalyzerTool(Tool):
             return report
         except Exception as exc:
             logger.exception("Appeals analysis failed")
+            from workspace.utils.appeals_structural_cache import AppealsStructuralCacheError
+            if isinstance(exc, AppealsStructuralCacheError):
+                return ToolResult.error(str(exc))
             from workspace.utils.osiris_runtime import OsirisUnavailableError
             if isinstance(exc, OsirisUnavailableError):
                 loaded_config = sys.modules.get("appeals_analyzer_runtime.utils.osiris_config")

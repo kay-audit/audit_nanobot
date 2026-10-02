@@ -224,6 +224,7 @@ class TestMain:
         from lib.services.runtime_patcher import RuntimePatcher
         with patch("sys.argv", ["gateway.py", "--profile=test"]), \
              patch("lib.lifecycle.gateway_runner.GatewayRunner") as MockRunner, \
+             patch("workspace.utils.appeals_structural_cache.prepare_gateway_structural_cache"), \
              patch.object(RuntimePatcher, "apply_all", return_value=MagicMock(failed=[])):
             MockRunner.return_value.run_forever = MagicMock()
             from gateway import main

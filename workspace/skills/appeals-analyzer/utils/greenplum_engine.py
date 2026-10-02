@@ -1,4 +1,4 @@
-"""Structural SQL and hydration: shared DuckDB, or explicitly scoped CLI Greenplum."""
+"""Production DuckDB population / standalone GP population; GP candidate hydration."""
 from __future__ import annotations
 
 import csv
@@ -13,10 +13,10 @@ from typing import List, Dict, Any, Optional, Tuple, Sequence
 import pandas as pd
 
 try:
-    from .data_store import configured_years, query_sql
+    from .data_store import backend_scope, configured_years, fetch_structural_ids, query_sql, uses_structural_cache
     from .appeal_text import appeal_parts, normalize_text
 except ImportError:
-    from utils.data_store import configured_years, query_sql
+    from utils.data_store import backend_scope, configured_years, fetch_structural_ids, query_sql, uses_structural_cache
     from utils.appeal_text import appeal_parts, normalize_text
 
 logger = logging.getLogger(__name__)
@@ -414,6 +414,8 @@ def fetch_candidate_ids_by_product(
     channels: Sequence[str] = (),
     date_range: Optional[Tuple[Optional[str], Optional[str]]] = None,
 ) -> List[str]:
+    if uses_structural_cache():
+        return fetch_structural_ids(products, subproducts, channels, date_range)
     selected_years = select_gp_years(date_range, configured_years())
     logger.info("SQL structural prefilter date_range=%s selected_years=%s", date_range, selected_years)
     if not selected_years:
@@ -435,6 +437,10 @@ def build_hydration_sql(
     candidate_ids: Sequence[str],
     years: Sequence[int] = DEFAULT_YEARS,
     date_range: Optional[Tuple[Optional[str], Optional[str]]] = None,
+    *,
+    products: Sequence[str] = (),
+    subproducts: Sequence[str] = (),
+    channels: Sequence[str] = (),
 ) -> str:
     """Fetch only the base appeal fields used downstream.
 
@@ -463,6 +469,9 @@ def build_hydration_sql(
             date_conditions.append(
                 f"a.req_reg_date < DATE '{exclusive_end.isoformat()}'"
             )
+    for column, values in (("prd", products), ("s_prd", subproducts), ("chnl", channels)):
+        if values:
+            date_conditions.append(f"a.{column} IN ({_quote_literals(values)})")
     date_sql = "" if not date_conditions else " AND " + " AND ".join(date_conditions)
 
     # Keep only columns that are actually consumed by the report/rerank/hypothesis
@@ -651,15 +660,35 @@ def merge_hydration_frames(base: pd.DataFrame, dialogs: Optional[pd.DataFrame], 
     return normalize_hydrated_appeals(work)
 
 
+def validate_hydrated_filters(base, *, products=(), subproducts=(), channels=(), date_range=None):
+    """Reject contradictory GP rows before any ID aggregation or report export."""
+    for column, values in (("prd", products), ("s_prd", subproducts), ("chnl", channels)):
+        if values and (column not in base or not base[column].isin(values).all()):
+            raise RuntimeError(f"Appeals hydration violates requested {column} filter")
+    bounds = _date_bounds(date_range)
+    if bounds is not None:
+        if "req_reg_date" not in base:
+            raise RuntimeError("Appeals hydration is missing req_reg_date")
+        dates = pd.to_datetime(base["req_reg_date"], errors="coerce")
+        start, end = bounds
+        if dates.isna().any() or (start and (dates < pd.Timestamp(start)).any()) or (end and (dates >= pd.Timestamp(end)).any()):
+            raise RuntimeError("Appeals hydration violates requested date filter")
+
+
 def fetch_appeals_by_ids(
     candidate_ids: Sequence[Any],
     date_range: Optional[Tuple[Optional[str], Optional[str]]] = None,
+    *,
+    products: Sequence[str] = (),
+    subproducts: Sequence[str] = (),
+    channels: Sequence[str] = (),
 ) -> pd.DataFrame:
     ids = list(dict.fromkeys(normalize_id(value) for value in candidate_ids if normalize_id(value)))
     if not ids:
         return pd.DataFrame()
 
-    selected_years = select_gp_years(date_range, configured_years())
+    with backend_scope("greenplum"):
+        selected_years = select_gp_years(date_range, configured_years())
     logger.info(
         "Hydration batch started: candidates=%s date_range=%s selected_years=%s",
         len(ids), date_range, selected_years,
@@ -672,10 +701,13 @@ def fetch_appeals_by_ids(
         Optional[pd.DataFrame], Optional[pd.DataFrame], Optional[pd.DataFrame]
     ]:
         base = _run_sql(
-            build_hydration_sql(ids, years=selected_years, date_range=date_range),
+            build_hydration_sql(ids, years=selected_years, date_range=date_range,
+                                products=products, subproducts=subproducts, channels=channels),
         )
         if base is None or base.empty:
             return base, None, None
+        validate_hydrated_filters(base, products=products, subproducts=subproducts,
+                                  channels=channels, date_range=date_range)
         ids_by_year = _related_ids_by_year(base)
         dialogs = (
             _run_sql(
@@ -691,7 +723,8 @@ def fetch_appeals_by_ids(
         )
         return base, dialogs, tasks
 
-    base, dialogs, tasks = _hydrate()
+    with backend_scope("greenplum"):
+        base, dialogs, tasks = _hydrate()
     logger.info(
         "Hydration DB phase finished: candidates=%s elapsed=%.2fs",
         len(ids), time.monotonic() - started,

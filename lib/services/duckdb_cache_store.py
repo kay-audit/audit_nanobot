@@ -428,6 +428,55 @@ class DuckDbCacheStore:
 
         self._save_schema_meta(schema, name, columns)
 
+    def replace_arrow_batches(self, table: str, schema: Any, batches: Any) -> int:
+        """Atomically replace a published table from bounded Arrow batches, preserving duplicates.
+
+        ``schema`` is a pyarrow.Schema; each batch must have exactly that schema.
+        Unlike upsert_records, this bulk API never infers an ID or deduplicates rows.
+        Errors propagate and roll back the complete replacement.
+        """
+        import pyarrow as pa
+
+        namespace, name = _split_table(table)
+        namespace = namespace or self._schema
+        if not name:
+            raise ValueError(f"Invalid table name: {table!r}")
+        def quote(value):
+            return '"' + value.replace('"', '""') + '"'
+
+        full = f"{quote(namespace)}.{quote(name)}"
+        count = 0
+        with self._lock:
+            self._open_locked()
+            conn = self._conn
+            conn.execute("BEGIN")
+            try:
+                conn.execute(f"CREATE SCHEMA IF NOT EXISTS {quote(namespace)}")
+                conn.register("_bulk_arrow", pa.Table.from_batches([], schema=schema))
+                try:
+                    conn.execute(f"CREATE OR REPLACE TABLE {full} AS SELECT * FROM _bulk_arrow")
+                finally:
+                    conn.unregister("_bulk_arrow")
+                for batch in batches:
+                    if batch.schema != schema:
+                        raise ValueError(f"Arrow schema mismatch for {table}")
+                    conn.register("_bulk_arrow", batch)
+                    try:
+                        conn.execute(f"INSERT INTO {full} SELECT * FROM _bulk_arrow")
+                    finally:
+                        conn.unregister("_bulk_arrow")
+                    count += batch.num_rows
+                conn.execute("COMMIT")
+            except BaseException:
+                conn.execute("ROLLBACK")
+                raise
+            if self._tables is None:
+                self._tables = []
+            if table not in self._tables:
+                self._tables.append(table)
+            self._dirty = True
+        return count
+
     def replace_records(self, table: str, records: list[dict[str, Any]]) -> bool:
         """Полностью пересоздать содержимое таблицы из полного батча.
 
