@@ -149,13 +149,42 @@ def _gp():
     return gp
 
 
+def _pg_fix():
+    from backend.storage import postgres_fixture
+    return postgres_fixture
+
+
+def _data_source() -> str:
+    """Какой бэкенд использовать для витрины: 'gp' / 'postgres' / 'fixture'.
+
+    Управляется db_env_mode в Settings:
+      - gp        → всегда gp_enabled() (иначе fallback на fixture);
+      - postgres  → всегда postgres_fixture, если доступен (иначе fixture);
+      - auto      → gp если gp_enabled(), иначе postgres, иначе fixture.
+    """
+    mode = get_settings().db_env_mode
+    if mode == "gp":
+        return "gp" if _use_gp() else "fixture"
+    if mode == "postgres":
+        if _pg_fix().pg_enabled():
+            return "postgres"
+        return "fixture"
+    # auto
+    if _use_gp():
+        return "gp"
+    if _pg_fix().pg_enabled():
+        return "postgres"
+    return "fixture"
+
+
 def _use_gp() -> bool:
     return _gp().gp_enabled()
 
 
 def fetch_rows() -> List[Dict]:
-    """Все строки витрины (с poruch_key). GP (in-memory кэш) или фикстура."""
-    if _use_gp():
+    """Все строки витрины (с poruch_key). GP / Postgres / фикстура (см. _data_source)."""
+    src = _data_source()
+    if src == "gp":
         global _gp_rows_cache, _gp_rows_ts
         with _gp_cache_lock:
             if (_gp_rows_cache is not None
@@ -165,6 +194,12 @@ def fetch_rows() -> List[Dict]:
         with _gp_cache_lock:
             _gp_rows_cache, _gp_rows_ts = rows, time.time()
         return rows
+    if src == "postgres":
+        # PG-данные короткоживущие (читаем на каждый ход). Без кэша — изменения
+        # видны сразу, без инвалидации. Если данных мало (для dev/тестов — да),
+        # это дёшево; для прод — берётся GP-режим.
+        return _pg_fix().fetch_view_rows()
+    # fixture (legacy)
     global _fixture_cache
     if _fixture_cache is None:
         path = get_settings().base_dir / "data/fixtures/poruch_fixture.json"

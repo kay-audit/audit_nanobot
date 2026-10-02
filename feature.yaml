@@ -170,6 +170,7 @@ testing:
 # На ПРОМ (--env=prod) блок пропускается — там своя локальная модель площадки.
 dev_env:
   GP_ENABLED: "false"
+  DB_ENV_MODE: "postgres"
   BGE_MODEL_PATH: "BAAI/bge-m3"
   RERANKER_MODEL_PATH: "BAAI/bge-reranker-v2-m3"
   MODELS_DEVICE: "cpu"
@@ -183,10 +184,13 @@ isolation:
   files_added:
     - docs/D5.md
     - tests/test_follow_up_skill.py
+    - tests/test_postgres_fixture.py
     - workspace/skills/follow_up/**
     - workspace/tools/follow_up.py
     - sql/migrations/V007__d5_followup_tables.sql
+    - sql/migrations/V008__fu_poruch_data.sql
     - scripts/d5_smoke_seed.py
+    - tools/seed_follow_up_data.py
     - feature.yaml
   files_modified:
     - project.json        # + skills.follow-up (таблицы для sync) — overlay only

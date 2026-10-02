@@ -248,6 +248,11 @@ class Settings(BaseSettings):
     # `site_defaults.env` / `.env`, либо, навыком внутри нанобота, настройки
     # канала его шины (`channels.postgres.dsn` и `.schema`).
     gp_enabled: bool = False
+    # Источник данных витрины поручений для резолвера (fetch_rows):
+    #   gp        — Greenplum (прод);
+    #   postgres  — public.t_fu_poruch_data в локальной Postgres (dev/тест);
+    #   auto      — gp если gp_enabled=True иначе postgres (см. также: AGENTS.md d5_followup).
+    db_env_mode: Literal["gp", "postgres", "auto"] = "auto"
     gp_host: str = ""
     gp_port: int = 5432
     gp_db: str = ""
