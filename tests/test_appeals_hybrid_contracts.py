@@ -167,7 +167,9 @@ def test_hydration_collapses_task_dialog_cartesian_product():
 
 def test_hydration_design_aggregates_relations_before_merge_and_preserves_tasks():
     sql = gp.build_hydration_sql(["123"], years=[2026])
-    assert "appeal_dialogs" not in sql and "appeal_task" not in sql and " JOIN " not in sql
+    assert "appeal_task" not in sql and " JOIN " not in sql
+    assert "EXISTS (SELECT 1 FROM" in sql
+    assert "d.msg_pprb_chat," not in sql
     assert "CAST(a.cust_epk_id AS VARCHAR) AS cust_epk_id" in sql
     assert "a.req_reg_date," in sql
     assert "CAST(a.req_reg_date AS VARCHAR) AS date" in sql
@@ -336,7 +338,7 @@ def test_failed_new_search_clears_old_final_ids(monkeypatch):
     monkeypatch.setattr(reports, "extract_search_params", lambda query: {"date_range": None})
     monkeypatch.setattr(reports, "fetch_candidate_ids_by_product", lambda *args: ["new"])
     monkeypatch.setattr(reports, "retrieve_via_srb_d3", lambda *args: [])
-    result = asyncio.run(reports.run_appeals_report(session_id, ''"", "", "", "new query"''))
+    result = asyncio.run(reports.run_appeals_report(session_id, '"", "", "", "new query"'))
     assert "не подтверждены" in result
     assert session_manager.get_session_extract(session_id)["final_ids"] == []
 
@@ -659,7 +661,10 @@ def test_pipeline_prefilters_date_before_osiris(monkeypatch):
         return ["1"]
     monkeypatch.setattr(reports, "fetch_candidate_ids_by_product", gp_prefilter)
     monkeypatch.setattr(reports, "retrieve_via_srb_d3", retrieve)
-    monkeypatch.setattr(reports, "fetch_appeals_by_ids", lambda ids, date_range=None: hydrated)
+    def hydrate(ids, date_range=None, **filters):
+        seen["hydration_filters"] = filters
+        return hydrated
+    monkeypatch.setattr(reports, "fetch_appeals_by_ids", hydrate)
     monkeypatch.setattr(reports, "rerank_via_srb_d3", lambda session_id, query, frame: frame.assign(score=.9))
     monkeypatch.setattr(reports, "export_complaints_excel", lambda frame, query, session_id: {
         "xlsx_path": "x", "name": "x", "count": len(frame),
@@ -669,7 +674,8 @@ def test_pipeline_prefilters_date_before_osiris(monkeypatch):
     monkeypatch.setattr(reports, "generate_complaint_hypothesis_narrative", narrative)
     result = asyncio.run(reports.run_appeals_report(session_id, '"Кредиты", "", "IVR", "жалобы за 2026"'))
     assert result.startswith("report")
-    assert seen == {"channels": ["IVR"], "gp": expected, "allowed": ["1"]}
+    assert seen == {"channels": ["IVR"], "gp": expected, "allowed": ["1"],
+                    "hydration_filters": {"products": ["Кредиты"], "channels": ["IVR"]}}
 
 
 def test_hydration_precedes_rerank_and_active_pipeline_skips_sva(monkeypatch):

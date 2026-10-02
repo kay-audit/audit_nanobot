@@ -205,6 +205,16 @@ def _entrypoint_main(args: argparse.Namespace, script_dir: Path, workspace_dir: 
 
         ctx.sync_service.set_on_sync_callback(_wrapped)
 
+    from workspace.utils.appeals_structural_cache import (
+        AppealsStructuralCacheError,
+        prepare_gateway_structural_cache,
+    )
+
+    try:
+        prepare_gateway_structural_cache(ctx)
+    except AppealsStructuralCacheError as exc:
+        raise ConfigurationError(str(exc)) from exc
+
     ctx.start()
 
     _report_db_pool_startup()

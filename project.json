@@ -166,6 +166,8 @@
   // ---------------------------------------------------------------------------
   "skills": {
     "appeals_analyzer": {
+      // Метаданные источников; полные текстовые таблицы не включать в generic sync.
+      // gateway.appeals_analyzer использует startup loader пяти structural колонок.
       "enabled": false,
       "tables": [
         {"name": "s_grnplm_ld_audit_da_project_27.40_kaluginvs_anofl_appeal_2026"},
@@ -392,6 +394,9 @@
       "enabled": true,                 // Зарегистрировать tool compact_context и обрабатывать /compact в CLI
       "notify_in_history": true,       // Писать заметку о сжатии в agent_conversation_messages (видно в Streamlit)
       "print_to_terminal": false       // Дублировать заметку в терминал gateway (по образцу print_worker_activity)
+    },
+    "appeals_analyzer": {
+      "enable": true
     },
     //  sync.* — параметры фоновой синхронизации PG → DuckDB (PgDuckDbSyncService).
     //  Глобальные runtime-параметры, общие для всех skills. Минимум 4 часа

@@ -135,11 +135,12 @@ def _rows_for_answer(frame):
     return rows
 
 
-async def _search_population(session_id, query, allowed_ids, date_range=None):
+async def _search_population(session_id, query, allowed_ids, date_range=None, *, structural_filters=None):
     candidates = await asyncio.to_thread(retrieve_via_srb_d3, session_id, query, allowed_ids)
     if not candidates:
         return pd.DataFrame()
-    hydrated = await asyncio.to_thread(fetch_appeals_by_ids, candidates, date_range)
+    hydrated = await asyncio.to_thread(fetch_appeals_by_ids, candidates, date_range,
+                                      **(structural_filters or {}))
     if hydrated.empty:
         return pd.DataFrame()
     scored = await asyncio.to_thread(rerank_via_srb_d3, session_id, query, hydrated)
@@ -172,7 +173,9 @@ async def run_appeals_report(session_id: str, user_prompt: str = "", filters: Op
     if not allowed_ids:
         return _empty("По указанным фильтрам обращений не найдено.", session_id)
     try:
-        final_df = await _search_population(session_id, query, allowed_ids, date_range)
+        structural_filters = {key: request[key] for key in ("products", "subproducts", "channels") if request[key]}
+        final_df = await _search_population(session_id, query, allowed_ids, date_range,
+                                          structural_filters=structural_filters)
     except OsirisUnavailableError:
         logger.exception("Appeals Osiris startup unavailable")
         return _empty(_osiris_unavailable_message(), session_id)
@@ -184,6 +187,7 @@ async def run_appeals_report(session_id: str, user_prompt: str = "", filters: Op
     )
     set_session_extract(session_id, final_df, skill_name="appeals-analyzer", extra={
         "final_ids": final_df["id"].tolist(), "hypothesis": narrative, "export_info": export,
+        "structural_filters": structural_filters, "date_range": date_range,
     })
     return narrative + f"\n\nВыгрузка: {export['name']} ({len(final_df)} уникальных обращений)."
 
@@ -201,10 +205,12 @@ async def _run_follow_up(session_id: str, prompt: str, session: Dict[str, Any]) 
     matched = [cid for cid in final_ids
                if re.search(r"(?<![\w-])" + re.escape(cid) + r"(?![\w-])", prompt)]
     if matched:
-        frame = await asyncio.to_thread(fetch_appeals_by_ids, matched)
+        frame = await asyncio.to_thread(fetch_appeals_by_ids, matched, session.get("date_range"),
+                                        **session.get("structural_filters", {}))
         return await asyncio.to_thread(answer_complaint_details, prompt, _rows_for_answer(frame), hypothesis=hypothesis)
     if classify_complaint_intent(prompt) == "search":
-        frame = await _search_population(session_id, prompt, final_ids)
+        frame = await _search_population(session_id, prompt, final_ids, session.get("date_range"),
+                                         structural_filters=session.get("structural_filters", {}))
         if frame.empty:
             return "Релевантные обращения не подтверждены."
         return await asyncio.to_thread(answer_complaint_follow_up, prompt, _rows_for_answer(frame),

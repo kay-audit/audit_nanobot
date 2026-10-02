@@ -1,7 +1,6 @@
-"""Explicit request-local backend: shared cache by default, GP only for CLI."""
+"""Request-local population backend; hydration always uses the shared GP pool."""
 from __future__ import annotations
 
-import os
 import threading
 import time
 from contextlib import contextmanager
@@ -9,7 +8,7 @@ from contextvars import ContextVar
 
 import pandas as pd
 
-from .skill_config import PREFIX, SCHEMA, build_cache_provider, source_years
+from .skill_config import build_cache_provider, source_years
 
 _backend: ContextVar[str] = ContextVar("appeals_backend", default="cache")
 _store = None
@@ -33,12 +32,29 @@ def configured_years() -> list[int]:
     return source_years()
 
 
+def uses_structural_cache() -> bool:
+    return _backend.get() == "cache"
+
+
+def fetch_structural_ids(products=(), subproducts=(), channels=(), date_range=None):
+    from workspace.utils.appeals_structural_cache import (
+        AppealsStructuralCacheError,
+        lookup_structural_ids,
+    )
+
+    from .skill_config import structural_snapshot_path
+
+    try:
+        return lookup_structural_ids(structural_snapshot_path(), products, subproducts, channels, date_range)
+    except Exception as exc:
+        raise AppealsStructuralCacheError(f"Appeals production structural cache failed: {exc}") from exc
+
+
 class SharedCacheStore:
     def __init__(self, provider=None, *, wait_seconds=None, poll_interval=1.0):
         self.provider = provider if provider is not None else build_cache_provider()
         self.lock = threading.Lock()
-        wait = float(os.environ.get("APPEALS_CACHE_WAIT_SECONDS", "60")
-                     if wait_seconds is None else wait_seconds)
+        wait = float(0 if wait_seconds is None else wait_seconds)
         if wait < 0 or poll_interval <= 0:
             raise ValueError("Invalid Appeals cache wait settings")
         deadline = time.monotonic() + wait
@@ -47,16 +63,21 @@ class SharedCacheStore:
             if remaining <= 0:
                 raise RuntimeError("Shared Gateway DuckDB snapshot is unavailable; wait for initial sync.")
             time.sleep(min(poll_interval, remaining))
-        required = {
-            "appeal": ("app_row_id", "cust_epk_id", "req_reg_date", "grp", "prd", "s_prd",
-                       "chnl", "kanal_reg", "subj", "s_subj", "req_cons_res_val", "req_desc"),
-            "appeal_dialogs": ("app_row_id", "msg_pprb_chat", "msg_crm_call"),
-            "appeal_task": ("app_row_id", "task_answer", "task_answer_full"),
-        }
-        for year in source_years():
-            for kind, columns in required.items():
-                projection = ", ".join(f'"{column}"' for column in columns)
-                self.query_sql(f'SELECT {projection} FROM "{SCHEMA}"."{PREFIX}{kind}_{year}" LIMIT 0')
+        from workspace.utils.appeals_structural_cache import (
+            STRUCTURAL_COLUMNS,
+            AppealsStructuralCacheError,
+        )
+
+        metadata = self.query_sql(
+            "SELECT column_name, data_type FROM information_schema.columns "
+            "WHERE table_schema = 'main' AND table_name = 'appeals_structural_2026' "
+            "ORDER BY ordinal_position"
+        )
+        expected = list(zip(STRUCTURAL_COLUMNS, ("VARCHAR", "TIMESTAMP", "VARCHAR", "VARCHAR", "VARCHAR"), strict=True))
+        if list(metadata.itertuples(index=False, name=None)) != expected:
+            raise AppealsStructuralCacheError(
+                "Appeals structural cache main.appeals_structural_2026 is missing or has incorrect schema; restart Gateway"
+            )
 
     def query_sql(self, sql, params=None):
         with self.lock:
