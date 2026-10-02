@@ -128,7 +128,9 @@ testing:
   runtime_data_backend: testing_pg
   # data_generator: схема идемпотентно создаётся через ensure_schema() при старте
   # backend'а. Скрипт-обёртка для явного preflight-вызова — scripts/d5_smoke_seed.py
-  # (он же seedит минимальные фикстуры: чек-листы, KM-методы, реестр поручений).
+  # (он же seedит минимальные фикстуры: чек-листы, KM-методы, реестр поручений,
+  # и пишет data/fixtures/poruch_fixture.json — витрину поручений для local-режима,
+  # т.к. в dev GP выключен и resolve_poruch читает реестр из этого файла).
   data_generator:
     path: scripts/d5_smoke_seed.py
     command: "python scripts/d5_smoke_seed.py"
