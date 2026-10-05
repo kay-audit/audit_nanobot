@@ -102,12 +102,16 @@ CSV-escaped кавычки поддерживаются. Корректная ч
    Индексы не перестраиваются; неизвестные vector IDs молча пропускаются.
 3. Weighted RRF использует FAISS_K=2048, BM25_TOTAL_K=1372, ALPHA=0.3, K_RRF=60.
    Весь fused pool возвращается Gateway, без дополнительного top-K.
-4. Gateway гидратирует кандидатов из того же DuckDB. Appeals, dialogs и tasks
+4. Gateway гидратирует кандидатов из Greenplum с повторением structural filters/date. Appeals, dialogs и tasks
    читаются раздельно, связи агрегируются до merge по `app_row_id`.
 5. Canonical text: `req_desc` + непустой `msg_pprb_chat`, иначе `msg_crm_call`.
-   Osiris reranker возвращает ID/score. Все scores >= 0.5 входят в итог.
-   При отсутствии прошедших порог: «Релевантные обращения не подтверждены.»;
-   XLSX и гипотезы не создаются, fallback top-2048 отсутствует.
+   Osiris reranker возвращает все input IDs со scores без фильтрации по score.
+   Только report selection выбирает обращения со score строго > 0.5: они
+   входят в итог без верхнего лимита. Если их меньше 500, итог дополняется
+   лучшими оставшимися кандидатами по score до 500 уникальных обращений.
+   Score ровно 0.5 не проходит порог, но участвует в доборе.
+   Если доступно меньше 500 кандидатов, возвращаются все доступные.
+   При пустом retrieval/hydration XLSX и гипотезы не создаются.
 6. Профиль и counts считаются по полной final-выборке. LLM формирует ровно
    четыре гипотезы. Создаётся ровно один XLSX без CSV в
    `workspace/data_store/cache/sessions/<safe_session_key>/results/`.

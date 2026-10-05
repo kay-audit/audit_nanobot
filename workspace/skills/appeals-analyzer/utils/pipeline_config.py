@@ -10,6 +10,7 @@ class PipelineConfig:
     rrf_k: int = 60
     rrf_alpha: float = 0.3
     score_threshold: float = 0.5
+    report_min_items: int = 500
     reranker_batch_size: int = 8
     embedding_batch_size: int = 8
     bm25_chunk: int = 1_000_000

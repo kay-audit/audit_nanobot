@@ -629,13 +629,6 @@ def rerank_dataframe(query: str, df: pd.DataFrame) -> pd.DataFrame:
     return result.sort_values("score", ascending=False, kind="stable").reset_index(drop=True)
 
 
-def select_threshold_or_fallback(scored: pd.DataFrame) -> Tuple[pd.DataFrame, bool]:
-    if "score" not in scored:
-        raise RuntimeError("Reranker produced no scores.")
-    accepted = scored[scored["score"] >= CONFIG.score_threshold].copy()
-    return accepted, False
-
-
 def build_and_cache_small_index(session_id: str, df_or_map: Any, **_: Any) -> bool:
     rows = df_or_map.to_dict("records") if isinstance(df_or_map, pd.DataFrame) else list((df_or_map or {}).values())
     documents = [build_text(row.get("desc", row.get("Короткое описание", "")), row.get("dialogue", row.get("Транскрибация диалога", row.get("msg_pprb_chat", "")))) for row in rows]

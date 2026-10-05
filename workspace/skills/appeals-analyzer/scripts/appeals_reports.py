@@ -117,13 +117,25 @@ def _empty(message: str, session_id: str) -> str:
     return message
 
 
-def select_accepted(scored: pd.DataFrame) -> pd.DataFrame:
+def select_accepted(scored: pd.DataFrame, *, reranker_input: int | None = None) -> pd.DataFrame:
+    """Keep all threshold passes, topping up to report_min_items by score."""
     if "score" not in scored:
         raise RuntimeError("Reranker produced no scores")
     scores = pd.to_numeric(scored["score"], errors="coerce")
     if not scores.between(0, 1).all():
         raise RuntimeError("Reranker produced invalid scores")
-    return scored.loc[scores >= CONFIG.score_threshold].copy().reset_index(drop=True)
+    if CONFIG.report_min_items <= 0:
+        raise ValueError("report_min_items must be positive")
+    ranked = scored.assign(score=scores).sort_values("score", ascending=False, kind="stable")
+    ranked = ranked.drop_duplicates("id", keep="first")
+    passing_count = int((ranked["score"] > CONFIG.score_threshold).sum())
+    target = max(passing_count, CONFIG.report_min_items)
+    selected = ranked.head(target).copy().reset_index(drop=True)
+    logger.info("Appeals report selection: reranker_input=%s reranker_output=%s above_threshold=%s "
+                "score_threshold=%s report_min_items=%s final_selected=%s",
+                reranker_input if reranker_input is not None else "unknown", len(scored), passing_count,
+                CONFIG.score_threshold, CONFIG.report_min_items, len(selected))
+    return selected
 
 
 def _rows_for_answer(frame):
@@ -143,8 +155,12 @@ async def _search_population(session_id, query, allowed_ids, date_range=None, *,
                                       **(structural_filters or {}))
     if hydrated.empty:
         return pd.DataFrame()
+    logger.info("Reranker input=%s", len(hydrated))
     scored = await asyncio.to_thread(rerank_via_srb_d3, session_id, query, hydrated)
-    return select_accepted(scored).drop_duplicates("id", keep="first").reset_index(drop=True)
+    logger.info("Reranker output=%s", len(scored))
+    if len(scored) != len(hydrated):
+        raise RuntimeError(f"Reranker candidate count mismatch: input={len(hydrated)} output={len(scored)}")
+    return select_accepted(scored, reranker_input=len(hydrated))
 
 
 async def run_appeals_report(session_id: str, user_prompt: str = "", filters: Optional[dict] = None) -> str:
