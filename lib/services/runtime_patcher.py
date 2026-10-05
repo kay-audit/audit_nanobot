@@ -85,6 +85,63 @@ def _resolve_media_path(media_paths: list[str], basename: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Подавленный финал (nanobot_bugfix_stutter)
+# ---------------------------------------------------------------------------
+# ``MessageTool`` после успешной доставки помечает ``ctx.suppress_response``,
+# и ``AgentLoop._prepare_outbound`` (nanobot/agent/loop.py:2068) выходит с
+# ``ctx.outbound = None``. Тогда ``_assemble_outbound`` не вызывается вовсе —
+# вместе с синтетическим ``_final_turn`` из ``patch_assemble_outbound``.
+# Канал не получает финала и не закрывает слот/клейм: входящая строка висит
+# в ``processing`` до ``processing_timeout`` и повторяется (до 3 раз).
+#
+# Хелперы ниже собирают финальный outbound в обход подавления. Контент
+# берётся из ``delivery_message``/``final_content``; если он пуст, финал
+# всё равно нужен — это маркер закрытия, а не текст для пользователя.
+
+
+def _is_system_turn(kind: Any) -> bool:
+    """True, если оборот служебный (не доставляется пользователю)."""
+    if kind is None:
+        return False
+    name = getattr(kind, "name", None) or str(kind)
+    return "SYSTEM" in name.upper()
+
+
+def _synthetic_final_outbound(ctx: Any) -> Any:
+    """Финальный OutboundMessage с ``_final_turn`` для подавленного оборота.
+
+    ``None`` — построить не из чего (например, unittest-стаб без ``delivery``),
+    тогда вызывающий код оставляет поведение upstream.
+    """
+    try:
+        from nanobot.bus.events import OutboundMessage
+    except Exception:
+        return None
+
+    delivery = getattr(ctx, "delivery", None)
+    msg = getattr(delivery, "delivery_message", None) if delivery else None
+    if msg is None:
+        return None
+
+    final_content = getattr(ctx, "final_content", "") or ""
+    try:
+        out = OutboundMessage(
+            channel=getattr(msg, "channel", None),
+            chat_id=getattr(msg, "chat_id", None),
+            content=final_content,
+            media=list(getattr(msg, "media", None) or []),
+            metadata=dict(getattr(msg, "metadata", None) or {}),
+        )
+    except Exception:
+        return None
+
+    from lib.utils.outbound_meta import FINAL_TURN_KEY
+
+    out.metadata[FINAL_TURN_KEY] = True
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Error fallback constants (см. openspec/specs/runtime/error-fallback).
 # Hardcoded default для случаев, когда ``gateway.error_messages.internal_error``
 # в project.json не задан или ``settings`` недоступен (юнит-тесты без
@@ -327,6 +384,23 @@ _PATCH_SPECS: dict[str, PatchSpec] = {
                              "вынесена в подписку TurnRuntimeAdmitted (D7)",
         risk="high",
         required=True,
+    ),
+    "prepare_outbound_suppressed": PatchSpec(
+        name="prepare_outbound_suppressed",
+        purpose="не оставлять оборот без финального outbound, когда "
+                "nanobot подавил ответ из-за message(...) — иначе "
+                "канал не финализирует слот и входящая строка висит "
+                "в processing до processing_timeout",
+        nanobot_target="nanobot.agent.loop.AgentLoop._prepare_outbound",
+        reason="_assemble_outbound не вызывается при ctx.suppress_response "
+               "(nanobot/agent/loop.py:2068), поэтому синтетический "
+               "_final_turn из patch_assemble_outbound недостижим; "
+               "подавление нужно чинить ДО точки финала",
+        alternatives_checked="Вернуть финальный текст из message-tool "
+                             "нельзя — он уже доставлен в канал; "
+                             "правка nanobot/agent/loop.py исчерпывает "
+                             "патч, поэтому оборачиваем _prepare_outbound",
+        risk="high",
     ),
     "async_save": PatchSpec(
         name="async_save",
@@ -616,6 +690,8 @@ class RuntimePatcher:
         self._record(report, "tool_limits", self.patch_tool_limits(settings))
         self._record(report, "assemble_outbound", self.patch_assemble_outbound(
             agent, tool_audit_hook, recent_files_hook=recent_files_hook))
+        self._record(report, "prepare_outbound_suppressed",
+                     self.patch_prepare_outbound_suppressed(agent))
         self._record(report, "turn_delivery_fail", self.patch_turn_delivery_fail(
             settings, db_logging_service, agent_id=_resolve_agent_id(config, agent)))
         self._record(report, "async_save", self.patch_async_session_saves(agent))
@@ -1578,6 +1654,75 @@ class RuntimePatcher:
 
         agent._assemble_outbound = _wrap
         return True, "agent._assemble_outbound patched"
+
+    # ------------------------------------------------------------------
+    # Патч 2a-bis: agent._prepare_outbound → финал не теряется при
+    # подавлении после message(...)
+    # ------------------------------------------------------------------
+
+    def patch_prepare_outbound_suppressed(self, agent: Any) -> tuple[bool, str]:
+        """Не дать обороту остаться без финального outbound.
+
+        nanobot 0.3.5 ``AgentLoop._prepare_outbound`` (loop.py:2063) начинается
+        с ``if ctx.suppress_response: ctx.outbound = None; return``. Флаг ставит
+        ``MessageTool`` после успешной доставки в канал. Из-за этого раннего
+        выхода ``_assemble_outbound`` (и синтетический ``_final_turn`` из
+        ``patch_assemble_outbound``) недостижим: канал не получает финала и
+        не финализирует слот/клейм — входящая строка висит в ``processing``
+        до ``channels.postgres.processing_timeout``, затем повторяется до
+        ``max_stuck_retries``. Наблюдалось на ``ior_analyzer``: отчёт уже
+        доставлен пользователю, а чат «висит» 10–30 минут.
+
+        Обёртка снимает подавление только когда слот действительно нужно
+        закрыть. Финальный outbound собирается тем же ``_assemble_outbound``
+        (с ``_final_turn``); при пустом ``final_content`` — синтетический
+        маркер с ``_final_turn`` и пустым контентом, как это уже умеет
+        ``patch_assemble_outbound`` (его ветка ``result is None``).
+
+        Подавление сохраняется для ``TurnKind.SYSTEM`` и ``ephemeral``
+        оборотов — там финал не доставляется пользователю по замыслу.
+        """
+        original_prepare = getattr(agent, "_prepare_outbound", None)
+        if not callable(original_prepare):
+            return False, "agent._prepare_outbound is missing"
+        # Строгое сравнение: на MagicMock getattr вернул бы truthy-Mock,
+        # и патч решил бы, что уже применён.
+        if getattr(original_prepare, "_nanobot_stutter_patched", False) is True:
+            return False, "already patched"
+
+        async def _wrap_prepare(ctx: Any) -> None:
+            suppress = bool(getattr(ctx, "suppress_response", False))
+            if not suppress:
+                await original_prepare(ctx)
+                return
+
+            # Обороты, где финал доставляться не должен, не трогаем.
+            kind = getattr(ctx, "kind", None)
+            if getattr(ctx, "ephemeral", False) or _is_system_turn(kind):
+                await original_prepare(ctx)
+                return
+
+            # Финальный контент пуст ⇒ доставлять нечего, но закрыть
+            # оборот обязан: иначе входящая строка останется processing.
+            out = _synthetic_final_outbound(ctx)
+            if out is None:
+                await original_prepare(ctx)
+                return
+            ctx.outbound = out
+            try:
+                ctx.delivery.record_stop_reason(
+                    getattr(ctx, "stop_reason", None),
+                    failure_error_kind=getattr(ctx, "failure_error_kind", None),
+                )
+                ctx.delivery.record_latency(getattr(ctx, "turn_latency_ms", None))
+            except Exception:  # noqa: BLE001 — финализация важнее телеметрии
+                pass
+            if getattr(ctx, "ephemeral", False):
+                ctx.outbound.metadata["_stop_reason"] = ctx.stop_reason
+
+        _wrap_prepare._nanobot_stutter_patched = True  # type: ignore[attr-defined]
+        agent._prepare_outbound = _wrap_prepare
+        return True, "agent._prepare_outbound patched (suppressed-final fix)"
 
     # ------------------------------------------------------------------
     # Патч 2b: TurnDelivery.fail → заготовленный fallback вместо
