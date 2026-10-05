@@ -317,7 +317,12 @@
     "typewriter_speed": 0.01,     // Скорость "печатания" ответа, сек/символ
     "llm_timeout": 300,           // Таймаут LLM-запроса, сек
     "exec_timeout": 60,           // Таймаут exec-инструмента, сек
-    "max_iterations": 200,        // Макс. итераций агента
+    "max_iterations": 10,         // Макс. итераций агента. Источник для
+                                  // ApplicationContext.create(max_iterations=...)
+                                  // -> AgentLoop, т.е. перекрывает
+                                  // agents.defaults.maxToolIterations из
+                                  // config.json/.secrets.env. 200 допускал
+                                  // agentic-loop на 10+ мин (nanobot_bugfix_stutter).
     "log_level": "WARNING",       // Уровень логирования. Варианты: DEBUG | INFO | WARNING | ERROR
     "repl_idle_timeout_sec": 1.0  // Таймаут REPL-цикла ожидания outbound (console_loop.py)
   },
