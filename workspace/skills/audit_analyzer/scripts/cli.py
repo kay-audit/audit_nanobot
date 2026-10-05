@@ -239,18 +239,43 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _open_db():
-    """Открыть DuckDB-кэш через CacheProvider (создаёт если нет)."""
+    """Открыть данные навыка.
+
+    Основной путь — DuckDB-снимок, который публикует gateway. Но снимок
+    держит открытым сам gateway, а DuckDB однопользовательский: пока gateway
+    работает, файл **нельзя открыть** из другого процесса (на Windows —
+    «файл занят другим процессом»). Раньше это сообщалось как «кеш не
+    найден, запустите gateway.py», что вводило в заблуждение: кэш есть,
+    он просто занят тем самым gateway, который и должен его публиковать.
+
+    Поэтому: снимок не открылся → уходим на PostgreSQL (источник истины
+    для витрин ``oarb.*``). PG-путь не поддерживает только FAISS-поиск
+    (``--mode vector``), для агрегатов/predefined/generated_sql он
+    эквивалентен.
+    """
     provider = build_cache_provider()
     cache_path = get_in_memory_cache_path()
-    if hasattr(provider, "open_cache"):
-        if not provider.open_cache():
-            raise FileNotFoundError(
-                f"DuckDB-кеш не найден: {cache_path}. "
-                "Кеш создаёт и обновляет gateway автоматически — "
-                "запустите его (python gateway.py)."
-            )
-    print(f"[DB] DuckDB cache ({cache_path})", file=sys.stderr)
-    return provider
+    if hasattr(provider, "open_cache") and provider.open_cache():
+        print(f"[DB] DuckDB cache ({cache_path})", file=sys.stderr)
+        return provider
+
+    # Снимок недоступен (занят gateway или отсутствует) → PostgreSQL.
+    from pg_provider import PostgresQueryProvider
+
+    pg = PostgresQueryProvider()
+    if pg.open_cache():
+        print(
+            "[DB] DuckDB-снимок занят работающим gateway — читаю из "
+            "PostgreSQL напрямую (--mode vector недоступен)",
+            file=sys.stderr,
+        )
+        return pg
+
+    raise FileNotFoundError(
+        f"Не удалось открыть ни DuckDB-кэш ({cache_path}), ни PostgreSQL. "
+        "Причины: кэш не опубликован (запустите gateway) — или нет DSN "
+        "в .secrets.env (channels.postgres.dsn / DATABASE_URL)."
+    )
 
 
 def _list_scripts(db: Any) -> dict:
