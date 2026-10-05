@@ -23,9 +23,13 @@ GreenplumStore, а навык в dev-mode работает через свой S
 перенаправляет каталоги во временную папку: цель — наполнить рабочий
 корпус навыка, чтобы его было видно в боте.
 
+Корпус с данными **не хранится в репозитории**. Путь к нему передаётся
+оператором: ``--corpus`` либо переменная ``FOLLOW_UP_CORPUS_PATH``; если
+не задано — ищем ``follow_up_testkit/fixtures/corpus.json`` вверх от
+корня репозитория (каталог лежит рядом с ним, вне git).
+
 Запуск (из корня репозитория audit_nanobot):
-    python tools/seed_follow_up_corpus.py \
-        --corpus C:/Users/pasco/opencode_projects/audit_point/follow_up_testkit/fixtures/corpus.json
+    python tools/seed_follow_up_corpus.py --corpus path/to/corpus.json
     python tools/seed_follow_up_corpus.py --list
 """
 from __future__ import annotations
@@ -39,9 +43,30 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILL_DIR = REPO_ROOT / "workspace" / "skills" / "follow_up"
-DEFAULT_CORPUS = Path(
-    r"C:\Users\pasco\opencode_projects\audit_point\follow_up_testkit\fixtures\corpus.json"
-)
+CORPUS_ENV = "FOLLOW_UP_CORPUS_PATH"
+
+
+def _resolve_corpus(explicit: str | None) -> Path:
+    """Путь к корпусу: аргумент → env → поиск рядом с репозиторием."""
+    if explicit:
+        p = Path(explicit).expanduser()
+        if p.is_file():
+            return p
+        raise SystemExit(f"корпус не найден по аргументу: {p}")
+    env = os.environ.get(CORPUS_ENV, "").strip()
+    if env:
+        p = Path(env).expanduser()
+        if p.is_file():
+            return p
+        raise SystemExit(f"корпус не найден по {CORPUS_ENV}: {p}")
+    for parent in [REPO_ROOT, *REPO_ROOT.parents]:
+        candidate = parent / "follow_up_testkit" / "fixtures" / "corpus.json"
+        if candidate.is_file():
+            return candidate
+    raise SystemExit(
+        "корпус не найден: передайте --corpus <path> или задайте "
+        f"{CORPUS_ENV}. Ожидается corpus.json от follow_up_testkit."
+    )
 
 
 def _bootstrap() -> None:
@@ -108,8 +133,7 @@ def _status() -> int:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--corpus", default=str(DEFAULT_CORPUS),
-                    help="Путь к corpus.json (по умолчанию — из follow_up_testkit)")
+    ap.add_argument("--corpus", help=f"путь к corpus.json (иначе — {CORPUS_ENV} или поиск рядом)")
     ap.add_argument("--list", action="store_true",
                     help="Показать текущее состояние корпуса и выйти")
     ap.add_argument("--reset", action="store_true",
@@ -140,7 +164,7 @@ def main() -> int:
         init_db,
     )
 
-    corpus = json.loads(Path(args.corpus).read_text(encoding="utf-8"))
+    corpus = json.loads(_resolve_corpus(args.corpus).read_text(encoding="utf-8"))
     docs_in = corpus["documents"]
     init_db()
 
