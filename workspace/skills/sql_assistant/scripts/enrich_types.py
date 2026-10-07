@@ -5,7 +5,7 @@ from workspace.skills.sql_assistant.scripts._pg_admin import add_common, connect
 from workspace.skills.sql_assistant.scripts._offline import quote_table
 
 def main():
-    p=argparse.ArgumentParser(); add_common(p,table="sqlagent.kb_columns"); p.add_argument("--tables-table",default="sqlagent.kb_tables"); args=p.parse_args()
+    p=argparse.ArgumentParser(); add_common(p,table="s_grnplm_ld_audit_da_project_34.kb_columns"); p.add_argument("--tables-table",default="s_grnplm_ld_audit_da_project_34.kb_tables"); args=p.parse_args()
     if not SparkBackend.available(): print(json.dumps({"status":"unavailable","error":"PySpark is not installed"})); return 3
     conn=connect(args); tables=quote_table(args.tables_table); cache={}
     def transform(row):

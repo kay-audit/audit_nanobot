@@ -10,7 +10,7 @@ class KbDescribeConfig(BaseModel):
     max_columns: int=Field(default=50,ge=1,le=500)
     live_timeout_sec: float=Field(default=30.0,gt=0)
 
-@tool_parameters({"type":"object","properties":{"table_ids":{"type":"array","items":{}},"group_keys":{"type":"array","items":{"type":"string"}},"example_ids":{"type":"array","items":{}},"detail":{"type":"string","enum":["summary","full"],"default":"summary"},"column_query":{"type":"string"},"max_columns":{"type":"integer"},"live_schema":{"type":"boolean","default":false}}})
+@tool_parameters({"type":"object","properties":{"table_ids":{"type":"array","items":{}},"group_keys":{"type":"array","items":{"type":"string"}},"example_ids":{"type":"array","items":{}},"detail":{"type":"string","enum":["summary","full"],"default":"summary"},"column_query":{"type":"string"},"max_columns":{"type":"integer"},"live_schema":{"type":"boolean","default":False}}})
 class KbDescribeTool(Tool):
     config_key: ClassVar[str]="kb_describe"; _plugin_discoverable: ClassVar[bool]=False
     @classmethod

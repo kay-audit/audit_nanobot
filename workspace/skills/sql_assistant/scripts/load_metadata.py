@@ -7,7 +7,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from workspace.skills.sql_assistant.scripts._pg_admin import connect
+from workspace.skills.sql_assistant.scripts._pg_admin import add_connection_arguments, connect
 from workspace.skills.sql_assistant.scripts._offline import quote_table
 
 FIELDS={"tables":("id","table_name","group_key","layer","description","columns_summary","row_count","dialect"),"columns":("id","table_id","column_name","data_type","description","ordinal")}
@@ -23,8 +23,8 @@ def records(path: Path):
 
 
 def main():
-    p=argparse.ArgumentParser(); p.add_argument("--kind",choices=("tables","columns"),required=True); p.add_argument("--input",required=True); p.add_argument("--target-table"); p.add_argument("--dsn-env",default="DATABASE_URL"); p.add_argument("--dry-run",action="store_true"); args=p.parse_args()
-    args.target_table=args.target_table or f"sqlagent.kb_{args.kind}"; table=quote_table(args.target_table); fields=FIELDS[args.kind]; stats={"read":0,"inserted":0,"updated":0,"invalid":0}; seen=set()
+    p=argparse.ArgumentParser(); p.add_argument("--kind",choices=("tables","columns"),required=True); p.add_argument("--input",required=True); p.add_argument("--target-table"); add_connection_arguments(p); p.add_argument("--dry-run",action="store_true"); args=p.parse_args()
+    args.target_table=args.target_table or f"s_grnplm_ld_audit_da_project_34.kb_{args.kind}"; table=quote_table(args.target_table); fields=FIELDS[args.kind]; stats={"read":0,"inserted":0,"updated":0,"invalid":0}; seen=set()
     with connect(args) as conn:
         for row in records(Path(args.input)):
             stats["read"]+=1; identity=row.get("id")

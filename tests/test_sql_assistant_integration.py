@@ -61,7 +61,7 @@ def test_repeated_search_never_materializes_whole_corpus(monkeypatch):
     runtime=SqlAssistantRuntime(provider,index_root="unused",score_floor=0.1)
     for _ in range(3):
         assert runtime.search("orders",corpus="tables")["items"]
-    assert not any("SELECT * FROM sqlagent.kb_tables ORDER BY id" in sql for sql in sql_calls)
+    assert not any("SELECT * FROM s_grnplm_ld_audit_da_project_34.kb_tables ORDER BY id" in sql for sql in sql_calls)
     assert sum("COUNT(*) AS row_count" in sql for sql in sql_calls) == 3
     assert sum("WHERE CAST(id AS VARCHAR) IN" in sql for sql in sql_calls) == 3
 

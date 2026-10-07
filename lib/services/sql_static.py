@@ -2,11 +2,14 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from typing import Any, Mapping
 
 from lib.services.sql_dialects.sanitize import sanitize_sql
 
 _WRITE_KEYS = {"insert", "update", "delete", "merge", "create", "drop", "alter", "truncate", "grant", "revoke", "command", "copy", "call", "use", "attach", "detach", "load", "install", "export"}
+_DEPENDENCY_WORD = re.compile(r"[\w$]+")
+_DEPENDENCY_DOLLAR = re.compile(r"\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$")
 
 
 def parser_dialect(dialect: str) -> str:
@@ -14,24 +17,291 @@ def parser_dialect(dialect: str) -> str:
 
 
 def physical_tables(sql: str, *, dialect: str = "spark") -> list[str]:
-    """Extract canonical physical table names without CTE aliases or rewriting SQL."""
-    import sqlglot
-    from sqlglot import exp
+    """Extract external read dependencies statement-by-statement, without rewriting SQL.
 
+    DDL targets and previously produced tables are not dependencies. Unsupported
+    Hive/Spark syntax falls back to scoped FROM/JOIN extraction, not all names.
+    """
     result: list[str] = []
     seen: set[str] = set()
-    for tree in sqlglot.parse(sql, read=parser_dialect(dialect)):
-        if tree is None:
+    local_tables: set[str] = set()
+    local_basenames: set[str] = set()
+    default_schema = ""
+    statements: list[list[_DependencyToken]] = [[]]
+    for token in _dependency_tokens(sql):
+        if token.value == ";" and token.kind == "symbol":
+            statements.append([])
+        else:
+            statements[-1].append(token)
+    for tokens in statements:
+        if not tokens:
             continue
-        cte_names = {cte.alias_or_name.lower() for cte in tree.find_all(exp.CTE)}
-        for node in tree.find_all(exp.Table):
-            if not node.db and not node.catalog and node.name.lower() in cte_names:
+        pairs = _dependency_parentheses(tokens)
+        command = _dependency_keyword(tokens[0])
+        if command == "USE":
+            index = 2 if len(tokens) > 1 and _dependency_keyword(tokens[1]) in {"DATABASE", "SCHEMA"} else 1
+            default_schema, _ = _dependency_name(tokens, index)
+            continue
+        targets, query_start = _dependency_targets(tokens, pairs)
+        current_targets = {name.casefold() for name in targets}
+        current_basenames = {name.rsplit(".", 1)[-1] for name in current_targets}
+        unqualified_targets = {name for name in current_targets if "." not in name}
+        if command in {"DROP", "ALTER", "TRUNCATE", "SET", "DESCRIBE", "SHOW", "EXPLAIN", "MSCK", "REFRESH"}:
+            continue
+        query_tokens = tokens[query_start:] if query_start is not None else []
+        if query_tokens:
+            query_sql = sql[query_tokens[0].start:query_tokens[-1].end]
+            sources = _dependency_ast_sources(query_sql, dialect)
+            if sources is None:
+                sources = _dependency_fallback_sources(query_tokens)
+        else:
+            sources = []
+        for name in sources:
+            normalized = name.casefold()
+            basename = normalized.rsplit(".", 1)[-1]
+            resolved = f"{default_schema.casefold()}.{normalized}" if default_schema and "." not in name else normalized
+            if normalized in current_targets or resolved in current_targets or basename in unqualified_targets:
                 continue
-            name = _table_name(node)
-            normalized = name.lower()
+            if "." not in name and basename in current_basenames:
+                continue
+            if normalized in local_tables or resolved in local_tables or basename in local_basenames:
+                continue
+            if "." not in name and any(value.rsplit(".", 1)[-1] == basename for value in local_tables):
+                continue
             if name and normalized not in seen:
                 seen.add(normalized)
                 result.append(name)
+        for name in targets:
+            normalized = name.casefold()
+            if "." not in name and default_schema:
+                local_tables.add(f"{default_schema.casefold()}.{normalized}")
+            else:
+                local_tables.add(normalized)
+                if "." not in name:
+                    local_basenames.add(normalized)
+    return result
+
+
+@dataclass(frozen=True)
+class _DependencyToken:
+    kind: str
+    value: str
+    start: int
+    end: int
+
+
+def _dependency_tokens(sql: str) -> list[_DependencyToken]:
+    tokens = []
+    index = 0
+    while index < len(sql):
+        start = index
+        char = sql[index]
+        if char.isspace():
+            index += 1
+            continue
+        if sql.startswith("--", index):
+            newline = sql.find("\n", index)
+            index = len(sql) if newline < 0 else newline + 1
+            continue
+        if sql.startswith("/*", index):
+            index += 2
+            depth = 1
+            while index < len(sql) and depth:
+                if sql.startswith("/*", index):
+                    depth += 1
+                    index += 2
+                elif sql.startswith("*/", index):
+                    depth -= 1
+                    index += 2
+                else:
+                    index += 1
+            if depth:
+                raise ValueError("Unterminated SQL block comment")
+            continue
+        if char in {"'", '"', "`"}:
+            index += 1
+            value = []
+            while index < len(sql):
+                if sql[index] == char:
+                    if index + 1 < len(sql) and sql[index + 1] == char:
+                        value.append(char)
+                        index += 2
+                        continue
+                    index += 1
+                    break
+                if sql[index] == "\\" and index + 1 < len(sql):
+                    value.append(sql[index + 1])
+                    index += 2
+                else:
+                    value.append(sql[index])
+                    index += 1
+            else:
+                raise ValueError("Unterminated SQL quoted token")
+            tokens.append(_DependencyToken("literal" if char == "'" else "quoted", "" if char == "'" else "".join(value), start, index))
+            continue
+        dollar = _DEPENDENCY_DOLLAR.match(sql, index) if char == "$" else None
+        if dollar:
+            delimiter = dollar.group()
+            end = sql.find(delimiter, index + len(delimiter))
+            if end < 0:
+                raise ValueError("Unterminated SQL dollar-quoted literal")
+            index = end + len(delimiter)
+            tokens.append(_DependencyToken("literal", "", start, index))
+            continue
+        word = _DEPENDENCY_WORD.match(sql, index)
+        if word:
+            index += len(word.group())
+            tokens.append(_DependencyToken("word", word.group(), start, index))
+        else:
+            index += 1
+            tokens.append(_DependencyToken("symbol", char, start, index))
+    return tokens
+
+
+def _dependency_keyword(token: _DependencyToken) -> str:
+    return token.value.upper() if token.kind == "word" else ""
+
+
+def _dependency_name(tokens: list[_DependencyToken], index: int) -> tuple[str, int]:
+    parts = []
+    while index < len(tokens) and tokens[index].kind in {"word", "quoted"}:
+        parts.append(tokens[index].value)
+        index += 1
+        if index >= len(tokens) or tokens[index].value != ".":
+            break
+        index += 1
+        if index >= len(tokens) or tokens[index].kind not in {"word", "quoted"}:
+            return "", index
+    return ".".join(parts), index
+
+
+def _dependency_parentheses(tokens: list[_DependencyToken]) -> dict[int, int]:
+    pairs, stack = {}, []
+    for index, token in enumerate(tokens):
+        if token.kind != "symbol":
+            continue
+        if token.value == "(":
+            stack.append(index)
+        elif token.value == ")":
+            if not stack:
+                raise ValueError("Unbalanced SQL parentheses")
+            pairs[stack.pop()] = index
+    if stack:
+        raise ValueError("Unbalanced SQL parentheses")
+    return pairs
+
+
+def _dependency_targets(tokens: list[_DependencyToken], pairs: Mapping[int, int]) -> tuple[list[str], int | None]:
+    targets = []
+    command = _dependency_keyword(tokens[0])
+    index = 0
+    while index < len(tokens):
+        keyword = _dependency_keyword(tokens[index])
+        if tokens[index].value == "(" and index in pairs:
+            index = pairs[index] + 1
+            continue
+        if command == "CREATE" and keyword in {"TABLE", "VIEW"}:
+            start = index + 1
+            if start < len(tokens) and _dependency_keyword(tokens[start]) == "IF":
+                start += 3
+            name, _ = _dependency_name(tokens, start)
+            if name:
+                targets.append(name)
+            index = start
+            continue
+        if keyword == "INSERT":
+            start = index + 1
+            while start < len(tokens) and _dependency_keyword(tokens[start]) in {"INTO", "OVERWRITE", "TABLE"}:
+                start += 1
+            if start < len(tokens) and _dependency_keyword(tokens[start]) not in {"DIRECTORY", "LOCAL"}:
+                name, _ = _dependency_name(tokens, start)
+                if name:
+                    targets.append(name)
+        if command == "CREATE" and keyword == "AS" and index + 1 < len(tokens):
+            if _dependency_keyword(tokens[index + 1]) in {"SELECT", "WITH"} or tokens[index + 1].value == "(":
+                return targets, index + 1
+        index += 1
+    return targets, None if command == "CREATE" else 0
+
+
+def _dependency_ast_sources(sql: str, dialect: str) -> list[str] | None:
+    try:
+        import sqlglot
+        from sqlglot import exp
+        from sqlglot.optimizer.scope import traverse_scope
+
+        tree = sqlglot.parse_one(sql, read=parser_dialect(dialect))
+        scopes = traverse_scope(tree)
+        if not scopes:
+            return None
+        result = []
+        for scope in scopes:
+            for _node, source in scope.selected_sources.values():
+                if isinstance(source, exp.Table) and isinstance(source.this, exp.Identifier):
+                    result.append(_table_name(source))
+        return result
+    except Exception:
+        return None
+
+
+def _dependency_fallback_sources(tokens: list[_DependencyToken], inherited: frozenset[str] = frozenset()) -> list[str]:
+    if not tokens:
+        return []
+    pairs = _dependency_parentheses(tokens)
+    aliases = set(inherited)
+    ctes = []
+    index = 0
+    if _dependency_keyword(tokens[0]) == "WITH":
+        index = 2 if len(tokens) > 1 and _dependency_keyword(tokens[1]) == "RECURSIVE" else 1
+        while index < len(tokens):
+            name, after = _dependency_name(tokens, index)
+            if not name:
+                break
+            if after in pairs:
+                after = pairs[after] + 1
+            if after >= len(tokens) or _dependency_keyword(tokens[after]) != "AS":
+                break
+            after += 1
+            while after < len(tokens) and _dependency_keyword(tokens[after]) in {"NOT", "MATERIALIZED"}:
+                after += 1
+            if after not in pairs:
+                break
+            aliases.add(name.casefold())
+            ctes.append(tokens[after + 1:pairs[after]])
+            index = pairs[after] + 1
+            if index >= len(tokens) or tokens[index].value != ",":
+                break
+            index += 1
+    result = []
+    for body in ctes:
+        result.extend(_dependency_fallback_sources(body, frozenset(aliases)))
+    query_seen = index < len(tokens) and _dependency_keyword(tokens[index]) == "FROM"
+    in_from = False
+    boundaries = {"WHERE", "GROUP", "HAVING", "QUALIFY", "ORDER", "LIMIT", "UNION", "EXCEPT", "INTERSECT", "WINDOW", "ON", "INSERT"}
+    while index < len(tokens):
+        token = tokens[index]
+        keyword = _dependency_keyword(token)
+        if index in pairs:
+            result.extend(_dependency_fallback_sources(tokens[index + 1:pairs[index]], frozenset(aliases)))
+            index = pairs[index] + 1
+            continue
+        if keyword == "SELECT":
+            query_seen = True
+            in_from = False
+        if keyword in boundaries:
+            in_from = False
+        relation = query_seen and (keyword in {"FROM", "JOIN"} or (in_from and token.value == ","))
+        if relation:
+            if keyword == "FROM":
+                in_from = True
+            start = index + 1
+            if start < len(tokens) and _dependency_keyword(tokens[start]) == "LATERAL":
+                start += 1
+            name, after = _dependency_name(tokens, start)
+            if name and _dependency_keyword(tokens[start]) not in {"SELECT", "WITH", "VALUES", "UNNEST"}:
+                if after not in pairs and ("." in name or name.casefold() not in aliases):
+                    result.append(name)
+        index += 1
     return result
 
 

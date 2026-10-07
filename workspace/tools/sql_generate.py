@@ -10,7 +10,7 @@ class SqlGenerateConfig(BaseModel):
     max_repairs: int=Field(default=2,ge=0,le=2)
     timeout_sec: float=Field(default=180.0,gt=0)
 
-@tool_parameters({"type":"object","properties":{"question":{"type":"string"},"dialect":{"type":"string","enum":["spark","greenplum"]},"table_ids":{"type":"array","items":{}},"example_ids":{"type":"array","items":{}},"column_query":{"type":"string"},"prior_sql":{"type":"string"},"feedback":{"type":"string"},"max_repairs":{"type":"integer","minimum":0,"maximum":2},"live_analyze":{"type":"boolean","default":false}},"required":["question","dialect","table_ids"]})
+@tool_parameters({"type":"object","properties":{"question":{"type":"string"},"dialect":{"type":"string","enum":["spark","greenplum"]},"table_ids":{"type":"array","items":{}},"example_ids":{"type":"array","items":{}},"column_query":{"type":"string"},"prior_sql":{"type":"string"},"feedback":{"type":"string"},"max_repairs":{"type":"integer","minimum":0,"maximum":2},"live_analyze":{"type":"boolean","default":False}},"required":["question","dialect","table_ids"]})
 class SqlGenerateTool(Tool):
     config_key: ClassVar[str]="sql_generate"; _plugin_discoverable: ClassVar[bool]=False
     @classmethod

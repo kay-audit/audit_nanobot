@@ -1,10 +1,11 @@
 from __future__ import annotations
+import asyncio
 import json
 from typing import Any, ClassVar
 from nanobot.agent.tools.base import Tool, tool_parameters
 from pydantic import BaseModel, Field
 from lib.services.sql_assistant_runtime import SqlAssistantRuntime, structured_error
-from lib.services.hybrid_search import make_bge_embedder, make_bge_reranker
+from workspace.skills.sql_assistant.scripts.osiris_adapter import OsirisModels
 
 class KbSearchConfig(BaseModel):
     enable: bool = True
@@ -17,6 +18,7 @@ class KbSearchConfig(BaseModel):
     reranker_model: str = "BAAI/bge-reranker-v2-m3"
     device: str = "auto"
     model_cache_dir: str | None = None
+    osiris: dict[str, Any] = Field(default_factory=dict)
 
 @tool_parameters({"type":"object","properties":{"query":{"type":"string"},"corpus":{"type":"string","enum":["tables","examples","columns"]},"top_k":{"type":"integer","default":5},"filters":{"type":"object"},"mode":{"type":"string","enum":["search","rank_ids"],"default":"search"},"ids":{"type":"array","items":{}}},"required":["query","corpus"]})
 class KbSearchTool(Tool):
@@ -39,9 +41,11 @@ class KbSearchTool(Tool):
     def description(self): return "Search SQL knowledge-base tables, columns, or examples; rank_ids only reranks supplied real IDs."
     async def execute(self,*,query,corpus,top_k=5,filters=None,mode="search",ids=None,**_kwargs):
         try:
-            embedder=make_bge_embedder(self.config.dense_model,device=self.config.device,cache_dir=self.config.model_cache_dir) if corpus != "columns" and self.config.dense_enabled else None
-            reranker=make_bge_reranker(self.config.reranker_model,device=self.config.device,cache_dir=self.config.model_cache_dir) if corpus != "columns" and self.config.reranker_enabled else None
-            model_key=f"{self.config.dense_model}|{self.config.reranker_model}|{self.config.device}|{self.config.dense_enabled}|{self.config.reranker_enabled}|{self.config.model_cache_dir or ''}"
-            result=SqlAssistantRuntime(self.provider,index_root=self.config.index_root,score_floor=self.config.score_floor,embedder=embedder,reranker=reranker,model_key=model_key).search(query,corpus=corpus,top_k=min(max(1,int(top_k)),self.config.max_top_k),filters=filters or {},mode=mode,ids=ids)
+            models = OsirisModels(self.config.osiris, dense_model=self.config.dense_model, reranker_model=self.config.reranker_model)
+            embedder=models.embed if corpus != "columns" and self.config.dense_enabled else None
+            reranker=models.rerank if corpus != "columns" and self.config.reranker_enabled else None
+            model_key=f"{self.config.dense_model}|{self.config.reranker_model}|osiris|{self.config.dense_enabled}|{self.config.reranker_enabled}|{json.dumps(self.config.osiris, sort_keys=True)}"
+            runtime = SqlAssistantRuntime(self.provider,index_root=self.config.index_root,score_floor=self.config.score_floor,embedder=embedder,reranker=reranker,model_key=model_key)
+            result = await asyncio.to_thread(runtime.search, query, corpus=corpus, top_k=min(max(1,int(top_k)),self.config.max_top_k), filters=filters or {}, mode=mode, ids=ids)
         except Exception as exc: result=structured_error(exc)
         return json.dumps(result,ensure_ascii=False,default=str)

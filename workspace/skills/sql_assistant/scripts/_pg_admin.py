@@ -9,7 +9,7 @@ from workspace.skills.sql_assistant.scripts._offline import load_state, quote_ta
 
 
 def add_common(parser: argparse.ArgumentParser, *, table: str) -> None:
-    parser.add_argument("--dsn-env", default="DATABASE_URL")
+    add_connection_arguments(parser)
     parser.add_argument("--table", default=table)
     parser.add_argument("--batch-size", type=int, default=100)
     parser.add_argument("--state-file")
@@ -17,11 +17,45 @@ def add_common(parser: argparse.ArgumentParser, *, table: str) -> None:
     parser.add_argument("--force", action="store_true")
 
 
+def add_connection_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--profile", choices=("prod", "test"))
+    parser.add_argument("--dsn-env", help="Optional explicit legacy environment override")
+
+
+def initialize_settings(args) -> None:
+    from config import _initialize_settings, is_settings_initialized
+    if not is_settings_initialized():
+        profile = getattr(args, "profile", None)
+        if not profile:
+            raise ValueError("--profile prod|test is required to read project.json settings")
+        _initialize_settings(profile)
+
+
+def resolve_admin_dsn(args) -> str:
+    env_name = getattr(args, "dsn_env", None)
+    if env_name:
+        dsn = os.environ.get(env_name, "")
+        if not dsn or dsn.startswith("${"):
+            raise ValueError("The explicitly requested DSN environment override is missing")
+        return dsn
+    initialize_settings(args)
+    from workspace.utils.db import resolve_dsn
+    dsn = resolve_dsn()
+    if not isinstance(dsn, str) or not dsn.strip() or dsn.startswith("${"):
+        raise ValueError("Configure channels.postgres.dsn in project.json")
+    return dsn
+
+
 def connect(args):
-    dsn = os.getenv(args.dsn_env, "")
-    if not dsn: raise SystemExit(f"Environment variable {args.dsn_env} is not set")
+    dsn = resolve_admin_dsn(args)
     import psycopg2
-    return psycopg2.connect(dsn)
+    try:
+        connection = psycopg2.connect(dsn, gssencmode="disable")
+        if getattr(args, "dry_run", False):
+            connection.set_session(readonly=True)
+        return connection
+    except Exception:
+        raise RuntimeError("SQL Assistant database connection failed; verify project.json configuration") from None
 
 
 def run_updates(args, *, select_columns: str, where: str, transform: Callable[[dict[str, Any]], dict[str, Any] | None]) -> dict[str, int]:

@@ -4,7 +4,7 @@ from lib.services.llm_client import call_llm_json
 from workspace.skills.sql_assistant.scripts._pg_admin import add_common, run_updates
 
 def main():
-    p=argparse.ArgumentParser(); add_common(p,table="sqlagent.kb_examples"); args=p.parse_args()
+    p=argparse.ArgumentParser(); add_common(p,table="s_grnplm_ld_audit_da_project_34.kb_examples"); args=p.parse_args()
     def transform(row):
         if row.get("nl") and row.get("nl_variants") and not args.force: return None
         data=call_llm_json([{"role":"system","content":"Return JSON with factual nl and 2-3 nl_variants; infer only from description and SQL."},{"role":"user","content":json.dumps({"description":row.get("script_description"),"sql":row.get("sql")},ensure_ascii=False)}],max_tokens=800,temperature=0.0)

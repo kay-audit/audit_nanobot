@@ -36,9 +36,12 @@ class StaticProvider:
 
 class PostgresProvider:
     """Explicit offline/admin provider; never used by gateway tools."""
-    def __init__(self, dsn: str) -> None:
-        import psycopg2
-        self.connection = psycopg2.connect(dsn)
+    def __init__(self, dsn: str | None = None, *, connection: Any = None) -> None:
+        if connection is not None:
+            self.connection = connection
+        else:
+            import psycopg2
+            self.connection = psycopg2.connect(dsn)
 
     def execute_readonly(self, sql: str, params=None, max_rows: int = 1000):
         try:

@@ -1,6 +1,6 @@
 """Read-only access to SQL Assistant knowledge-base tables.
 
-This is the only runtime module that knows the physical ``sqlagent.kb_*``
+This is the only runtime module that knows the physical SQL Assistant KB
 tables.  It deliberately depends on the small CacheProvider capability
 (``execute_readonly``), not on DuckDB or Greenplum connections.
 """
@@ -12,9 +12,10 @@ import re
 from dataclasses import dataclass
 from typing import Any, Iterable, Mapping, Sequence
 
-KB_TABLES = "sqlagent.kb_tables"
-KB_COLUMNS = "sqlagent.kb_columns"
-KB_EXAMPLES = "sqlagent.kb_examples"
+KB_SCHEMA = "s_grnplm_ld_audit_da_project_34"
+KB_TABLES = f"{KB_SCHEMA}.kb_tables"
+KB_COLUMNS = f"{KB_SCHEMA}.kb_columns"
+KB_EXAMPLES = f"{KB_SCHEMA}.kb_examples"
 _CORPUS_TABLE = {"tables": KB_TABLES, "columns": KB_COLUMNS, "examples": KB_EXAMPLES}
 _IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
@@ -153,6 +154,33 @@ class KbStore:
         if not table:
             raise ValueError("corpus must be tables, columns, or examples")
         return self._query(f"SELECT * FROM {table} ORDER BY id", max_rows=max_rows).rows
+
+    def complete_corpus_frame(self, corpus: str, *, page_size: int = 5000) -> list[dict[str, Any]]:
+        if page_size < 1 or corpus not in _CORPUS_TABLE:
+            raise ValueError("Valid corpus and positive page_size are required")
+        result, last_id = [], None
+        while True:
+            params = []
+            if corpus == "columns":
+                sql = f"SELECT c.*, t.table_name AS table_name FROM {KB_COLUMNS} AS c LEFT JOIN {KB_TABLES} AS t ON t.id = c.table_id"
+                identity = "c.id"
+            else:
+                sql, identity = f"SELECT * FROM {_CORPUS_TABLE[corpus]}", "id"
+            if last_id is not None:
+                sql += f" WHERE {identity} > ?"
+                params.append(last_id)
+            sql += f" ORDER BY {identity} LIMIT ?"
+            params.append(page_size)
+            rows = self._query(sql, params, max_rows=page_size).rows
+            if not rows:
+                break
+            for row in rows:
+                identity_value = int(row["id"])
+                if last_id is not None and identity_value <= last_id:
+                    raise KbStoreError("Corpus pagination returned duplicate or unordered IDs")
+                last_id = identity_value
+                result.append(row)
+        return result
 
     @staticmethod
     def rows_hash(rows: Iterable[Mapping[str, Any]]) -> str:

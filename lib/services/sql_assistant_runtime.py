@@ -205,7 +205,12 @@ class SqlAssistantRuntime:
         return {"status": "ok", "tables": cards, "examples": examples}
 
     async def validate(self, sql: str, *, dialect: str, table_ids: Iterable[Any] = (), live_analyze: bool = False, generated: bool = True, timeout_sec: float = 60.0) -> dict[str, Any]:
-        schema = self.store.schema_for_tables(table_ids) if list(table_ids) else {}
+        result = await self._validate_for_repair(sql, dialect=dialect, table_ids=table_ids, live_analyze=live_analyze, generated=generated, timeout_sec=timeout_sec)
+        return _delivery_gate(result)
+
+    async def _validate_for_repair(self, sql: str, *, dialect: str, table_ids: Iterable[Any] = (), live_analyze: bool = False, generated: bool = True, timeout_sec: float = 60.0) -> dict[str, Any]:
+        ids = list(table_ids)
+        schema = self.store.schema_for_tables(ids) if ids else {}
         result = validate_sql(sql, dialect=dialect, schema=schema, generated=generated)
         result["spark"] = {"status": "not_requested"}
         if result["valid"] and live_analyze and dialect == "spark":
@@ -214,6 +219,11 @@ class SqlAssistantRuntime:
                 result["valid"] = False
                 result["status"] = "invalid"
                 result["issues"].append({"code": "spark_analysis", "message": result["spark"].get("error")})
+            elif result["spark"].get("status") != "valid":
+                result["valid"] = False
+                result["status"] = result["spark"].get("status", "unavailable")
+                result["issues"].append({"code": "spark_analysis_unavailable", "message": "Requested live analysis did not complete"})
+        result["validation_scope"] = "spark_analysis" if result["spark"].get("status") == "valid" else "static_only"
         return result
 
     def facts(self, sql: str, *, dialect: str, table_ids: Iterable[Any] = (), example_ids: Iterable[Any] = ()) -> dict[str, Any]:
@@ -247,34 +257,58 @@ class SqlAssistantRuntime:
         from lib.services.llm_client import call_llm
         cfg = dict(llm_config) if llm_config is not None else _default_llm_config()
         response = await asyncio.wait_for(asyncio.to_thread(call_llm, [{"role": "system", "content": "You generate grounded read-only SQL."}, {"role": "user", "content": ("/no_think\n" if _is_qwen(cfg) else "") + prompt}], cfg=cfg, timeout=llm_timeout_sec), timeout=llm_timeout_sec + 1)
-        validation = await self.validate(response, dialect=dialect, table_ids=requested_table_ids, live_analyze=live_analyze)
+        validation = await self._validate_for_repair(response, dialect=dialect, table_ids=requested_table_ids, live_analyze=live_analyze)
         attempts = []
         seen = {re.sub(r"\s+", " ", validation["sql"]).strip().lower()}
         seen_issues: set[tuple[str, ...]] = set()
         for _ in range(max(0, min(2, int(max_repairs)))):
             if validation["valid"]:
                 break
+            if validation["status"] != "invalid":
+                break
             issue_signature = tuple(sorted(str(issue.get("code")) for issue in validation.get("issues", [])))
             if issue_signature in seen_issues:
                 validation["warnings"].append({"code": "repeated_issue", "message": "The same validation issue repeated; stopped early"})
                 break
             seen_issues.add(issue_signature)
-            attempts.append({"sql": validation["sql"], "issues": validation["issues"]})
+            attempts.append({"issues": validation["issues"]})
             fix_prompt = rules + "\nFix the SQL using only supplied grounding. Return only SQL.\n" + json.dumps({"sql": validation["sql"], "issues": validation["issues"], "grounding": payload}, ensure_ascii=False, default=str)
             response = await asyncio.wait_for(asyncio.to_thread(call_llm, [{"role": "system", "content": "Repair generated SQL without inventing schema."}, {"role": "user", "content": fix_prompt}], cfg=cfg, timeout=llm_timeout_sec), timeout=llm_timeout_sec + 1)
-            validation = await self.validate(response, dialect=dialect, table_ids=requested_table_ids, live_analyze=live_analyze)
+            validation = await self._validate_for_repair(response, dialect=dialect, table_ids=requested_table_ids, live_analyze=live_analyze)
             normalized = re.sub(r"\s+", " ", validation["sql"]).strip().lower()
             if normalized in seen:
                 validation["warnings"].append({"code": "repeated_issue", "message": "Repair returned equivalent SQL; stopped early"})
                 break
             seen.add(normalized)
         facts: dict[str, Any] = {}
-        if validation.get("sql"):
+        if validation["valid"] and validation.get("sql"):
             try:
                 facts = self.facts(validation["sql"], dialect=dialect, table_ids=requested_table_ids, example_ids=sorted(resolved_example_ids))
             except Exception as exc:
                 facts = {"status": "invalid", "error": str(exc), "error_type": type(exc).__name__}
-        return {"status": "ok" if validation["valid"] else "invalid", "sql": validation["sql"], "validation": validation, "repair_attempts": attempts, "facts": facts, "missing_example_ids": missing_example_ids, "grounding_warnings": ([{"code": "unknown_example_id", "ids": missing_example_ids}] if missing_example_ids else [])}
+        public_validation = _delivery_gate(validation)
+        return {"status": "ok" if validation["valid"] else public_validation["status"], "valid": validation["valid"], "publishable": public_validation["publishable"], "sql": public_validation["sql"], "delivery": public_validation["delivery"], "validation": public_validation, "repair_attempts": attempts, "facts": facts, "missing_example_ids": missing_example_ids, "grounding_warnings": ([{"code": "unknown_example_id", "ids": missing_example_ids}] if missing_example_ids else [])}
+
+
+def _delivery_gate(validation: Mapping[str, Any]) -> dict[str, Any]:
+    result = dict(validation)
+    publishable = result.get("valid") is True and result.get("status") == "valid"
+    result["publishable"] = publishable
+    result["delivery"] = {
+        "action": "deliver_validated_sql" if publishable else "explain_validation_failure",
+        "instruction": (
+            "SQL прошёл указанную проверку. Не утверждай выполнение на реальных данных."
+            if publishable else
+            "Не выдавай SQL-блок и не называй запрос корректным. Сообщи, что проверка не пройдена, перечисли issues и запроси уточнение метаданных либо исправление."
+        ),
+    }
+    if not publishable:
+        result["sql"] = ""
+        spark = dict(result.get("spark") or {})
+        spark.pop("sql", None)
+        result["spark"] = spark
+        result.pop("ast", None)
+    return result
 
 
 def _compact_item(corpus: str, row: Mapping[str, Any]) -> dict[str, Any]:

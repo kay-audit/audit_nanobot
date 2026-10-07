@@ -4,7 +4,7 @@ from workspace.skills.sql_assistant.scripts._pg_admin import add_common, connect
 from workspace.skills.sql_assistant.scripts._offline import quote_table
 
 def main():
-    p=argparse.ArgumentParser(); add_common(p,table="sqlagent.kb_tables"); p.add_argument("--columns-table",default="sqlagent.kb_columns"); p.add_argument("--use-llm",action="store_true"); args=p.parse_args(); columns_table=quote_table(args.columns_table)
+    p=argparse.ArgumentParser(); add_common(p,table="s_grnplm_ld_audit_da_project_34.kb_tables"); p.add_argument("--columns-table",default="s_grnplm_ld_audit_da_project_34.kb_columns"); p.add_argument("--use-llm",action="store_true"); args=p.parse_args(); columns_table=quote_table(args.columns_table)
     conn=connect(args)
     def transform(row):
         if row.get("columns_summary") and not args.force: return None

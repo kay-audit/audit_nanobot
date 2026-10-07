@@ -9,7 +9,7 @@ class SqlValidateConfig(BaseModel):
     enable: bool=True
     explain_timeout_sec: float=Field(default=60.0,gt=0)
 
-@tool_parameters({"type":"object","properties":{"sql":{"type":"string"},"dialect":{"type":"string","enum":["spark","greenplum"]},"table_ids":{"type":"array","items":{}},"live_analyze":{"type":"boolean","default":false},"generated":{"type":"boolean","default":true}},"required":["sql","dialect"]})
+@tool_parameters({"type":"object","properties":{"sql":{"type":"string"},"dialect":{"type":"string","enum":["spark","greenplum"]},"table_ids":{"type":"array","items":{}},"live_analyze":{"type":"boolean","default":False},"generated":{"type":"boolean","default":True}},"required":["sql","dialect"]})
 class SqlValidateTool(Tool):
     config_key: ClassVar[str]="sql_validate"; _plugin_discoverable: ClassVar[bool]=False
     @classmethod

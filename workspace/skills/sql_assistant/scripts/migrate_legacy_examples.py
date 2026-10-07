@@ -3,12 +3,12 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 from collections import Counter
 from datetime import datetime, timezone
 
 from workspace.skills.sql_assistant.scripts._offline import quote_table
 from lib.services.sql_static import physical_tables
+from workspace.skills.sql_assistant.scripts._pg_admin import add_connection_arguments, connect
 
 DEFAULT_SOURCE = "s_grnplm_ld_audit_da_project_34.70_aam_scripts_examples"
 
@@ -23,13 +23,10 @@ def extract_tables_json(sql: object, *, dialect: str) -> tuple[str | None, bool]
 
 
 def main() -> int:
-    p=argparse.ArgumentParser(); p.add_argument("--dsn-env",default="DATABASE_URL"); p.add_argument("--source-table",default=DEFAULT_SOURCE); p.add_argument("--target-table",default="sqlagent.kb_examples"); p.add_argument("--dialect",default="spark"); p.add_argument("--batch-size",type=int,default=500); p.add_argument("--dry-run",action="store_true"); args=p.parse_args()
-    dsn=os.getenv(args.dsn_env,"");
-    if not dsn: raise SystemExit(f"Environment variable {args.dsn_env} is not set")
-    import psycopg2
+    p=argparse.ArgumentParser(); add_connection_arguments(p); p.add_argument("--source-table",default=DEFAULT_SOURCE); p.add_argument("--target-table",default="s_grnplm_ld_audit_da_project_34.kb_examples"); p.add_argument("--dialect",default="spark"); p.add_argument("--batch-size",type=int,default=500); p.add_argument("--dry-run",action="store_true"); args=p.parse_args()
     source,target=quote_table(args.source_table),quote_table(args.target_table)
     stats=Counter(read=0,inserted=0,updated=0,null_ids=0,duplicates=0,table_parse_errors=0)
-    with psycopg2.connect(dsn) as conn:
+    with connect(args) as conn:
         with conn.cursor() as cur:
             cur.execute(f"SELECT script_id, km_id, file_name, file_path, script_summary, script_body FROM {source} ORDER BY script_id")
             seen=set()

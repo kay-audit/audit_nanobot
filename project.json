@@ -308,9 +308,9 @@
     "sql_assistant": {
       "enabled": true,
       "tables": [
-        {"name": "sqlagent.kb_tables", "label": "kb_tables", "tracking_column": "updated_at"},
-        {"name": "sqlagent.kb_columns", "label": "kb_columns", "tracking_column": "updated_at"},
-        {"name": "sqlagent.kb_examples", "label": "kb_examples", "tracking_column": "updated_at"}
+        {"name": "s_grnplm_ld_audit_da_project_34.kb_tables", "label": "kb_tables", "tracking_column": "updated_at"},
+        {"name": "s_grnplm_ld_audit_da_project_34.kb_columns", "label": "kb_columns", "tracking_column": "updated_at"},
+        {"name": "s_grnplm_ld_audit_da_project_34.kb_examples", "label": "kb_examples", "tracking_column": "updated_at"}
       ],
       "llm": {
         "max_tokens": 8192,
@@ -415,7 +415,15 @@
       "dense_model": "BAAI/bge-m3",
       "reranker_model": "BAAI/bge-reranker-v2-m3",
       "device": "auto",
-      "model_cache_dir": null
+      "model_cache_dir": null,
+      "osiris": {
+        "service_name": "appeals",
+        "job_name": "srbd3",
+        "nfs_root": "/home/datalab/nfs/audit_nanobot/workspace/data_store/osiris/srb_d3",
+        "heartbeat_max_age_sec": 12,
+        "request_timeout_sec": 1800,
+        "batch_size": 256
+      }
     },
 
     "kb_describe": {

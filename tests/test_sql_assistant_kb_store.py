@@ -32,7 +32,7 @@ def test_source_signature_uses_only_cheap_aggregate():
     signature=KbStore(provider).source_signature("columns")
     sql,params,max_rows=provider.calls[0]
     assert "COUNT(*)" in sql and "MAX(c.updated_at)" in sql and "SELECT *" not in sql
-    assert "sqlagent.kb_tables" in sql and "tables_max_updated_at" in signature
+    assert "s_grnplm_ld_audit_da_project_34.kb_tables" in sql and "tables_max_updated_at" in signature
     assert params == [] and max_rows == 1 and '"row_count":65000' in signature
 
 
@@ -41,7 +41,7 @@ def test_columns_queries_join_table_name_without_redundant_column():
     store=KbStore(provider)
     assert store.columns_by_ids([11])[0]["table_name"] == "prd.orders"
     sql,params,_=provider.calls[0]
-    assert "LEFT JOIN sqlagent.kb_tables" in sql and "t.table_name AS table_name" in sql
+    assert "LEFT JOIN s_grnplm_ld_audit_da_project_34.kb_tables" in sql and "t.table_name AS table_name" in sql
     assert "CAST(c.id AS VARCHAR)" in sql and params == ["11"]
 
 
@@ -49,7 +49,7 @@ def test_columns_frame_uses_table_join_for_index_text():
     provider=Provider({"columns":["id","table_id","column_name","table_name"],"rows":[(11,1,"amount","prd.orders")]})
     row=KbStore(provider).corpus_frame("columns")[0]
     assert row["table_name"] == "prd.orders"
-    assert "LEFT JOIN sqlagent.kb_tables" in provider.calls[0][0]
+    assert "LEFT JOIN s_grnplm_ld_audit_da_project_34.kb_tables" in provider.calls[0][0]
     fields,group,metadata=FIELDS["columns"]
     document=prepare_from_frame([row],text_fields=fields,group_field=group,metadata_fields=metadata)[0]
     assert document.text.startswith("prd.orders\namount")

@@ -60,6 +60,15 @@
 
 ## File Storage Policy
 
+SQL Assistant integration: `workspace/skills/sql_assistant/scripts/osiris_adapter.py`
+использует existing Appeals GPU worker (`rerank_osiris_worker.py`) через
+`workspace/utils/osiris_runtime/`, перенесённый из d3_nanobot. Job lifecycle
+не запускается адаптером. Admin scripts используют --profile prod|test и общий
+`workspace.utils.db.resolve_dsn()` → `channels.postgres.dsn`; явный --dsn-env
+остаётся только compatibility override. Runtime search читает cache provider,
+не открывает GP. `gateway.kb_search.osiris.*` задаёт existing service/NFS root
+и таймауты. Generated SQL разрешён к выдаче только при publishable=true.
+
 - Новые файлы, создаваемые в рамках сессии, сохраняй под `workspace/data_store/cache/sessions/<session_key>/`
   (политика `workspace/AGENTS.md`). Не пиши напрямую в корень проекта.
 - Кэш документов legal_summarizer: `workspace/data_store/cache/sessions/<safe_session_key>/documents/<document_id>/`
