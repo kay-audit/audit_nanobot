@@ -336,11 +336,66 @@ class PipelineTests(unittest.TestCase):
     def setUp(self):
         sessions.clear_session_extract("contract")
 
-    def test_threshold_boundary_empty_and_all_passes(self):
+    def test_minimum_500_keeps_low_scores_and_orders_by_score(self):
         frame = pd.DataFrame({"id": ["a", "b", "c"], "score": [.49, .5, .9]})
-        self.assertEqual(reports.select_accepted(frame).id.tolist(), ["b", "c"])
-        self.assertTrue(reports.select_accepted(frame.iloc[:1]).empty)
-        self.assertEqual(len(reports.select_accepted(pd.DataFrame({"id": range(4000), "score": .9}))), 4000)
+        self.assertEqual(reports.select_accepted(frame).id.tolist(), ["c", "b", "a"])
+        self.assertEqual(reports.select_accepted(frame.iloc[:1]).id.tolist(), ["a"])
+        self.assertTrue(reports.select_accepted(frame.iloc[:0]).empty)
+        large = pd.DataFrame({"id": range(700), "score": np.linspace(0, .49, 700)})
+        selected = reports.select_accepted(large)
+        self.assertEqual(len(selected), 500)
+        self.assertEqual(selected.id.tolist(), list(range(699, 199, -1)))
+
+    def test_minimum_500_deduplicates_before_counting_and_keeps_best_duplicate(self):
+        frame = pd.DataFrame({"id": ["duplicate"] * 600 + list(range(600)),
+                              "score": [.9] * 600 + [.01] * 600})
+        selected = reports.select_accepted(frame)
+        self.assertEqual(len(selected), 500)
+        self.assertTrue(selected.id.is_unique)
+        self.assertEqual(selected.id.tolist(), ["duplicate"] + list(range(499)))
+        frame = pd.DataFrame({"id": ["a", "a", "b"], "score": [.01, .2, 0]})
+        self.assertEqual(reports.select_accepted(frame).score.tolist(), [.2, 0])
+
+    def test_all_threshold_passes_are_retained_above_500_without_cap(self):
+        for passing_count in (0, 1, 499, 500, 501, 700):
+            with self.subTest(passing_count=passing_count):
+                frame = pd.DataFrame({"id": range(passing_count + 700),
+                                      "score": [.500001] * passing_count + [.01] * 700})
+                selected = reports.select_accepted(frame)
+                self.assertEqual(len(selected), max(500, passing_count))
+                self.assertEqual(int((selected.score > .5).sum()), passing_count)
+                self.assertTrue(selected.id.is_unique)
+
+    def test_report_selection_required_populations(self):
+        cases = [(750, 750, 750), (1000, 700, 700), (1000, 13, 500),
+                 (1000, 0, 500), (320, 10, 320), (4347, 13, 500), (4347, 1200, 1200)]
+        for total, above, expected in cases:
+            with self.subTest(total=total, above=above):
+                frame = pd.DataFrame({"id": [str(i) for i in range(total)],
+                                      "score": [.9] * above + np.linspace(0, .5, total - above).tolist()})
+                frame = frame.sample(frac=1, random_state=42).reset_index(drop=True)
+                original = frame.copy(deep=True)
+                result = reports.select_accepted(frame)
+                self.assertEqual(len(result), expected)
+                self.assertTrue(result.id.is_unique)
+                self.assertTrue(result.score.is_monotonic_decreasing)
+                high = frame[frame.score > .5]
+                self.assertTrue(set(high.id).issubset(set(result.id)))
+                if above < 500:
+                    expected_ids = frame.sort_values("score", ascending=False, kind="stable").head(expected).id.tolist()
+                    self.assertEqual(result.id.tolist(), expected_ids)
+                else:
+                    self.assertEqual(set(result.id), set(high.id))
+                pd.testing.assert_frame_equal(frame, original)
+
+    def test_report_threshold_is_strict_at_half(self):
+        frame = pd.DataFrame({"id": [str(i) for i in range(502)],
+                              "score": [.9] * 499 + [.500001, .5, .499999]})
+        result = reports.select_accepted(frame)
+        self.assertEqual(len(result), 500)
+        self.assertIn("499", result.id.tolist())
+        self.assertNotIn("500", result.id.tolist())
+        self.assertNotIn("501", result.id.tolist())
 
     def test_invalid_scores_are_errors(self):
         for value in (np.nan, float("inf"), -1, 2):
@@ -361,22 +416,23 @@ class PipelineTests(unittest.TestCase):
             with self.assertRaisesRegex(client.OsirisRequestError, "index broken"):
                 asyncio.run(reports.run_appeals_report("contract", PROMPT))
 
-    def test_canonical_date_no_llm_and_no_export_on_zero_passes(self):
+    def test_canonical_date_no_llm_and_low_scores_still_export(self):
         frame = pd.DataFrame({"id": ["123"], "app_row_id": ["123"], "req_desc": ["text"]})
         with patch.object(reports, "extract_search_params", side_effect=AssertionError("LLM dates")), \
                 patch.object(reports, "fetch_candidate_ids_by_product", return_value=["123"]) as prefilter, \
                 patch.object(reports, "retrieve_via_srb_d3", return_value=["123"]) as retrieve, \
                 patch.object(reports, "fetch_appeals_by_ids", return_value=frame) as hydrate, \
                 patch.object(reports, "rerank_via_srb_d3", return_value=frame.assign(score=.49)), \
-                patch.object(reports, "export_complaints_excel") as export, \
-                patch.object(reports, "generate_complaint_hypothesis_narrative") as narrative:
+                patch.object(reports, "export_complaints_excel", return_value={"name": "appeals.xlsx", "count": 1}) as export, \
+                patch.object(reports, "generate_complaint_hypothesis_narrative", new=AsyncMock(return_value="hypotheses")) as narrative:
             result = asyncio.run(reports.run_appeals_report("contract", PROMPT))
-        self.assertEqual(result, "Релевантные обращения не подтверждены.")
+        self.assertIn("appeals.xlsx (1 уникальных обращений)", result)
         self.assertEqual(prefilter.call_args.args[-1], ("2026-01-01", "2026-07-31"))
         self.assertEqual(hydrate.call_args.args[-1], ("2026-01-01", "2026-07-31"))
         self.assertEqual(retrieve.call_args.args, ("contract", "жалобы за 2023 год", ["123"]))
-        export.assert_not_called()
-        narrative.assert_not_called()
+        export.assert_called_once()
+        self.assertEqual(export.call_args.args[0].score.tolist(), [.49])
+        narrative.assert_awaited_once()
 
     def test_xlsx_and_final_session_ids(self):
         frame = pd.DataFrame({"id": ["123", "456"], "app_row_id": ["123", "456"],
@@ -393,10 +449,10 @@ class PipelineTests(unittest.TestCase):
             self.assertEqual(len(paths), 1)
             self.assertEqual(list(Path(directory).glob("*.csv")), [])
             workbook = load_workbook(paths[0])
-            self.assertEqual(workbook.active.max_row, 2)
+            self.assertEqual(workbook.active.max_row, 3)
             workbook.close()
             self.assertNotIn(directory, report)
-            self.assertEqual(sessions.get_session_extract("contract")["final_ids"], ["123"])
+            self.assertEqual(sessions.get_session_extract("contract")["final_ids"], ["123", "456"])
 
     def test_followup_uses_final_ids_only(self):
         sessions.set_session_extract("contract", pd.DataFrame(), extra={"final_ids": ["123"], "hypothesis": "h"})
@@ -464,6 +520,30 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(result.id.tolist(), ["123", "456"])
         self.assertEqual(result.score.iloc[0], .5)
         self.assertLess(result.score.iloc[1], .5)
+
+    def test_worker_and_adapter_return_all_candidates_including_low_scores(self):
+        count = 4347
+        probabilities = np.resize(np.array([.9, .5, .4, .2, .01]), count)
+        logits = np.log(probabilities / (1 - probabilities))
+        frame = pd.DataFrame({"id": [str(i) for i in range(count)], "req_desc": ["text"] * count})
+        original_wait = client.wait_result
+
+        def score_and_wait(session_id, request_id, request_type, *args, **kwargs):
+            worker.process_request(self.root / "inbox" / f"{request_id}.json", None, object())
+            return original_wait(session_id, request_id, request_type, *args, **kwargs)
+
+        with patch.object(client, "ensure_srb_d3_ready"), \
+                patch.object(client, "wait_result", side_effect=score_and_wait), \
+                patch.object(worker, "predict_with_retry", return_value=logits) as score:
+            result = client.rerank_via_srb_d3("low-score-contract", "query", frame)
+        self.assertEqual(len(score.call_args.args[1]), count)
+        self.assertEqual(len(result), count)
+        self.assertEqual(set(result.id), set(frame.id))
+        self.assertTrue(result.score.is_monotonic_decreasing)
+        correlated = result.set_index("id").loc[frame.id, "score"].to_numpy()
+        np.testing.assert_allclose(correlated, probabilities)
+        for value in (.4, .2, .01):
+            self.assertTrue(np.isclose(result.score, value).any())
 
     def test_client_hydration_scores_join_by_id(self):
         frame = pd.DataFrame({"id": ["old1", "old2"], "app_row_id": ["123", "456"],

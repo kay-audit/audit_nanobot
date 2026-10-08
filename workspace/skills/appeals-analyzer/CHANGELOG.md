@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — report minimum 500
+
+- Reranker returns all scored candidates. Only production/standalone report selection applies strict score > 0.5 without a cap; when fewer pass, the best remaining candidates top up the report to `PipelineConfig.report_min_items` (500). Reports with fewer available candidates retain all of them. Input/output counts and selection counts are logged; candidate count loss raises an error. The unused legacy threshold helper was removed. Hypothesis text sampling, retrieval, scoring and structural hydration constraints are unchanged.
+
 ## Unreleased — shared Osiris runtime and idle lifecycle
 
 - Generic `workspace/utils/osiris_runtime` now owns profile-based SDK discovery, lifecycle lock, start/status/stop, typed errors, NFS transport and worker idle accounting. `osiris_job.py` is the operator CLI; `appeals_osiris_job.py` remains a compatibility wrapper.

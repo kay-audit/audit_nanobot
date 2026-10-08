@@ -200,16 +200,17 @@ def test_hydration_design_aggregates_relations_before_merge_and_preserves_tasks(
     ]
 
 
-def test_threshold_keeps_all_passes_without_fallback():
+def test_threshold_is_only_applied_in_report_selection():
     scores = pd.DataFrame({"id": range(3000), "score": np.full(3000, .51)})
-    final, fallback = bge.select_threshold_or_fallback(scores)
-    assert len(final) == 3000 and not fallback
-    final, fallback = bge.select_threshold_or_fallback(
+    assert len(reports.select_accepted(scores)) == 3000
+    final = reports.select_accepted(
         pd.DataFrame({"id": range(3000), "score": np.full(3000, .49)})
     )
-    assert final.empty and not fallback
+    assert len(final) == 500
+    assert len(scores) == 3000
+    assert not hasattr(bge, "select_threshold_or_fallback")
     with pytest.raises(RuntimeError):
-        bge.select_threshold_or_fallback(pd.DataFrame({"id": [1]}))
+        reports.select_accepted(pd.DataFrame({"id": [1]}))
 
 
 def test_sva_classifier_is_isolated_and_remains_functional(monkeypatch):
@@ -707,27 +708,61 @@ def test_hydration_precedes_rerank_and_active_pipeline_skips_sva(monkeypatch):
     assert result.startswith("report")
     assert calls == [
         "retrieve", ("hydrate", ["1", "2", "3"]),
-        ("rerank", ["1", "2", "3"]), ("export", ["1", "2"]),
-        ("hypotheses", ["1", "2"]),
+        ("rerank", ["1", "2", "3"]), ("export", ["1", "2", "3"]),
+        ("hypotheses", ["1", "2", "3"]),
     ]
     assert not hasattr(reports, "batch_classify_sva_metrics")
     assert not hasattr(reports, "prepare_texts_for_metrics")
 
 
-def test_full_final_dataset_is_exported_while_hypothesis_evidence_is_capped(monkeypatch):
+@pytest.mark.parametrize("backend", ["cache", "greenplum"])
+def test_report_gets_full_reranker_population_and_logs_counts(monkeypatch, caplog, backend):
+    data_store = importlib.import_module(f"{PACKAGE}.utils.data_store")
+    frame = pd.DataFrame({"id": [str(i) for i in range(1000)],
+                          "score": [.9] * 13 + [.4] * 987})
+    monkeypatch.setattr(reports, "retrieve_via_srb_d3", lambda *args: frame.id.tolist())
+    monkeypatch.setattr(reports, "fetch_appeals_by_ids", lambda *args: frame.drop(columns="score"))
+    inputs = []
+
+    def rerank(session_id, query, hydrated):
+        inputs.append(len(hydrated))
+        return frame.copy()
+
+    monkeypatch.setattr(reports, "rerank_via_srb_d3", rerank)
+    with data_store.backend_scope(backend), caplog.at_level("INFO"):
+        selected = asyncio.run(reports._search_population("counts-contract", "query", frame.id.tolist()))
+    assert inputs == [1000]
+    assert len(selected) == 500
+    assert "Reranker input=1000" in caplog.text
+    assert "Reranker output=1000" in caplog.text
+    assert ("Appeals report selection: reranker_input=1000 reranker_output=1000 above_threshold=13 "
+            "score_threshold=0.5 report_min_items=500 final_selected=500") in caplog.text
+
+
+def test_report_rejects_reranker_that_dropped_candidates(monkeypatch):
+    frame = pd.DataFrame({"id": ["1", "2", "3"]})
+    monkeypatch.setattr(reports, "retrieve_via_srb_d3", lambda *args: frame.id.tolist())
+    monkeypatch.setattr(reports, "fetch_appeals_by_ids", lambda *args: frame)
+    monkeypatch.setattr(reports, "rerank_via_srb_d3", lambda *args: frame.iloc[:1].assign(score=.9))
+    with pytest.raises(RuntimeError, match="input=3 output=1"):
+        asyncio.run(reports._search_population("lost-candidates", "query", frame.id.tolist()))
+
+
+@pytest.mark.parametrize("score,expected_count", [(.01, 500), (.9, 750)])
+def test_full_final_dataset_is_exported_while_hypothesis_evidence_is_capped(monkeypatch, score, expected_count):
     session_id = "full-export-contract"
     clear_session_extract(session_id)
     hydrated = pd.DataFrame({
-        "id": [str(i) for i in range(500)],
-        "short_description": ["short"] * 500,
-        "description": ["full dialogue " * 100] * 500,
+        "id": [str(i) for i in range(750)],
+        "short_description": ["short"] * 750,
+        "description": ["full dialogue " * 100] * 750,
     })
     observed = {}
-    monkeypatch.setattr(reports, "fetch_candidate_ids_by_product", lambda *args: ["1", "2", "3"])
+    monkeypatch.setattr(reports, "fetch_candidate_ids_by_product", lambda *args: hydrated["id"].tolist())
     monkeypatch.setattr(reports, "extract_search_params", lambda query: {"date_range": None})
     monkeypatch.setattr(reports, "retrieve_via_srb_d3", lambda *args: hydrated["id"].tolist())
     monkeypatch.setattr(reports, "fetch_appeals_by_ids", lambda ids, date_range=None: hydrated)
-    monkeypatch.setattr(reports, "rerank_via_srb_d3", lambda session_id, query, frame: frame.assign(score=.9))
+    monkeypatch.setattr(reports, "rerank_via_srb_d3", lambda session_id, query, frame: frame.assign(score=score))
     monkeypatch.setattr(reports, "export_complaints_excel", lambda frame, query, session_id: observed.update(export_count=len(frame)) or {"xlsx_path": "x", "name": "x", "count": len(frame)})
     async def narrative(query, frame, export, total_db_count):
         sample = hypothesis.select_hypothesis_sample(frame)
@@ -744,7 +779,7 @@ def test_full_final_dataset_is_exported_while_hypothesis_evidence_is_capped(monk
 
     assert result.startswith("report")
     assert observed == {
-        "export_count": 500,
+        "export_count": expected_count,
         "hypothesis_sample": 200,
         "evidence_coverage": 200,
         "max_batch": 20,
