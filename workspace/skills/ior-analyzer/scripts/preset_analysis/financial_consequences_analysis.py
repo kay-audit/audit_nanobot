@@ -1,5 +1,6 @@
 """Предметная аналитика финансовых последствий (1 detail row = fin_impact_sid)."""
 from __future__ import annotations
+from .common import known_sum
 
 import pandas as pd
 
@@ -28,7 +29,7 @@ def prepare_financial_consequences_views(df: pd.DataFrame) -> tuple[pd.DataFrame
         "detail_rows": len(raw),
         "source_rows": source_rows,
         "unique_incidents": int(raw[incident_id].nunique()) if incident_id else len(raw),
-        "total_amount": float(to_numeric_clean(raw[amount]).sum()) if amount else 0.0,
+        "total_amount": known_sum(raw[amount]) if amount else None,
         "amount_col": amount, "sid_col": sid, "type_col": type_col, "kind_col": kind_col,
     }
 
@@ -43,7 +44,7 @@ def prepare(df: pd.DataFrame) -> AnalysisBundle:
     statuses, approved_detail, approved_incident = prepare_standard_views(raw, incident_all)
     amount = full["amount_col"]
     approved_amount = find_column(approved_incident, ("fin_impact_rub_amt", "сумма финансового последствия (руб.)", "сумма последствия (руб.)"))
-    approved_total = float(to_numeric_clean(approved_detail[amount]).sum()) if amount and not approved_detail.empty else 0.0
+    approved_total = known_sum(approved_detail[amount]) if amount and not approved_detail.empty else None
     type_rows = categorical_breakdown(approved_detail, full["type_col"], amount)
     kind_rows = categorical_breakdown(approved_detail, full["kind_col"], amount)
     monitoring_col = find_column(approved_detail, ("fin_impact_monitoring_flag", "требует мониторинга (последствие)", "признак мониторинга"))

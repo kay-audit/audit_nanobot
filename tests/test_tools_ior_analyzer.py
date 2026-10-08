@@ -44,7 +44,8 @@ def test_tool_metadata_and_schema():
     assert "session_id" not in tool.parameters["properties"]
     preset_description = tool.parameters["properties"]["preset"]["description"]
     assert "EVE-ID" in preset_description
-    assert "DRP/SBR" in preset_description
+    assert "DRP" in preset_description
+    assert "SBR-фильтрация не поддерживается" in preset_description
 
 
 def test_enabled_and_create_read_gateway_configuration():
@@ -147,11 +148,12 @@ async def test_execute_delivers_exact_artifacts_to_request_session(monkeypatch, 
 def test_data_backend_factory_is_explicit(monkeypatch):
     module = _load_data_store_module()
 
-    monkeypatch.setenv("DATA_BACKEND", "greenplum")
+    monkeypatch.setenv("IOR_DATA_BACKEND", "greenplum")
+    monkeypatch.setattr(module, "GreenplumStore", type("FakeGP", (), {}))
     module.reset_data_store()
     assert isinstance(module.get_data_store(), module.GreenplumStore)
 
-    monkeypatch.setenv("DATA_BACKEND", "duckdb")
+    monkeypatch.setenv("IOR_DATA_BACKEND", "local_duckdb")
     module.reset_data_store()
     assert isinstance(module.get_data_store(), module.DuckDBStore)
 

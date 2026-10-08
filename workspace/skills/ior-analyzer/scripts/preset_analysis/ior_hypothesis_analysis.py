@@ -1,5 +1,6 @@
 """Универсальная аналитика main-table ИОР и smart QuerySpec analytical source."""
 from __future__ import annotations
+from .common import known_sum
 
 import pandas as pd
 
@@ -23,10 +24,10 @@ def prepare_generic(df: pd.DataFrame, preset: str = PRESET) -> AnalysisBundle:
     recovery_col = find_column(approved_incident, ("recovery_rub_amt_aggr", "возмещение – итого по инциденту (руб.)", "возмещение - итого по инциденту (руб.)"))
     full_loss_col = find_column(incident_all, ("incdnt_sum", "общая сумма всех последствий (руб.)", "общая сумма последствий (руб.)"))
     full_recovery_col = find_column(incident_all, ("recovery_rub_amt_aggr", "возмещение – итого по инциденту (руб.)", "возмещение - итого по инциденту (руб.)"))
-    total_loss = float(to_numeric_clean(approved_incident[loss_col]).sum()) if loss_col else 0.0
-    total_recovery = float(to_numeric_clean(approved_incident[recovery_col]).sum()) if recovery_col else 0.0
-    full_loss = float(to_numeric_clean(incident_all[full_loss_col]).sum()) if full_loss_col else 0.0
-    full_recovery = float(to_numeric_clean(incident_all[full_recovery_col]).sum()) if full_recovery_col else 0.0
+    total_loss = known_sum(approved_incident[loss_col]) if loss_col else None
+    total_recovery = known_sum(approved_incident[recovery_col]) if recovery_col else None
+    full_loss = known_sum(incident_all[full_loss_col]) if full_loss_col else None
+    full_recovery = known_sum(incident_all[full_recovery_col]) if full_recovery_col else None
     event_rows = categorical_breakdown(approved_incident, event_type)
     risk_rows = categorical_breakdown(approved_incident, risk_profile)
     source_rows = categorical_breakdown(approved_incident, source_col)

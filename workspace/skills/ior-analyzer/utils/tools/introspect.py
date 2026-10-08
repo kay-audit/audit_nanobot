@@ -39,6 +39,7 @@ from utils.schema.loader import get_schema
 from utils.tools.base import Tool, ToolResult
 from utils.tools.registry import REGISTRY
 from utils.data_store import get_data_store
+from utils.query_adapter import query_table
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +88,7 @@ async def probe(ctx, table: str, where: Optional[dict] = None) -> ToolResult:
     
     try:
         df = await asyncio.to_thread(
-            store.query,
+            query_table, store,
             table=table,
             where=where,
             columns=[probe_col] if probe_col else None,

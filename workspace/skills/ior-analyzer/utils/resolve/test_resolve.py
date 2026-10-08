@@ -56,16 +56,16 @@ def test_period_parsing():
 def test_smart_grounding():
     df = pd.DataFrame({
         "incdnt_sid": ["EVE-1", "EVE-2"],
-        "org_struct_lvl_2_name": ["Московский банк", "Среднерусский банк"],
+        "org_struct_lvl_3_name": ["Московский банк", "Среднерусский банк"],
         "process_lvl_1_name": ["Кредитование", "Депозиты"]
     })
 
     col = resolve_filter_column(df, "Среднерусский", "тб")
-    assert col == "org_struct_lvl_2_name"
+    assert col == "org_struct_lvl_3_name"
 
     filtered_df, used_col = apply_smart_filter(df, "Среднерусский", "тб")
     assert len(filtered_df) == 1
-    assert used_col == "org_struct_lvl_2_name"
+    assert used_col == "org_struct_lvl_3_name"
 
     print("[OK] test_smart_grounding PASSED")
 

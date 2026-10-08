@@ -36,7 +36,7 @@ Atomic tools для работы с dataframes и витриной БЗ.
   * get_ior_details - досье одного ИОР (composite: query + 3 joins)
 
 Все tools работают с pandas (после Spark.toPandas()) - это ОК для размеров
-которые мы возвращаем в чат (limit 100k строк по умолчанию).
+выгрузок; автоматического ограничения числа строк нет.
 """
 
 
@@ -53,11 +53,12 @@ from utils.tools.base import Tool, ToolResult
 from utils.tools.registry import REGISTRY
 # get_settings defined locally
 from utils.data_store import get_data_store
+from utils.query_adapter import query_table
 
 logger = logging.getLogger(__name__)
 
-_MAX_ROWS_DEFAULT = 100_000
-_MAX_ROWS_HARD = 2_000_000
+_MAX_ROWS_DEFAULT = None
+
 
 
 def _money_main_warning(cols: list) -> Optional[str]:
@@ -129,7 +130,7 @@ def _validate_enum_filters(table: str, where: Optional[dict]) -> Optional[str]:
         if key in enum_map and isinstance(val, str) and val not in enum_map[key]:
             # Ищем совпадения в указанной колонке и вообще везде
             hits = search_values(val, columns=[key], min_score=0.6)
-            hits_anywhere = search_values(val, min_score=0.6)
+            hits_anywhere = [] if key in ("org_struct_lvl_3_name", "funct_block_lvl_3_name") else search_values(val, min_score=0.6)
             
             best_col_hit = hits[0] if hits else None
             best_any_hit = hits_anywhere[0] if hits_anywhere else None
@@ -228,22 +229,22 @@ async def query(ctx, table: str, where: Optional[dict] = None,
         order_by = order_by[1:]
         order_desc = False
 
-    # LLM иногда передаёт limit=null, 0 или вообще не передаёт - фоллбэк на default
-    if limit is None:
-        limit = _MAX_ROWS_DEFAULT
-    try:
-        limit_val = int(limit)
-        if limit_val <= 0:
-            limit_val = _MAX_ROWS_DEFAULT
-        limit = min(limit_val, _MAX_ROWS_HARD)
-    except (TypeError, ValueError):
-        limit = _MAX_ROWS_DEFAULT
+    # No implicit population limit. Only an explicit positive limit is honored.
+    if limit is not None:
+        try:
+            if isinstance(limit, bool) or int(limit) != float(limit) or int(limit) <= 0:
+                raise ValueError()
+            limit = int(limit)
+        except (TypeError, ValueError, OverflowError):
+            return ToolResult(ok=False, error="limit должен быть положительным целым числом либо null")
+
 
     # Pre-validate ENUM values: ловим hallucinations типа 'Не закрыт' до SQL.
     enum_err = _validate_enum_filters(table, where)
     if enum_err:
         return ToolResult(ok=False, error=enum_err)
 
+    from utils.query_adapter import select_sql
     store = get_data_store()
     try:
         # Spark.sql().toPandas() - БЛОКИРУЮЩИЙ вызов (5-30 секунд в prod).
@@ -251,9 +252,8 @@ async def query(ctx, table: str, where: Optional[dict] = None,
         # до фронта, executor зависает посреди шага. В local с DuckDB
         # это микросекунды и проблемы не было.
         df = await asyncio.to_thread(
-            store.query,
-            table=table, where=where, columns=columns,
-            order_by=order_by, order_desc=order_desc, limit=limit,
+            store.query_sql,
+            select_sql(store, get_schema(), table, where, columns, order_by, order_desc, limit),
         )
     except ValueError as e:
         return ToolResult(ok=False, error=str(e))
@@ -315,7 +315,7 @@ async def _resolve_df(ctx, df_id: Optional[str]) -> tuple[pd.DataFrame, str]:
             return ctx.dataframes[df_id], df_id
         # Load from DB
         store = get_data_store()
-        df = await asyncio.to_thread(store.query, table=df_id)
+        df = await asyncio.to_thread(query_table, store, table=df_id)
         meta = ctx.register_dataframe(df, description=f"auto-loaded {df_id}", created_by="auto-loader")
         return df, meta.df_id
         
@@ -361,7 +361,7 @@ async def top_n(ctx, df_id: str, by: str, n: int = 10,
         )
     sorted_df = await asyncio.to_thread(
         lambda: df.sort_values(by=by, ascending=ascending,
-                               na_position="last").head(n),
+                               na_position="last").iloc[:n],
     )
     desc = f"top_{n}({df_id}), by={by}, {'asc' if ascending else 'desc'})"
     meta = ctx.register_dataframe(sorted_df, description=desc,
@@ -1106,7 +1106,7 @@ async def get_ior_details(ctx, incdnt_sid: str) -> ToolResult:
     try:
         # to_thread - Spark.sql() блокирующий
         main_df = await asyncio.to_thread(
-            store.query, table="d6_base_of_knowledge_ior",
+            query_table, store, table="d6_base_of_knowledge_ior",
             where={"incdnt_sid": incdnt_sid}, limit=1)
     except Exception as e:  # noqa: BLE001
         return ToolResult(ok=False, error=f"main query упал: {e}")
@@ -1124,18 +1124,18 @@ async def get_ior_details(ctx, incdnt_sid: str) -> ToolResult:
     # запрос здесь — одна строка инцидента, последовательно это миллисекунды.
     try:
         rec_df = await asyncio.to_thread(
-            store.query, table="d6_base_of_knowledge_incident_recovery",
-            where={"incdnt_id": incdnt_id}, limit=10_000)
+            query_table, store, table="d6_base_of_knowledge_incident_recovery",
+            where={"incdnt_id": incdnt_id}, limit=None)
         fin_df = await asyncio.to_thread(
-            store.query, table="d6_base_of_knowledge_incident_fin_impact",
-            where={"incdnt_id": incdnt_id}, limit=10_000)
+            query_table, store, table="d6_base_of_knowledge_incident_fin_impact",
+            where={"incdnt_id": incdnt_id}, limit=None)
         nonfin_df = await asyncio.to_thread(
-            store.query, table="d6_base_of_knowledge_incident_nonfin_impact",
-            where={"incdnt_id": incdnt_id}, limit=10_000)
+            query_table, store, table="d6_base_of_knowledge_incident_nonfin_impact",
+            where={"incdnt_id": incdnt_id}, limit=None)
         stts_df = await asyncio.to_thread(
-            store.query, table="d6_base_of_knowledge_incident_stts_chng",
+            query_table, store, table="d6_base_of_knowledge_incident_stts_chng",
             where={"incdnt_id": incdnt_id},
-            order_by="stts_chng_action_dttm", order_desc=False, limit=1000)
+            order_by="stts_chng_action_dttm", order_desc=False, limit=None)
     except Exception as e:  # noqa: BLE001
         return ToolResult(ok=False, error=f"related query упал: {e}")
 
@@ -1200,7 +1200,7 @@ REGISTRY.register(Tool(
             "table": {"type": "string", "description": "имя таблицы из schema"},
             "where": {"type": "object", "description": "фильтры"},
             "columns": {"type": "array", "description": "колонки (опционально, default *)"},
-            "limit": {"type": "integer", "description": "default _MAX_ROWS_DEFAULT"},
+            "limit": {"type": "integer", "description": "По умолчанию все строки; положительное число ограничивает явно"},
             "order_by": {"type": "string"},
             "order_desc": {"type": "boolean", "default": True},
         },

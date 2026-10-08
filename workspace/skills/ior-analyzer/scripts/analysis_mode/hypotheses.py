@@ -103,6 +103,9 @@ def build_evidence_pack(data, metrics, events, request=None):
         "available_incidents": len(data.approved_incident_df),
         "statistics": {
             "period": {"start": str(request.start), "end": str(request.end)} if request else None,
+            "applied_filters": {"money_filter": request.money_filter, "org_filter": request.org_filter,
+                                "date_column": "fin_impact_creation_dttm", "end_exclusive": str(request.end_exclusive),
+                                "status_scope": "Утверждён/Утверждение"} if request else None,
             "approved_incidents": len(data.approved_incident_df),
             "approved_loss": metrics.approved_loss,
             "monthly": metrics.monthly[fields].to_dict("records"),
@@ -154,6 +157,8 @@ def _base_prompt(pack, event_limit=MAX_EVIDENCE_EVENTS, event_chars=1000):
              for i, event in enumerate(pack["events"][:event_limit], 1)]
     return (
         f"ПЕРИОД:\n{period.get('start', 'не указано')}–{period.get('end', 'не указано')}.\n\n"
+        f"ФАКТИЧЕСКИЕ ФИЛЬТРЫ: {pack['statistics'].get('applied_filters')}. "
+        "Заданные пользователем ограничения не являются обнаруженными аномалиями или концентрацией.\n"
         "Анализируются утверждённые ИОР с прямыми потерями. Рассчитанные закономерности являются "
         "основаниями для проверки, а не доказанными причинами.\n\nОСНОВНЫЕ НАБЛЮДЕНИЯ:\n" +
         ("\n\n".join(facts) or "Устойчивые закономерности не установлены.") +

@@ -9,10 +9,11 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULE_PATH = ROOT / "workspace/skills/ior-analyzer/utils/bge_search_engine.py"
+MODULE_PATH = ROOT / "workspace/skills/ior-analyzer/utils/osiris_search_runtime.py"
 SPEC = importlib.util.spec_from_file_location("ior_bge_followup_contract", MODULE_PATH)
 assert SPEC is not None and SPEC.loader is not None
 bge = importlib.util.module_from_spec(SPEC)
@@ -76,24 +77,17 @@ def test_cache_final_metadata_and_memmap_contract(tmp_path):
     assert np.asarray(bge.embeddings).tolist() == [[1.0, 0.0], [0.0, 1.0]]
 
 
-def test_session_index_reuses_ior_vectors_and_searches_with_threshold(monkeypatch):
-    monkeypatch.setitem(sys.modules, "faiss", fake_faiss_module())
-    monkeypatch.setattr(bge, "load_pipeline_meta", lambda path=None: None)
-    monkeypatch.setattr(bge, "embeddings", np.asarray([[1.0, 0.0], [0.0, 1.0]], dtype="float32"))
-    monkeypatch.setattr(bge, "sid_to_index", {"EVE-1": 0, "EVE-2": 1})
-    monkeypatch.setattr(bge, "id_to_index", {"EVE-1": 0, "EVE-2": 1})
-    monkeypatch.setattr(bge, "get_bge_model", lambda: FakeModel())
-    bge._SMALL_FAISS_SESSION_CACHE.clear()
-    frame = pd.DataFrame({
-        "incdnt_sid": ["EVE-1", "EVE-2"],
-        "incdnt_full_descr_txt": ["first IOR", "second IOR"],
-    })
-
-    assert bge.build_and_cache_small_index("session", frame)
-    results = bge.search_small_index("session", "semantic follow-up")
-
-    assert results == [{"text": "second IOR", "id": "EVE-2", "score": 1.0}]
-    assert bge.search_small_index("session", "semantic follow-up", threshold=1.1) == []
+def test_gateway_session_index_searches_through_osiris(monkeypatch):
+    from utils import bge_search_engine as gateway
+    from utils.session_extract_manager import set_session_extract
+    frame = pd.DataFrame({"incdnt_sid": ["EVE-1", "EVE-2"], "incdnt_full_descr_txt": ["first IOR", "second IOR"]})
+    extract=set_session_extract("session",frame)
+    monkeypatch.setattr(gateway.osiris_client,"build_index",lambda session,version,items: {"version":version,"count":len(items)})
+    monkeypatch.setattr(gateway.osiris_client,"search",lambda *args: [{"id":"EVE-2","text":"second IOR","score":1.0}])
+    monkeypatch.setattr(gateway.osiris_client,"rerank",lambda *args: [{"id":"EVE-2","score":.9}])
+    assert gateway.build_and_cache_small_index("session",frame)
+    assert gateway.search_small_index("session","semantic follow-up") == ["ИОР EVE-2: second IOR"]
+    assert gateway._SMALL_FAISS_SESSION_CACHE["session"]["version"] == extract["version"]
 
 
 def test_global_pipeline_keeps_faiss_bm25_rrf_and_reranker(monkeypatch):

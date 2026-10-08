@@ -52,7 +52,7 @@ from utils.resolve.period_parser import parse_period
 from utils.resolve.grounding import apply_smart_filter, ground_query, diagnose_empty
 from ior_hypothesis import generate_hypothesis_narrative
 from preset_analysis.registry import get_analyzer
-from preset_analysis.common import deduplicate_detail_entities, find_column
+from preset_analysis.common import deduplicate_detail_entities, find_column, format_amount
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
@@ -121,7 +121,6 @@ CYRILLIC_RENAME = {
     'org_struct_id': 'Идентификатор оргструктуры',
     'org_struct_lvl_2_name': 'Орг. структура – уровень 2 (Терр. структура / Департамент ДЗО)',
     'org_struct_lvl_3_name': 'Орг. структура – уровень 3 (Блок / ТБ / ПЦП)',
-    'org_struct_lvl_4_name': 'Орг. структура – уровень 4 (Дивизион / Департамент)',
     'org_struct_lvl_5_name': 'Орг. структура – уровень 5',
     'org_struct_lvl_6_name': 'Орг. структура – уровень 6',
     'org_struct_lvl_7_name': 'Орг. структура – уровень 7',
@@ -131,7 +130,6 @@ CYRILLIC_RENAME = {
     'funct_block_id': 'Идентификатор функционального блока',
     'funct_block_lvl_2_name': 'Функциональный блок – уровень 2',
     'funct_block_lvl_3_name': 'Функциональный блок – уровень 3',
-    'funct_block_lvl_4_name': 'Функциональный блок – уровень 4',
     'process_lvl_1_name': 'Процесс – уровень 1',
     'process_lvl_2_name': 'Процесс – уровень 2',
     'process_lvl_3_name': 'Процесс – уровень 3',
@@ -233,7 +231,6 @@ VOZMESHENIE_RENAME = {
     'org_struct_id':                    'Идентификационный ключ организации структуры ИОР',
     'org_struct_lvl_2_name':            'Орг. структура — уровень 2 (Терр. структура / Департамент ДЗО)',
     'org_struct_lvl_3_name':            'Орг. структура — уровень 3 (Блок / ТБ / ПЦП)',
-    'org_struct_lvl_4_name':            'Орг. структура — уровень 4 (Дивизион / Департамент)',
     'org_struct_lvl_5_name':            'Орг. структура — уровень 5',
     'org_struct_lvl_6_name':            'Управление / Отдел / Группа',
     'org_struct_lvl_7_name':            'УРМ / Группа / Управление ГОСБ / ВСП',
@@ -243,7 +240,6 @@ VOZMESHENIE_RENAME = {
     'funct_block_id':                   'Идентификационный ключ функционального блока',
     'funct_block_lvl_2_name':           'Функк. блок — уровень 2 (Дивизион / трайб)',
     'funct_block_lvl_3_name':           'Функк. блок — уровень 3 (Дивизион / Департамент / Центр)',
-    'funct_block_lvl_4_name':           'Функк. блок — уровень 4 (Департамент / Управление / Отдел)',
     'process_lvl_1_name':               'Процесс — уровень 1 (Банк / ДЗО)',
     'process_lvl_2_name':               'Процесс — уровень 2 (Функ. блок)',
     'process_lvl_3_name':               'Процесс — уровень 3 (Дивизион / трайб)',
@@ -294,7 +290,6 @@ FINANCIAL_RENAME = {
     'org_struct_id':                    'Идентификационный ключ организационной структуры ИОР',
     'org_struct_lvl_2_name':            'Орг. структура - уровень 2 (Терр. структура / Департамент ДЗО)',
     'org_struct_lvl_3_name':            'Орг. структура - уровень 3 (Блок / ТБ / ПЦП)',
-    'org_struct_lvl_4_name':            'Орг. структура - уровень 4 (Дивизион / Департамент)',
     'org_struct_lvl_5_name':            'Орг. структура - уровень 5',
     'org_struct_lvl_6_name':            'Управление / Отдел / Группа',
     'org_struct_lvl_7_name':            'УРМ / Группа / Управление ГОСБ / ВСП',
@@ -304,7 +299,6 @@ FINANCIAL_RENAME = {
     'funct_block_id':                   'Идентификационный ключ функционального блока',
     'funct_block_lvl_2_name':           'Функ. блок - уровень 2 (Дивизион / Трайб)',
     'funct_block_lvl_3_name':           'Функ. блок - уровень 3 (Дивизион / Департамент / Центр)',
-    'funct_block_lvl_4_name':           'Функ. блок - уровень 4 (Департамент / Управление / Отдел)',
     'process_lvl_1_name':               'Процесс - уровень 1 (Банк / ДЗО)',
     'process_lvl_2_name':               'Процесс - уровень 2 (Функ. блок)',
     'process_lvl_3_name':               'Процесс - уровень 3 (Дивизион / Трайб)',
@@ -371,6 +365,11 @@ def apply_preset_column_filter(df: pd.DataFrame, rename_dict: dict) -> pd.DataFr
         return out
     return df
 
+MAIN_REPORT_COLUMNS = ('incdnt_id', 'incdnt_sid', 'incdnt_entry_dt', 'incdnt_status_name', 'org_struct_id', 'org_struct_lvl_3_name', 'funct_block_lvl_3_name', 'risk_profile_id', 'risk_profile_name', 'incdnt_sum', 'recovery_rub_amt_aggr', 'incdnt_full_descr_txt', 'incdnt_summary_descr_txt', 'incdnt_type_lvl_1_name', 'incdnt_type_lvl_2_name', 'process_lvl_3_name', 'process_lvl_4_name', 'incdnt_autoreg_flag', 'incdnt_detection_dt', 'incdnt_start_dt', 'incdnt_source_name', 'src_type_lvl_1_name', 'src_type_lvl_2_name', 'incdnt_detection_person_name')
+
+def main_projection(alias=""):
+    return ", ".join((alias + "." if alias else "") + c for c in MAIN_REPORT_COLUMNS)
+
 # Точные JOIN-запросы пресетов согласно спецификациям ior_assistant.
 # Физические имена поступают только из backend-specific table registry.
 def build_preset_sql_queries(tables: Mapping[str, str]) -> dict[str, str]:
@@ -381,7 +380,7 @@ def build_preset_sql_queries(tables: Mapping[str, str]) -> dict[str, str]:
 
     queries = {
     "financial_consequences_ior": f"""
-        SELECT ior.*, 
+        SELECT {main_projection("ior")},
                fi.fin_impact_id, fi.fin_impact_sid, fi.fin_impact_type_name, fi.fin_impact_kind_name, fi.fin_impact_monitoring_flag, 
                fi.fin_impact_crncy_code, fi.fin_impact_local_crncy_code, fi.fin_impact_detection_dt, 
                fi.fin_impact_creation_dttm, fi.fin_impact_reg_dt, fi.fin_impact_account_num, 
@@ -389,10 +388,10 @@ def build_preset_sql_queries(tables: Mapping[str, str]) -> dict[str, str]:
                fi.fin_impact_ccy_amt, fi.fin_impact_local_ccy_amt, fi.fin_impact_rub_amt
         FROM {tables['ior']} AS ior
         INNER JOIN {tables['financial_impact']} AS fi ON ior.incdnt_id = fi.incdnt_id
-        ORDER BY ior.incdnt_entry_dt DESC LIMIT 100000
+        ORDER BY ior.incdnt_entry_dt DESC
     """,
     "deleted_ior": f"""
-        SELECT ior.*, 
+        SELECT {main_projection("ior")},
                st.incdnt_status_name_at_action, st.incdnt_status_code, st.stts_chng_action_code, 
                st.stts_chng_action_name, st.stts_chng_comment_txt, st.stts_chng_action_dttm, st.stts_chng_user_num
         FROM {tables['ior']} AS ior
@@ -404,31 +403,31 @@ def build_preset_sql_queries(tables: Mapping[str, str]) -> dict[str, str]:
             WHERE UPPER(stts_chng_action_name) = 'УДАЛИТЬ'
         ) AS st ON ior.incdnt_id = st.st_incdnt_id
         WHERE UPPER(ior.incdnt_status_name) = 'УДАЛЁН'
-        ORDER BY ior.incdnt_entry_dt DESC LIMIT 100000
+        ORDER BY ior.incdnt_entry_dt DESC
     """,
     "vozmeshenie_ior": f"""
-        SELECT ior.*, 
+        SELECT {main_projection("ior")},
                r.recovery_sid, r.recovery_type_name, r.recovery_crncy_code, r.recovery_local_crncy_code, 
                r.recovery_src_account_num, r.recovery_doc_num, r.recovery_creation_dttm, r.recovery_reg_dt, 
                r.recovery_ccy_amt, r.recovery_local_ccy_amt, r.recovery_rub_amt
         FROM {tables['ior']} AS ior
         INNER JOIN {tables['recovery']} AS r ON ior.incdnt_id = r.incdnt_id
-        ORDER BY ior.incdnt_entry_dt DESC LIMIT 100000
+        ORDER BY ior.incdnt_entry_dt DESC
     """,
     "ior_nonfinancial_consequences": f"""
-        SELECT ior.*, 
+        SELECT {main_projection("ior")},
                nfi.nonfin_impact_sid, nfi.nonfin_impact_kind_name, nfi.nonfin_impact_influence_class_name
         FROM {tables['ior']} AS ior
         INNER JOIN {tables['nonfinancial_impact']} AS nfi ON ior.incdnt_id = nfi.incdnt_id
-        ORDER BY ior.incdnt_entry_dt DESC LIMIT 100000
+        ORDER BY ior.incdnt_entry_dt DESC
     """,
     "ior_period_pao_sberbank": f"""
-        SELECT * FROM {tables['ior']}
+        SELECT {main_projection()} FROM {tables['ior']}
         WHERE SUBSTR(UPPER(org_struct_id), 1, 4) IN ('SBR_', 'EXT_', 'GRC_', 'MON_', 'BPS_')
-        ORDER BY incdnt_entry_dt DESC LIMIT 100000
+        ORDER BY incdnt_entry_dt DESC
     """,
     "report_period_specific_ior": f"""
-        SELECT ior.*, 
+        SELECT {main_projection("ior")},
                fi.fin_impact_id, fi.fin_impact_sid, fi.fin_impact_type_name, fi.fin_impact_kind_name, fi.fin_impact_monitoring_flag, 
                fi.fin_impact_crncy_code, fi.fin_impact_local_crncy_code, fi.fin_impact_detection_dt, 
                fi.fin_impact_creation_dttm, fi.fin_impact_reg_dt, fi.fin_impact_account_num, 
@@ -440,21 +439,21 @@ def build_preset_sql_queries(tables: Mapping[str, str]) -> dict[str, str]:
         FROM {tables['ior']} AS ior
         LEFT JOIN {tables['financial_impact']} AS fi ON ior.incdnt_id = fi.incdnt_id
         LEFT JOIN {tables['recovery']} AS r ON ior.incdnt_id = r.incdnt_id
-        ORDER BY ior.incdnt_entry_dt DESC LIMIT 100000
+        ORDER BY ior.incdnt_entry_dt DESC
     """,
     "ior_hypothesis": f"""
-        SELECT * FROM {tables['ior']}
-        ORDER BY incdnt_entry_dt DESC LIMIT 100000
+        SELECT {main_projection()} FROM {tables['ior']}
+        ORDER BY incdnt_entry_dt DESC
     """
     }
     # The credit source has not been migrated to GP. Keep the legacy preset
     # only for registries which explicitly provide that physical table.
     if tables.get("credits"):
         queries["credit_no_way_collect_debt"] = f"""
-            SELECT ior.*, c.credit_agr_num, c.credit_debt_rub_amt
+            SELECT {main_projection("ior")}, c.credit_agr_num, c.credit_debt_rub_amt
             FROM {tables['ior']} AS ior
             LEFT JOIN {tables['credits']} AS c ON ior.incdnt_id = c.incdnt_id
-            ORDER BY ior.incdnt_entry_dt DESC LIMIT 100000
+            ORDER BY ior.incdnt_entry_dt DESC
         """
     return queries
 
@@ -474,57 +473,20 @@ def has_specific_codes(user_prompt: str) -> bool:
         return False
     patterns = [
         r'DRP-\d+',
-        r'SBR-\d+',
         r'П-?\d{4,}',
         r'EVE-\d+'
     ]
     return any(re.search(pat, user_prompt, re.IGNORECASE) for pat in patterns)
 
 
-def detect_preset_from_prompt(user_prompt: str) -> Optional[str]:
-    """
-    Определяет необходимый пресет выгрузки ИОР на основе ключевых слов в запросе пользователя
-    согласно правилам ior_assistant/backend/agent/controller.py.
-    """
-    if not user_prompt:
-        return None
-    low = user_prompt.lower()
-    if re.search(r'EVE-\d+', user_prompt, re.IGNORECASE):
-        return "report_period_specific_ior"
-    if any(k in low for k in ("возмещ", "возврат", "страхов", "взыскан", "компенсац")):
-        return "vozmeshenie_ior"
-    elif any(k in low for k in ("удал", "отмен", "причина удален")):
-        return "deleted_ior"
-    elif any(k in low for k in ("нефинанс", "качествен", "репутац", "прерыван")):
-        return "ior_nonfinancial_consequences"
-    elif any(k in low for k in ("пао сбербанк", "сбербанк", "сбер")):
-        return "ior_period_pao_sberbank"
-    elif any(k in low for k in ("гипотез", "сводн", "аномали", "динамик")):
-        return "ior_hypothesis"
-    elif any(k in low for k in ("финанс", "потер", "убыт", "ущерб")):
-        return "financial_consequences_ior"
-    return None
+from utils.resolve.request_plan import build_plan, resolve_preset, explicit_followup
+from utils.resolve.request_outcome import ClarificationRequired
 
+def detect_preset_from_prompt(user_prompt):
+    return resolve_preset(None, user_prompt) if user_prompt else None
 
-def resolve_preset_for_request(preset_name: Optional[str], user_prompt: str) -> str:
-    """Resolve the subject preset and reject a false dossier classification.
-
-    ``report_period_specific_ior`` is meaningful only for an ``EVE-ID``.
-    Tool-calling LLMs can occasionally confuse any exact code (notably DRP)
-    with an incident SID, so that single mismatch is corrected defensively.
-    Other explicit subject presets retain priority.
-    """
-    detected = detect_preset_from_prompt(user_prompt)
-    if preset_name == "report_period_specific_ior" and not re.search(
-        r"\bEVE-\d+\b", user_prompt or "", re.IGNORECASE
-    ):
-        resolved = detected or "ior_hypothesis"
-        logger.warning(
-            "[ior_reports] Ignoring dossier preset without EVE-ID; resolved preset=%s",
-            resolved,
-        )
-        return resolved
-    return preset_name or detected or "ior_hypothesis"
+def resolve_preset_for_request(preset_name, user_prompt):
+    return resolve_preset(preset_name, user_prompt)
 
 
 def build_dynamic_sql_from_prompt(
@@ -544,141 +506,15 @@ def build_dynamic_sql_from_prompt(
     main_table = registry["ior"]
     is_local_backend = registry.get("ior") == DUCKDB_TABLES["ior"]
 
-    where_clauses = []
-    preset = (preset_name or detect_preset_from_prompt(user_prompt) or "ior_hypothesis").removesuffix("_v2")
-    low_prompt = user_prompt.lower()
-    exact_drp_codes = re.findall(r"DRP[_\s-]?(\d+)", user_prompt, re.IGNORECASE)
-    financial_thresholds: list[float] = []
-    if preset == "ior_period_pao_sberbank":
-        where_clauses.append("SUBSTR(UPPER(org_struct_id), 1, 4) IN ('SBR_', 'EXT_', 'GRC_', 'MON_', 'BPS_')")
-
-    # 1. Парсинг периода дат через period_parser
-    period = parse_period(user_prompt)
-    if period:
-        where_clauses.append(f"{period.column} >= TIMESTAMP '{period.start}' AND {period.column} < TIMESTAMP '{period.end}'")
-
-    # 2. Парсинг сумм и порогов
-    sum_matches = re.findall(r'(?:более|больше|>|свыше)\s*(\d+[\d\s\._]*)\s*(?:тыс|млн|руб|₽)?', user_prompt, re.IGNORECASE)
-    if sum_matches:
-        for val_str in sum_matches:
-            cleaned_num = re.sub(r'[^\d]', '', val_str)
-            if cleaned_num:
-                num = float(cleaned_num)
-                if "тыс" in user_prompt.lower() and num < 100000:
-                    num *= 1000
-                elif "млн" in user_prompt.lower() and num < 1000:
-                    num *= 1000000
-                if preset == "financial_consequences_ior":
-                    financial_thresholds.append(num)
-                else:
-                    where_clauses.append(f"incdnt_sum >= {num}")
-
-    # 3. Территориальные банки / оргструктура (начиная с Уровня 3) через ground_query и основы ТБ
-    ground_hits = ground_query(user_prompt)
-    tb_clauses = []
-    block_clauses = []
-
-    for hit in ground_hits:
-        col = hit["column"]
-        val = hit["value"]
-        clean_v = val.replace("%", "").strip()
-        # Игнорируем ошибочное срабатывание grounding по слову "Финансы" из фраз про финансовые последствия/потери/убытки
-        if clean_v.upper() in ("ФИНАНСЫ", "ФИНАНС", "НЕФИНАНСОВЫЕ", "ПОСЛЕДСТВИЯ") and any(w in low_prompt for w in ("финанс", "потер", "убыт", "последств", "ущерб", "возмещ")):
-            continue
-        if exact_drp_codes and clean_v.upper().startswith("РИСК"):
-            continue
-        if "org_struct" in col or "tb" in col:
-            tb_clauses.append(f"UPPER({col}) LIKE '%{clean_v.upper()}%'")
-        elif "funct_block" in col:
-            block_clauses.append(f"UPPER({col}) LIKE '%{clean_v.upper()}%'")
-
-    if not tb_clauses:
-        tb_stems = [
-            ("московск", "Московский"), ("северо-западн", "Северо-Западный"),
-            ("волго-вятск", "Волго-Вятский"), ("юго-западн", "Юго-Западный"),
-            ("среднерусск", "Среднерусский"), ("сибирск", "Сибирский"),
-            ("уральск", "Уральский"), ("поволжск", "Поволжский"),
-            ("дальневосточн", "Дальневосточный"), ("байкальск", "Байкальский")
-        ]
-        low_prompt = user_prompt.lower()
-        for stem, name in tb_stems:
-            if stem in low_prompt or name.lower() in low_prompt:
-                tb_clauses.append(f"UPPER(org_struct_lvl_3_name) LIKE '%{name.upper()}%' OR UPPER(org_struct_lvl_4_name) LIKE '%{name.upper()}%'")
-
-    if not block_clauses:
-        block_patterns = [
-            (r'\bблок[а-я]*\s+риск[а-я]*\b|\bрисков[а-я]*\s+блок\b|\bриски\b', 'РИСК'),
-            (r'\bрозниц[а-я]*\b|\bрозничн[а-я]*\b', 'РОЗНИЧН'),
-            (r'\bкорпоративн[а-я]*\b|\bкорп[а-я]*\b', 'КОРПОРАТИВН'),
-            (r'\bтехнолог[а-я]*\b|\bi[-_]?t\b', 'ТЕХНОЛОГ'),
-            (r'\bблок[а-я]*\s+финанс[а-я]*\b|\bфинансовый\s+блок\b', 'ФИНАНС'),
-            (r'\bсет[иь]\s+продаж\b', 'СЕТЬ ПРОДАЖ')
-        ]
-        low_prompt = user_prompt.lower()
-        for pat, keyword in block_patterns:
-            if re.search(pat, low_prompt):
-                if exact_drp_codes and keyword == "РИСК":
-                    continue
-                if is_local_backend:
-                    block_clauses.append(f"(UPPER(org_struct_lvl_3_name) LIKE '%{keyword}%' OR UPPER(process_lvl_4_name) LIKE '%{keyword}%' OR UPPER(incdnt_summary_descr_txt) LIKE '%{keyword}%')")
-                else:
-                    block_clauses.append(f"(UPPER(funct_block_lvl_3_name) LIKE '%{keyword}%' OR UPPER(funct_block_lvl_4_name) LIKE '%{keyword}%' OR UPPER(org_struct_lvl_3_name) LIKE '%{keyword}%')")
-                break
-
-    if tb_clauses:
-        where_clauses.append(f"({' OR '.join(tb_clauses)})")
-    if block_clauses:
-        where_clauses.append(f"({' OR '.join(block_clauses)})")
-
-    # 4. Фильтры статуса
-    if "удал" in user_prompt.lower():
-        where_clauses.append("UPPER(incdnt_status_name) = 'УДАЛЁН'")
-    elif "утвержд" in user_prompt.lower():
-        where_clauses.append("UPPER(incdnt_status_name) IN ('УТВЕРЖДЁН', 'УТВЕРЖДЕН', 'УТВЕРЖДЕНИЕ')")
-
-    # 5. Специфические коды сущностей из ior_assistant (DRP, SBR, П-XXXX, EVE) и ключевые названия дивизионов/сервисов (эквайринг, домклик и др.)
-    if exact_drp_codes:
-        for digits in exact_drp_codes:
-            where_clauses.append(f"UPPER(TRIM(risk_profile_id)) = 'DRP-{digits}'")
-
-    sbr_matches = re.findall(r'SBR-\d+', user_prompt, re.IGNORECASE)
-    if sbr_matches:
-        for code in sbr_matches:
-            where_clauses.append(f"UPPER(funct_block_id) LIKE '%{code.upper()}%'")
-
-    proc_matches = re.findall(r'П-?\d{4,}', user_prompt, re.IGNORECASE)
-    if proc_matches:
-        for code in proc_matches:
-            clean_code = code.replace("-", "").upper()
-            where_clauses.append(f"(UPPER(process_lvl_1_name) LIKE '%{clean_code}%' OR UPPER(process_lvl_2_name) LIKE '%{clean_code}%' OR UPPER(process_lvl_3_name) LIKE '%{clean_code}%' OR UPPER(process_lvl_4_name) LIKE '%{clean_code}%')")
-
-    eve_matches = re.findall(r'EVE-\d+', user_prompt, re.IGNORECASE)
-    if eve_matches:
-        for code in eve_matches:
-            where_clauses.append(f"UPPER(incdnt_sid) = '{code.upper()}'")
-
-    # Произвольные наименования дивизионов, сервисов и бизнес-продуктов (эквайринг, домклик, забота о клиентах, управление сетью ус и др.)
-    entity_terms = re.findall(r'\b(?:эквайринг[а-я]*|домклик[а-я]*|сервис[а-я]*|забота\s+о\s+клиентах|управление\s+сетью\s+ус|риск[а-я]*|страхован[а-я]*|залог[а-я]*|учет[а-я]*|учёт[а-я]*|отчетност[а-я]*|отчётност[а-я]*|b2c|b2b)\b', user_prompt, re.IGNORECASE)
-    if entity_terms:
-        for term in set(entity_terms):
-            clean_t = term.upper().strip()
-            if exact_drp_codes and re.fullmatch(r"РИСК[А-ЯЁ]*", clean_t):
-                continue
-            where_clauses.append(f"(UPPER(org_struct_lvl_3_name) LIKE '%{clean_t}%' OR UPPER(org_struct_lvl_4_name) LIKE '%{clean_t}%' OR UPPER(funct_block_lvl_3_name) LIKE '%{clean_t}%' OR UPPER(funct_block_lvl_4_name) LIKE '%{clean_t}%' OR UPPER(process_lvl_3_name) LIKE '%{clean_t}%' OR UPPER(process_lvl_4_name) LIKE '%{clean_t}%' OR UPPER(incdnt_summary_descr_txt) LIKE '%{clean_t}%')")
-
-    proc_phrase = re.search(r'(?:по\s+процессу|по\s+дивизиону|по\s+продукту|по\s+сервису)\s+([а-яА-Яa-zA-Z0-9\s_\-]+)', user_prompt, re.IGNORECASE)
-    if proc_phrase:
-        raw_p = proc_phrase.group(1).strip()
-        raw_p = re.sub(r'\s+(?:где|за|с|по|в|со|где\s+сумма)\s+.*$', '', raw_p, flags=re.IGNORECASE).strip()
-        if raw_p and len(raw_p) > 2:
-            clean_p = raw_p.upper()
-            where_clauses.append(f"(UPPER(process_lvl_4_name) LIKE '%{clean_p}%' OR UPPER(process_lvl_3_name) LIKE '%{clean_p}%' OR UPPER(org_struct_lvl_4_name) LIKE '%{clean_p}%' OR UPPER(org_struct_lvl_3_name) LIKE '%{clean_p}%' OR UPPER(funct_block_lvl_3_name) LIKE '%{clean_p}%' OR UPPER(incdnt_summary_descr_txt) LIKE '%{clean_p}%')")
-
+    plan = build_plan(preset_name, user_prompt)
+    preset = plan.preset
+    where_clauses = plan.predicates()
+    financial_thresholds = plan.money if preset == "financial_consequences_ior" else []
     where_str = f" WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
     if preset == "deleted_ior":
         stts_table = registry["status"]
         return f"""
-            SELECT ior.*, 
+            SELECT {main_projection("ior")},
                    st.incdnt_status_name_at_action, st.incdnt_status_code, st.stts_chng_action_code, 
                    st.stts_chng_action_name, st.stts_chng_comment_txt, st.stts_chng_action_dttm, st.stts_chng_user_num
             FROM {main_table} AS ior
@@ -690,50 +526,49 @@ def build_dynamic_sql_from_prompt(
                 WHERE UPPER(stts_chng_action_name) = 'УДАЛИТЬ'
             ) AS st ON ior.incdnt_id = st.st_incdnt_id
             {where_str}
-            ORDER BY ior.incdnt_entry_dt DESC LIMIT 100000
+            ORDER BY ior.incdnt_entry_dt DESC
         """
     if preset == "vozmeshenie_ior":
         rec_table = registry["recovery"]
+        if plan.money:
+            having = " AND ".join(m.sql("SUM(recovery_rub_amt)") for m in plan.money)
+            where_clauses.append(f"ior.incdnt_id IN (SELECT incdnt_id FROM {rec_table} GROUP BY incdnt_id HAVING {having})")
+            where_str = " WHERE " + " AND ".join(where_clauses)
         return f"""
-            SELECT ior.*, 
+            SELECT {main_projection("ior")},
                    r.recovery_sid, r.recovery_type_name, r.recovery_crncy_code, r.recovery_local_crncy_code, 
                    r.recovery_src_account_num, r.recovery_doc_num, r.recovery_creation_dttm, r.recovery_reg_dt, 
                    r.recovery_ccy_amt, r.recovery_local_ccy_amt, r.recovery_rub_amt
             FROM {main_table} AS ior
             INNER JOIN {rec_table} AS r ON ior.incdnt_id = r.incdnt_id
             {where_str}
-            ORDER BY ior.incdnt_entry_dt DESC LIMIT 100000
+            ORDER BY ior.incdnt_entry_dt DESC
         """
     if preset == "ior_nonfinancial_consequences":
         nfi_table = registry["nonfinancial_impact"]
         return f"""
-            SELECT ior.*, 
+            SELECT {main_projection("ior")},
                    nfi.nonfin_impact_sid, nfi.nonfin_impact_kind_name, nfi.nonfin_impact_influence_class_name
             FROM {main_table} AS ior
             INNER JOIN {nfi_table} AS nfi ON ior.incdnt_id = nfi.incdnt_id
             {where_str}
-            ORDER BY ior.incdnt_entry_dt DESC LIMIT 100000
+            ORDER BY ior.incdnt_entry_dt DESC
         """
     if preset == "financial_consequences_ior":
         fin_table = registry["financial_impact"]
         financial_scope_join = ""
         if financial_thresholds:
-            threshold = max(financial_thresholds)
-            direct_predicate = (
-                "WHERE UPPER(fin_impact_type_name) = 'ПРЯМАЯ ПОТЕРЯ'"
-                if re.search(r"\bпрям(?:ая|ые|ой|ую|ых)\s+потер", low_prompt) else ""
-            )
+            having = " AND ".join(m.sql("SUM(fin_impact_rub_amt)") for m in financial_thresholds)
             financial_scope_join = f"""
             INNER JOIN (
                 SELECT incdnt_id AS fin_scope_incdnt_id
                 FROM {fin_table}
-                {direct_predicate}
                 GROUP BY incdnt_id
-                HAVING SUM(COALESCE(fin_impact_rub_amt, 0)) >= {threshold}
+                HAVING {having}
             ) AS fin_scope ON ior.incdnt_id = fin_scope.fin_scope_incdnt_id
             """
         return f"""
-            SELECT ior.*, 
+            SELECT {main_projection("ior")},
                    fi.fin_impact_sid, fi.fin_impact_type_name, fi.fin_impact_kind_name, 
                    fi.fin_impact_monitoring_flag, fi.fin_impact_crncy_code, fi.fin_impact_local_crncy_code, 
                    fi.fin_impact_detection_dt, fi.fin_impact_creation_dttm, fi.fin_impact_reg_dt, 
@@ -743,13 +578,13 @@ def build_dynamic_sql_from_prompt(
             INNER JOIN {fin_table} AS fi ON ior.incdnt_id = fi.incdnt_id
             {financial_scope_join}
             {where_str}
-            ORDER BY ior.incdnt_entry_dt DESC LIMIT 100000
+            ORDER BY ior.incdnt_entry_dt DESC
         """
     if preset == "report_period_specific_ior":
         fin_table = registry["financial_impact"]
         rec_table = registry["recovery"]
         return f"""
-            SELECT ior.*,
+            SELECT {main_projection("ior")},
                    fi.fin_impact_id, fi.fin_impact_sid, fi.fin_impact_type_name,
                    fi.fin_impact_kind_name, fi.fin_impact_monitoring_flag,
                    fi.fin_impact_crncy_code, fi.fin_impact_local_crncy_code,
@@ -766,9 +601,14 @@ def build_dynamic_sql_from_prompt(
             LEFT JOIN {fin_table} AS fi ON ior.incdnt_id = fi.incdnt_id
             LEFT JOIN {rec_table} AS r ON ior.incdnt_id = r.incdnt_id
             {where_str}
-            ORDER BY ior.incdnt_entry_dt DESC LIMIT 100000
+            ORDER BY ior.incdnt_entry_dt DESC
         """
-    return f"SELECT * FROM {main_table}{where_str} ORDER BY incdnt_entry_dt DESC LIMIT 100000"
+    if preset == "credit_no_way_collect_debt":
+        credit_table=registry.get('credits')
+        if not credit_table:
+            raise RuntimeError("Preset credit_no_way_collect_debt is not available: its physical source table is not configured")
+        return f"SELECT {main_projection('ior')}, c.credit_agr_num, c.credit_debt_rub_amt FROM {main_table} AS ior LEFT JOIN {credit_table} AS c ON ior.incdnt_id = c.incdnt_id {where_str} ORDER BY ior.incdnt_entry_dt DESC"
+    return f"SELECT {main_projection()} FROM {main_table}{where_str} ORDER BY incdnt_entry_dt DESC"
 
 
 def format_excel_inspection_markdown(
@@ -794,7 +634,7 @@ def format_excel_inspection_markdown(
                 "vozmeshenie_ior": "Операций возмещения в файле",
                 "financial_consequences_ior": "Финансовых последствий в файле",
                 "ior_nonfinancial_consequences": "Нефинансовых последствий в файле",
-                "deleted_ior": "Записей журнала удаления в файле",
+                "deleted_ior": "Строк выгрузки",
             }
             row_label = row_labels.get(preset_name, "Количество записей")
             lines.append(f"- **{row_label}**: {rows_cnt:,}".replace(",", " "))
@@ -807,18 +647,18 @@ def format_excel_inspection_markdown(
         sum_loss = stats.get("sum_total_loss", 0.0)
         if preset_name == "financial_consequences_ior":
             fin_amount = stats.get("financial_impact", 0.0)
-            if fin_amount > 0:
+            if fin_amount is not None:
                 lines.append(f"- **Сумма финансовых последствий**: {fin_amount:,.2f} ₽".replace(",", " "))
         elif preset_name == "deleted_ior":
-            lines.append(f"- **Сумма последствий**: {sum_loss:,.2f} ₽".replace(",", " "))
+            lines.append("- **Сумма последствий**: " + format_amount(sum_loss))
         elif include_loss_metrics and preset_name in {"ior_hypothesis", "ior_period_pao_sberbank"}:
-            lines.append(f"- **Сумма последствий**: {sum_loss:,.2f} ₽".replace(",", " "))
+            lines.append("- **Сумма последствий**: " + format_amount(sum_loss))
 
         recovery = stats.get("recovery", 0.0)
         if preset_name in {"ior_hypothesis", "ior_period_pao_sberbank", "deleted_ior"}:
-            lines.append(f"- **Сумма возмещений**: {recovery:,.2f} ₽".replace(",", " "))
-        elif preset_name == "vozmeshenie_ior" and recovery > 0:
-            lines.append(f"- **Сумма возмещений**: {recovery:,.2f} ₽".replace(",", " "))
+            lines.append("- **Сумма возмещений**: " + format_amount(recovery))
+        elif preset_name == "vozmeshenie_ior" and recovery is not None:
+            lines.append("- **Сумма возмещений**: " + format_amount(recovery))
 
         top_tb = stats.get("top_tb")
         if top_tb:
@@ -952,41 +792,22 @@ async def run_ior_report(
     session_data = get_session_extract(session_id)
     xlsx_path: Optional[Path] = None
 
-    # 1. Проверка совпадений EVE-\d+ в запросе
-    eve_matches = re.findall(r'EVE-\d+', user_prompt, re.IGNORECASE)
-    low_prompt = user_prompt.lower()
-    is_session_eve_followup = bool(session_data) and not preset_name and any(
-        marker in low_prompt for marker in ("в этой выгрузке", "в прошлой выгрузке", "ранее", "уточни", "что означает", "почему")
-    )
-    if eve_matches and is_session_eve_followup:
-        df = session_data["df"]
-        id_col = next((c for c in df.columns if str(c).lower() in ("incdnt_sid", "идентификатор события", "id")), None)
-        if id_col:
-            matched_rows = df[df[id_col].astype(str).str.upper().isin([m.upper() for m in eve_matches])]
-            if not matched_rows.empty:
-                desc_col = next((c for c in matched_rows.columns if "descr" in str(c).lower() or "описание" in str(c).lower()), matched_rows.columns[0])
-                ior_texts_str = ""
-                for _, r in matched_rows.iterrows():
-                    sid = r[id_col]
-                    txt = r[desc_col]
-                    ior_texts_str += f"--- ИОР ID: {sid} ---\n{txt}\n\n"
-                logger.info(f"[ior_reports] Answering EVE match query via Qwen for {len(matched_rows)} incident(s)...")
-                return answer_detail_with_qwen(user_query=user_prompt, ior_texts=ior_texts_str)
-
-    # 2. Уточняющие вопросы по выгрузке сессии (BGE-M3 FAISS поиск)
-    if session_data and ("в каких" in user_prompt.lower() or "информация о" in user_prompt.lower() or "найди" in user_prompt.lower()):
-        faiss_results = search_small_index(session_id, user_prompt)
-        if faiss_results:
-            logger.info(f"[ior_reports] Found {len(faiss_results)} FAISS matches, answering follow-up...")
-            return answer_follow_up_with_qwen(user_query=user_prompt, descriptions=faiss_results)
-
-    # 3. Выборка данных: определение критериев фильтрации
-    has_code = has_specific_codes(user_prompt)
-    period = parse_period(user_prompt)
-    ground_hits = ground_query(user_prompt)
-    has_filters = has_code or (period is not None) or bool(ground_hits) or any(k in user_prompt.lower() for k in ("удал", "утвержд", "более", "больше", "свыше"))
-
-    preset = resolve_preset_for_request(preset_name, user_prompt)
+    if explicit_followup(user_prompt):
+        if not session_data:
+            return "В этой сессии ещё нет выгрузки. Сначала выполните запрос по ИОР."
+        if session_data["df"].empty:
+            return "Последняя выгрузка пуста. ИОР для поиска в ней нет."
+        matches = search_small_index(session_id, user_prompt)
+        if not matches:
+            return "Поиск в последней выгрузке недоступен или совпадений не найдено. Повторите поиск позже либо выполните новую выгрузку."
+        return answer_follow_up_with_qwen(user_query=user_prompt, descriptions=matches)
+    try:
+        plan = build_plan(preset_name, user_prompt)
+    except ClarificationRequired as outcome:
+        return str(outcome)
+    preset = plan.preset
+    period = plan.period
+    has_filters = bool(plan.predicates() or plan.money)
     logger.info(
         "[ior_reports] resolved preset=%s; parsed period=%s..%s; base table=%s; joined table=%s",
         preset,
@@ -1039,14 +860,11 @@ async def run_ior_report(
             date_col = next((c for c in df.columns if str(c).lower() in (period.column, "incdnt_entry_dt", "incdnt_start_dt", "дата ввода (событие)")), None)
             if date_col:
                 dt_series = pd.to_datetime(df[date_col], errors='coerce')
-                mask = (dt_series >= pd.Timestamp(period.start)) & (dt_series < pd.Timestamp(period.end))
-                if mask.any():
-                    df = df[mask]
+                mask = pd.Series(False, index=df.index)
+                for a, b in period.intervals:
+                    mask |= (dt_series >= pd.Timestamp(a)) & (dt_series < pd.Timestamp(b))
+                df = df[mask]
 
-        if not df.empty and user_prompt and not has_filters:
-            df_filtered, _ = apply_smart_filter(df, user_prompt)
-            if not df_filtered.empty:
-                df = df_filtered
 
         logger.info("[ior_reports] row funnel final joined population: %s rows, %s columns", len(df), len(df.columns))
 
@@ -1130,8 +948,12 @@ async def run_ior_report(
         logger.info(f"[ior_reports] Invoking generate_hypothesis_narrative for preset '{preset}'...")
         narrative = await generate_hypothesis_narrative(
             user_prompt or "Выгрузка ИОР", df, session_id, preset_name=preset,
-            analysis_context={"original_user_intent": user_prompt, "preset": preset},
+            analysis_context=plan.context(user_prompt),
         )
+        from preset_analysis.slices import render_slices
+        slice_text = render_slices(df, plan)
+        if slice_text:
+            narrative += "\n\n" + slice_text
         if xlsx_path and xlsx_path.exists():
             excel_card = format_excel_inspection_markdown(
                 xlsx_path,
@@ -1144,5 +966,5 @@ async def run_ior_report(
         return narrative
     except Exception as hypothesis_err:
         logger.error(f"[ior_reports] Hypothesis generation failed, returning Graceful Fallback report: {hypothesis_err}", exc_info=True)
-        return build_graceful_fallback_report(df, xlsx_path, preset, str(hypothesis_err))
-
+        from preset_analysis.slices import render_slices
+        return build_graceful_fallback_report(df, xlsx_path, preset, str(hypothesis_err)) + "\n\n" + render_slices(df, plan)

@@ -54,8 +54,6 @@ for _dir in (_SKILL_DIR, _SCRIPTS_DIR, _UTILS_DIR):
 from ior_reports import run_ior_report
 
 
-import traceback
-
 @tool_parameters({
     "type": "object",
     "properties": {
@@ -77,8 +75,11 @@ import traceback
             ],
             "description": (
                 "Необязательный предметный пресет. report_period_specific_ior "
-                "используется только при наличии конкретного EVE-ID; DRP/SBR "
-                "и период обрабатываются как ad-hoc через ior_hypothesis."
+                "используется только для досье одного EVE-ID. Предмет анализа имеет "
+                "приоритет над EVE, DRP, периодом и другими фильтрами. SBR не поддерживается. "
+                "Уточняющий вопрос — нормальный результат: дождитесь ответа и повторите "
+                "исходный prompt, добавив 'Уточнение: <ответ>'. Конкретные виды потерь "
+                "запускаются во вкладке специального анализа ИОР Единого рабочего места."
             ),
         },
         "session_id": {
@@ -94,7 +95,10 @@ class IORAnalyzerTool(BaseTool):
     description = (
         "Инструмент используется при ЛЮБЫХ запросах по инцидентам операционного риска (ИОР), "
         "финансовым последствиям, потерям, возмещениям, удалённым ИОР, кредитной задолженности "
-        "и построению аналитических гипотез."
+        "и построению аналитических гипотез. Предмет анализа имеет приоритет над фильтрами. "
+        "Досье формируется только для одного EVE; SBR не поддерживается. Уточняющий вопрос "
+        "является нормальным результатом: повторите исходный prompt с 'Уточнение: <ответ>'. "
+        "Конкретные виды потерь направляются во вкладку специального анализа ИОР Единого рабочего места."
     )
 
     async def execute(
@@ -113,6 +117,6 @@ class IORAnalyzerTool(BaseTool):
             logger.info(f"[ior_analyzer] 🎯 Tool execution finished | response_len={len(res)} chars")
             return res
         except Exception as exc:
-            tb_str = traceback.format_exc()
-            logger.error(f"[ior_analyzer] Error executing IOR tool: {exc}\nTraceback:\n{tb_str}")
-            return f"⚠️ Произошла ошибка при выполнении анализа ИОР ({type(exc).__name__}): {exc}\n\nTraceback:\n```\n{tb_str}\n```"
+            logger.exception("IOR analysis failed")
+            return (f"Не удалось выполнить анализ ИОР ({type(exc).__name__}). "
+                    "Подробности записаны в журнал.")

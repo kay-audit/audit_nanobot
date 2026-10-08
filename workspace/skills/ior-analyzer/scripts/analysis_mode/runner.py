@@ -19,9 +19,12 @@ async def run_analysis_mode(request: AnalysisRequest, store, *, ask=None, output
     metrics = calculate_metrics(data, request)
     events = detect_anomalies(data, metrics)
     hypotheses = ""
-    if not data.approved_incident_df.empty:
+    unique_count = raw["incdnt_sid"].nunique() if "incdnt_sid" in raw else 0
+    if not data.approved_incident_df.empty and unique_count >= 50:
         pack = build_evidence_pack(data, metrics, events, request)
         hypotheses = await generate_hypotheses(pack, ask=ask)
+    elif not data.approved_incident_df.empty:
+        hypotheses = "Данных недостаточно для формирования аналитических гипотез: выборка содержит менее 50 ИОР."
     result = render_report(request, data, metrics, events, hypotheses)
     if request.export_excel:
         path = await asyncio.to_thread(export_details, data.detail_df, output_dir)

@@ -261,7 +261,9 @@ class RoutingTests(unittest.IsolatedAsyncioTestCase):
 
     def test_old_direct_loss_routing(self):
         from ior_reports import detect_preset_from_prompt
-        self.assertEqual(detect_preset_from_prompt("Покажи прямые потери"), "financial_consequences_ior")
+        from utils.resolve.request_outcome import ClarificationRequired
+        with self.assertRaises(ClarificationRequired):
+            detect_preset_from_prompt("Покажи прямые потери")
 
 
 class DataTests(unittest.TestCase):
@@ -782,6 +784,17 @@ class RunnerTests(unittest.IsolatedAsyncioTestCase):
     def store(self, raw):
         return SimpleNamespace(tables={"ior": "main", "financial_impact": "fin"}, query_sql=Mock(return_value=raw))
 
+    async def test_unique_sid_threshold_49_50_and_join_repetitions(self):
+        for size,expected in [(49,False),(50,True)]:
+            raw=frame([(i,'F'+str(i),1,'Утверждён','2026-03-01') for i in range(1,size+1)])
+            with patch('analysis_mode.runner.generate_hypotheses',new_callable=AsyncMock,return_value='гипотезы') as generate:
+                await run_analysis_mode(request(),self.store(raw))
+                self.assertEqual(generate.called,expected)
+        raw=frame([(1,'F'+str(i),1,'Утверждён','2026-03-01') for i in range(100)])
+        with patch('analysis_mode.runner.generate_hypotheses',new_callable=AsyncMock) as generate:
+            await run_analysis_mode(request(),self.store(raw))
+            generate.assert_not_called()
+
     async def test_export_false_no_files_and_exact_sections(self):
         with tempfile.TemporaryDirectory() as directory:
             result = await run_analysis_mode(request(), self.store(frame()), ask=Mock(return_value="invalid"), output_dir=Path(directory))
@@ -833,7 +846,7 @@ class RunnerTests(unittest.IsolatedAsyncioTestCase):
         raw = frame([(1, "F1", None, "Утверждён", "2026-03-01")])
         result = await run_analysis_mode(request(), self.store(raw), ask=Mock(return_value="invalid"))
         self.assertEqual(result.count("**Гипотеза "), 0)
-        self.assertIn("Гипотезы не были сформированы", result)
+        self.assertIn("менее 50 ИОР", result)
         self.assertNotIn("в выборке нет утверждённых ИОР", result)
 
 

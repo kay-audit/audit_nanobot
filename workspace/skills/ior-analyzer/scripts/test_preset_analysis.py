@@ -284,14 +284,14 @@ class DossierAndSmallSampleTests(unittest.TestCase):
         metrics = prepare_dossier_views(df)
         self.assertEqual(metrics, {"raw_rows": 4, "fin_count": 2, "fin_total": 150.0, "recovery_count": 2, "recovery_total": 50.0})
 
-    def test_small_approved_sample_keeps_hypotheses_and_zero_approved_disables(self):
+    def test_small_approved_sample_disables_hypotheses_and_zero_approved_disables(self):
         approved = pd.DataFrame({
             "incdnt_sid": [f"EVE-{i}" for i in range(5)],
             "incdnt_status_name": ["Утверждён"] * 5,
         })
         small_bundle = get_analyzer("ior_hypothesis").prepare(approved)
         self.assertTrue(small_bundle.can_analyze)
-        self.assertIn("Гипотеза 3", small_bundle.deterministic_hypotheses())
+        self.assertEqual("", small_bundle.deterministic_hypotheses())
         zero = approved.assign(incdnt_status_name="Черновик")
         zero_bundle = get_analyzer("ior_hypothesis").prepare(zero)
         self.assertFalse(zero_bundle.can_analyze)
@@ -329,7 +329,7 @@ class RegisteredRuntimeTests(unittest.IsolatedAsyncioTestCase):
             "проверка малой approved выборки", df,
             session_id="synthetic", preset_name="ior_hypothesis",
         )
-        self.assertIn("Гипотезы не были сформированы", report)
+        self.assertIn("менее 50 ИОР", report)
         self.assertNotIn("Гипотеза 1", report)
 
 
@@ -373,7 +373,7 @@ class QuerySpecPopulationTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result.ok, result.error)
         narrative = result.output["analysis_narrative"]
         self.assertIn("Общая информация", narrative)
-        self.assertIn("Гипотезы не были сформированы", narrative)
+        self.assertIn("менее 50 ИОР", narrative)
         self.assertIn("analysis_narrative", result.summary)
 
 
@@ -424,7 +424,7 @@ class RoutingAndSqlRegressionTests(unittest.TestCase):
 
     def test_false_dossier_preset_is_rejected_for_drp_ad_hoc_query(self):
         prompt = "Выведи ИОРы за март 2025 года по DRP-10121"
-        self.assertIsNone(detect_preset_from_prompt(prompt))
+        self.assertEqual(detect_preset_from_prompt(prompt), "ior_hypothesis")
         self.assertEqual(
             resolve_preset_for_request("report_period_specific_ior", prompt),
             "ior_hypothesis",
@@ -446,7 +446,7 @@ class RoutingAndSqlRegressionTests(unittest.TestCase):
         self.assertIn("fi.fin_impact_id", dossier)
         self.assertIn("fi.fin_impact_docum_num", dossier)
         self.assertIn("r.recovery_doc_num", dossier)
-        self.assertIn("UPPER(incdnt_sid) = 'EVE-1234567'", dossier)
+        self.assertIn("UPPER(TRIM(incdnt_sid)) = 'EVE-1234567'", dossier)
         financial = build_dynamic_sql_from_prompt("за Q1 2026", preset_name="financial_consequences_ior")
         self.assertIn("incident_fin_impact", financial)
         self.assertNotIn("incident_recovery", financial)
@@ -485,14 +485,12 @@ class RoutingAndSqlRegressionTests(unittest.TestCase):
             "Покажи финансовые последствия свыше 1 млн рублей по Юго-Западному банку за Q2 2025",
             preset_name="financial_consequences_ior",
         ).upper()
-        self.assertIn("SUM(COALESCE(FIN_IMPACT_RUB_AMT, 0))", general)
+        self.assertIn("SUM(FIN_IMPACT_RUB_AMT)", general)
         self.assertIn("ЮГО-ЗАПАДНЫЙ", general)
         self.assertNotIn("FIN_IMPACT_TYPE_NAME) = 'ПРЯМАЯ ПОТЕРЯ'", general)
-        direct = build_dynamic_sql_from_prompt(
-            "Покажи прямые потери свыше 1 млн рублей за Q2 2025",
-            preset_name="financial_consequences_ior",
-        ).upper()
-        self.assertIn("FIN_IMPACT_TYPE_NAME) = 'ПРЯМАЯ ПОТЕРЯ'", direct)
+        from utils.resolve.request_outcome import ClarificationRequired
+        with self.assertRaises(ClarificationRequired):
+            build_dynamic_sql_from_prompt("Покажи прямые потери свыше 1 млн рублей за Q2 2025", preset_name="financial_consequences_ior")
 
     def test_queryspec_financial_semantics_distinguish_general_and_direct_loss(self):
         base = {
@@ -726,6 +724,7 @@ class DetailAndPresentationRegressionTests(unittest.TestCase):
     def test_sections_contain_real_structured_analysis(self):
         deleted = pd.DataFrame({
             "incdnt_sid": ["EVE-1", "EVE-2"], "stts_chng_comment_txt": ["Дубликат", "Дубликат"],
+            "stts_chng_action_dttm": ["2025-01-01", "2025-01-02"],
         })
         self.assertIn("Дублирование или повторная регистрация", get_analyzer("deleted_ior").prepare(deleted).profile)
         nonfin = pd.DataFrame({
@@ -805,7 +804,7 @@ class HypothesisGuardRegressionTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("не трактовать", context.lower())
 
     async def test_registered_pipeline_retries_invalid_hypotheses(self):
-        df = pd.DataFrame({"incdnt_sid": ["EVE-1"], "incdnt_status_name": ["Утверждён"]})
+        df = pd.DataFrame({"incdnt_sid": [f"EVE-{i}" for i in range(50)], "incdnt_status_name": ["Утверждён"] * 50})
         valid = get_analyzer("ior_hypothesis").prepare(df).deterministic_hypotheses()
         invalid = valid.replace("- **Предположение / Суть проблемы**:", "- **Наблюдение**:", 1)
         clean_validation = {key: False for key in (
@@ -822,8 +821,8 @@ class HypothesisGuardRegressionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_registered_qwen_prompt_contains_prefilter_protection(self):
         df = pd.DataFrame({
-            "incdnt_sid": ["EVE-1"], "incdnt_status_name": ["Утверждён"],
-            "org_struct_lvl_3_name": ["Московский банк"],
+            "incdnt_sid": [f"EVE-{i}" for i in range(50)], "incdnt_status_name": ["Утверждён"] * 50,
+            "org_struct_lvl_3_name": ["Московский банк"] * 50,
         })
         valid = get_analyzer("ior_hypothesis").prepare(df).deterministic_hypotheses()
         clean_validation = {key: False for key in (

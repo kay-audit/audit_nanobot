@@ -24,6 +24,7 @@ for _dir in (_SKILL_DIR, _SCRIPTS_DIR, _UTILS_DIR):
 
 
 import logging
+import uuid
 from typing import Optional, Dict, Any
 import pandas as pd
 
@@ -50,12 +51,15 @@ def set_session_extract(
     """Сохраняет новую выгрузку для сессии, перезаписывая предыдущую (ограничение 1 выгрузка на сессию)."""
     if not session_id:
         session_id = "default_session"
+    from utils.bge_search_engine import invalidate_small_index
+    invalidate_small_index(session_id)
 
     meta_dict = metadata or {}
     if extra:
         meta_dict.update(extra)
 
     extract_data = {
+        "version": uuid.uuid4().hex,
         "df": df,
         "file_path": file_path,
         "skill_name": skill_name,
@@ -76,5 +80,7 @@ def set_session_extract(
 def clear_session_extract(session_id: str) -> None:
     """Удаляет сохранённую выгрузку для сессии."""
     if session_id in _SESSION_EXTRACTS:
+        from utils.bge_search_engine import invalidate_small_index
+        invalidate_small_index(session_id)
         del _SESSION_EXTRACTS[session_id]
         logger.info(f"[session_extract_manager] Cleared extract for session '{session_id}'.")

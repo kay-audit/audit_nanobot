@@ -1,5 +1,6 @@
 """Аналитика досье одного ИОР с защитой от N×M cross join."""
 from __future__ import annotations
+from .common import known_sum
 
 import pandas as pd
 
@@ -13,9 +14,9 @@ PRESET = "report_period_specific_ior"
 
 def _distinct_entity(df: pd.DataFrame, sid_col: str | None, amount_col: str | None) -> tuple[int, float]:
     if not sid_col or sid_col not in df.columns:
-        return 0, 0.0
+        return 0, None
     distinct = df.dropna(subset=[sid_col]).drop_duplicates(subset=[sid_col])
-    amount = float(to_numeric_clean(distinct[amount_col]).sum()) if amount_col and amount_col in distinct.columns else 0.0
+    amount = known_sum(distinct[amount_col]) if amount_col and amount_col in distinct.columns else None
     return len(distinct), amount
 
 
@@ -59,10 +60,10 @@ def prepare(df: pd.DataFrame) -> AnalysisBundle:
         analysis_detail_df=approved_raw, analysis_incident_df=approved_incident,
         status_counts=statuses, full_metrics=metrics, analysis_metrics=approved_metrics,
         full_header=header, profile=profile,
-        prompt_rules="Сформируй две предметные проверочные гипотезы по конкретному досье. Не суммируй повторяющиеся строки N×M и не придумывай EVE-ID.",
+        prompt_rules="Досье содержит только фактические сведения. Не формируй гипотезы, не суммируй повторяющиеся строки N×M и не придумывай EVE-ID.",
         forbidden_metrics=("строк как финансовых последствий", "строк как возмещений"),
         hypothesis_topics=("согласованности финансовых последствий", "полноты и своевременности операций возмещения"),
-        hypothesis_count=2,
+        hypothesis_count=0,
         detail_granularity="уникальным fin_impact_sid и recovery_sid",
         chart_enabled=False,
     )
