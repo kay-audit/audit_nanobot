@@ -4,7 +4,7 @@
 
 Native `workspace/tools/appeals_analyzer.py` forces request-local `backend_scope("cache")`:
 
-`frontend → structural SQL in shared DuckDB → allowed app_row_id → Osiris retrieval → Greenplum candidate hydration → Osiris rerank → score >= 0.5 → four hypotheses + XLSX + MessageTool`.
+`frontend → structural SQL in shared DuckDB → allowed app_row_id → Osiris retrieval → Greenplum candidate hydration → Osiris scores all candidates → report selection (all score > 0.5 plus top-up to 500) → four hypotheses + XLSX + MessageTool`.
 
 `appeals_analyze.sh --profile prod` / `scripts/cli.py` explicitly enters `backend_scope("greenplum")`. It initializes the existing workspace DB pool, executes SQL through that pool, and shuts it down on success or failure. It does not initialize Gateway or a DuckDB cache. The retrieval/report code is shared. Neither environment variables nor a DuckDB error switch the native Tool to GP.
 
@@ -40,7 +40,7 @@ Osiris loads BGE-M3, BGE-reranker-v2-m3, global FAISS, BM25 shards and ID mappin
 
 Allowed IDs map to global positions. FAISS receives `IDSelectorBatch` via `SearchParametersIVF`; BM25 receives each shard's slice as `weight_mask`. Missing vector IDs are skipped. No subset index or corpus retokenization is performed. Metadata need not contain texts/tokenized corpus; embeddings.memmap is not loaded online.
 
-Reference parameters: `FAISS_K=2048`, `BM25_TOTAL_K=1372`, `ALPHA=0.3`, `K_RRF=60`. Reference shard quotas, shard-local ranks and missing-rank handling are preserved. The full fused candidate pool is hydrated and reranked. Logits receive sigmoid once; all scores >= 0.5 are retained. No passing document means no XLSX or hypotheses, and no top-2048 fallback.
+Reference parameters: `FAISS_K=2048`, `BM25_TOTAL_K=1372`, `ALPHA=0.3`, `K_RRF=60`. Reference shard quotas, shard-local ranks and missing-rank handling are preserved. The full fused candidate pool is hydrated and reranked. Logits receive sigmoid once. Reranker returns every scored candidate, including low scores; the adapter requires exactly the input ID set. Gateway logs Reranker input/output and rejects count loss before report selection. Only `appeals_reports.select_accepted` applies the strict `score > PipelineConfig.score_threshold` (0.5) condition after scoring. It sorts numeric scores descending, preserves existing per-ID uniqueness and retains all above-threshold rows without an upper cap. If fewer pass, the best remaining candidates with score <= 0.5 top up the report to `PipelineConfig.report_min_items` (500). Final count is min(available unique candidates, max(above-threshold rows, 500)). Score exactly 0.5 does not pass but can participate in top-up. INFO `Appeals report selection` logs reranker input/output, above-threshold count, threshold, minimum and final count before export. Fewer available hydrated candidates means fewer final rows; unrelated IDs are not added. Invalid scores remain errors. Empty retrieval/hydration means no XLSX or hypotheses. This selection applies to both production and standalone, and final IDs drive follow-up. `hypothesis_sample_size` separately limits texts sent for hypothesis evidence. The unused `bge_search_engine.select_threshold_or_fallback` helper has been removed.
 
 ## NFS, startup and delivery
 
