@@ -16,7 +16,7 @@ from typing import Any, ClassVar
 from nanobot.agent.tools.base import Tool, ToolResult, tool_parameters
 from nanobot.agent.tools.context import current_request_context, current_request_session_key
 from pydantic import BaseModel
-from utils.skill_runtime_mode import (
+from workspace.utils.skill_runtime_mode import (
     current_tool_session_id,
     load_testing_module,
     log_skill_runtime,

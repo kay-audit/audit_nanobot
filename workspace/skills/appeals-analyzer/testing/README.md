@@ -1,8 +1,38 @@
 # Appeals external testing runtime
 
-Активируется только `NANOBOT_SKILLS_RUNTIME=testing`. Создаёт 100 коротких
-синтетических обращений в `workspace/data_store/cache/testing/appeals`.
-Фильтры выполняются Python, relevance — батчами через общий LLM client;
-не используются Greenplum, FAISS, BM25, BGE, reranker или GPU.
+Активируется только `NANOBOT_SKILLS_RUNTIME=testing`. Тестовые обращения лежат
+в **PostgreSQL**, схема `test_d3` (см. `sql/test_d3_schema.sql`) — этого требует
+PRT8 из `bridge_skills.md`. Greenplum, FAISS, BM25, BGE, reranker и GPU не
+используются: фильтры выполняются Python, relevance — батчами через общий
+LLM client.
 
-`python workspace/skills/appeals-analyzer/testing/data_generator.py --force`
+## Подготовка данных
+
+```
+set TEST_PG_DSN=postgresql://...        # либо DATABASE_URL
+python workspace/skills/appeals-analyzer/testing/data_generator.py --force
+```
+
+Посев детерминирован (`--seed`), идемпотентен: без `--force` уже заполненная
+схема не перезаписывается. Объём по умолчанию — 1000 обращений (`--count`).
+
+Схема создаётся автоматически. Пустой DSN — явная ошибка, а не молчаливый
+пустой результат: так сломанная конфигурация не выглядит как «нулевая выборка».
+
+## Таблицы
+
+| Таблица | Назначение |
+|---------|-----------|
+| `appeals_structural` | 5 колонок, которые читает startup-загрузчик |
+| `appeal_body` | текст обращения |
+| `appeal_dialogs` | диалог (2 реплики на обращение) |
+| `appeal_task` | задача/предписание |
+
+## Проверка
+
+`testing/report.py` печатает блок «Источник данных»: схему, число строк по
+каждой таблице и первые идентификаторы. Отчёт обязан показывать эти числа —
+это доказательство, что данные действительно пришли из БД, а не из репозитория.
+
+Юнит-проверки генератора и фильтров (`testing/unit_checks.py`) БД не требуют:
+`generate_records()` — чистая функция, связь с колонками делает `seed()`.

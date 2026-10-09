@@ -295,7 +295,7 @@ def prepare_gateway_structural_cache(ctx) -> None:
     """Build and publish before gateway starts accepting production requests."""
     from loguru import logger
 
-    from utils.skill_runtime_mode import is_testing_runtime
+    from workspace.utils.skill_runtime_mode import is_testing_runtime
 
     settings = ctx.settings
     if is_testing_runtime() or not settings.get("gateway", {}).get("appeals_analyzer", {}).get("enable", True):
