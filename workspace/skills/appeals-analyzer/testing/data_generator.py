@@ -44,13 +44,46 @@ SUFFIXES = [
 ]
 
 
+def _dsn_from_secrets_env() -> str:
+    """Прочитать DATABASE_URL/TEST_PG_DSN из .secrets.env настроек проекта.
+
+    Тот же источник, что и ``${DATABASE_URL}`` в project.json для канала.
+    Нужно потому, что audit_bridge запускает data_generator отдельным
+    процессом и не подкладывает ему окружение gateway.
+    """
+    for candidate in (
+        Path(__file__).resolve().parents[4] / ".secrets.env",
+        Path(__file__).resolve().parents[3] / ".secrets.env",
+    ):
+        if not candidate.is_file():
+            continue
+        try:
+            content = candidate.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        for line in content.splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, value = line.partition("=")
+            if key.strip() in {"DATABASE_URL", "TEST_PG_DSN", "channels__postgres__dsn"}:
+                value = value.strip()
+                if value:
+                    return value
+    return ""
+
+
 def resolve_dsn() -> str:
     """DSN тестовой БД. Пустой DSN — явная ошибка, а не молчаливый пустой набор."""
-    dsn = (os.environ.get("TEST_PG_DSN") or os.environ.get("DATABASE_URL") or "").strip()
+    dsn = (
+        os.environ.get("TEST_PG_DSN")
+        or os.environ.get("DATABASE_URL")
+        or _dsn_from_secrets_env()
+    ).strip()
     if not dsn:
         raise RuntimeError(
             "Не задан DSN тестовой БД: установите TEST_PG_DSN (или DATABASE_URL) "
-            "для схемы test_d3"
+            "либо заполните DATABASE_URL в .secrets.env — для схемы test_d3"
         )
     return dsn
 
