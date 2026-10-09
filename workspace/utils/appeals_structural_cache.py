@@ -298,7 +298,10 @@ def prepare_gateway_structural_cache(ctx) -> None:
     from workspace.utils.skill_runtime_mode import is_testing_runtime
 
     settings = ctx.settings
-    if is_testing_runtime() or not settings.get("gateway", {}).get("appeals_analyzer", {}).get("enable", True):
+    # Имя скилла обязательно: переопределение APPEALS_ANALYZER_RUNTIME должно
+    # отключать и startup-загрузчик, иначе в dev gateway упадёт на Greenplum
+    # до того, как дело дойдёт до вызова тула.
+    if is_testing_runtime("appeals-analyzer") or not settings.get("gateway", {}).get("appeals_analyzer", {}).get("enable", True):
         _startup_message("SKIPPED: testing runtime or gateway.appeals_analyzer.enable=false")
         return
     if settings.get("skills", {}).get("appeals_analyzer", {}).get("enabled", False):

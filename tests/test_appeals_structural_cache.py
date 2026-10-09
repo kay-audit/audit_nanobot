@@ -173,7 +173,7 @@ def test_prebuilt_source_failure_aborts_gateway_without_fallback(tmp_path, monke
         monkeypatch.setattr(db, "run", lambda fn: fn(source))
         shutdown = Mock()
         monkeypatch.setattr(db, "shutdown", shutdown)
-        monkeypatch.setattr("workspace.utils.skill_runtime_mode.is_testing_runtime", lambda: False)
+        monkeypatch.setattr("workspace.utils.skill_runtime_mode.is_testing_runtime", lambda *_a, **_k: False)
         published = Mock()
         monkeypatch.setattr(store, "publish", published)
         ctx = types.SimpleNamespace(settings={}, cache_store=store, sync_service=Mock())
@@ -391,9 +391,9 @@ def test_hydration_defensive_date_guard():
 
 def test_disabled_or_testing_runtime_skips_startup(monkeypatch):
     monkeypatch.setattr(cache, "load_structural_cache", Mock(side_effect=AssertionError("load invoked")))
-    monkeypatch.setattr("workspace.utils.skill_runtime_mode.is_testing_runtime", lambda: False)
+    monkeypatch.setattr("workspace.utils.skill_runtime_mode.is_testing_runtime", lambda *_a, **_k: False)
     cache.prepare_gateway_structural_cache(types.SimpleNamespace(settings={"gateway": {"appeals_analyzer": {"enable": False}}}))
-    monkeypatch.setattr("workspace.utils.skill_runtime_mode.is_testing_runtime", lambda: True)
+    monkeypatch.setattr("workspace.utils.skill_runtime_mode.is_testing_runtime", lambda *_a, **_k: True)
     cache.prepare_gateway_structural_cache(types.SimpleNamespace(settings={}))
 
 
@@ -404,7 +404,7 @@ def test_gateway_startup_publication_and_readiness(tmp_path, monkeypatch):
     store = store_at(path)
     monkeypatch.setattr(db, "run", lambda fn: fn(SourceConnection([])))
     monkeypatch.setattr(db, "shutdown", Mock())
-    monkeypatch.setattr("workspace.utils.skill_runtime_mode.is_testing_runtime", lambda: False)
+    monkeypatch.setattr("workspace.utils.skill_runtime_mode.is_testing_runtime", lambda *_a, **_k: False)
     ctx = types.SimpleNamespace(settings={}, cache_store=store, sync_service=Mock(), runtime_readiness=RuntimeReadiness())
     cache.prepare_gateway_structural_cache(ctx)
     assert ctx.runtime_readiness.check().status == "READY"
@@ -419,7 +419,7 @@ def test_gateway_startup_failure_blocks_requests(tmp_path, monkeypatch, failure)
     import utils.db as db
 
     store = store_at(tmp_path / "cache.duckdb")
-    monkeypatch.setattr("workspace.utils.skill_runtime_mode.is_testing_runtime", lambda: False)
+    monkeypatch.setattr("workspace.utils.skill_runtime_mode.is_testing_runtime", lambda *_a, **_k: False)
     monkeypatch.setattr(db, "shutdown", Mock())
     monkeypatch.setattr(db, "run", Mock(side_effect=RuntimeError("GP unavailable")))
     ctx = types.SimpleNamespace(settings={}, cache_store=store, sync_service=Mock())
