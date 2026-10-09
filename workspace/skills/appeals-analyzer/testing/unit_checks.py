@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 
-from utils.skill_runtime_mode import load_testing_module
+from workspace.utils.skill_runtime_mode import load_testing_module
 
 
 data_generator = load_testing_module("appeals-analyzer", "data_generator")
@@ -13,10 +14,16 @@ runner = load_testing_module("appeals-analyzer", "runner")
 
 def test_generator_is_deterministic_short_and_unique():
     first = data_generator.generate_records(77)
-    assert len(first) == 100
+    assert len(first) == data_generator.RECORD_COUNT
     assert first == data_generator.generate_records(77)
-    assert len({row["appeal_id"] for row in first}) == 100
+    assert len({row["appeal_id"] for row in first}) == len(first)
     assert all(150 <= len(row["text"]) <= 500 for row in first)
+
+
+def test_generated_ids_fit_seeded_set():
+    """Идентификаторы из генератора должны существовать в test_d3."""
+    ids = [row["appeal_id"] for row in data_generator.generate_records(77, 5)]
+    assert all(re.fullmatch(r"APPEAL-TEST-\d{4}", value) for value in ids)
 
 
 def test_filters_and_llm_id_validation():

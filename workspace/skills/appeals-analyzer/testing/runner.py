@@ -54,7 +54,7 @@ def _write_session(session_id: str, query: str, ids: list[str]) -> None:
 
 async def run_testing_report(*, session_id: str, user_prompt: str, llm: Callable = call_llm_json) -> str:
     records = load_records()
-    requested_id = re.search(r"APPEAL-TEST-\d{3}", user_prompt, re.I)
+    requested_id = re.search(r"APPEAL-TEST-\d{3,4}", user_prompt, re.I)
     session_path = _session_path(session_id)
     if requested_id and session_path.is_file():
         state = json.loads(session_path.read_text(encoding="utf-8"))
