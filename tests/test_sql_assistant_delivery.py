@@ -84,7 +84,7 @@ class TestDelivery(unittest.IsolatedAsyncioTestCase):
 
     async def test_successful_repair_publishes_only_valid_sql(self):
         result, llm = await self._generate(["SELECT missing FROM db.orders", "SELECT id FROM db.orders"], lambda sql, **kw: validation(sql, "missing" not in sql))
-        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["status"], "valid")
         self.assertTrue(result["publishable"])
         self.assertEqual(result["sql"], "SELECT id FROM db.orders")
         self.assertNotIn("SELECT missing", json.dumps(result))
@@ -94,6 +94,37 @@ class TestDelivery(unittest.IsolatedAsyncioTestCase):
     async def test_no_selected_table_blocks_llm(self):
         result = await self.runtime.generate(question="x", dialect="spark", table_ids=[])
         self.assertEqual(result["status"], "grounding_error")
+
+    async def test_exhausted_repair_contains_neither_original_nor_alternative_sql(self):
+        original = "SELECT INSERTED_DTTM FROM HRPL_LM_SELFSERVICE_SRC.PRODUCT"
+        alternatives = ["SELECT CTL_VALIDFROM FROM HRPL_LM_SELFSERVICE_SRC.PRODUCT",
+                        "SELECT PA_ID, COUNT(SN_ID) FROM UVZ_SELFSERVICE_SRC.MV_UVZ_WORK_PLANS GROUP BY PA_ID"]
+        def invalid(sql, **kwargs):
+            report = validation(sql)
+            report["issues"][0].update({"alternative_sql": alternatives[1], "message": "Cannot resolve: " + sql})
+            report["fallback_sql"] = alternatives[0]
+            return report
+        result, llm = await self._generate([original, *alternatives], invalid)
+        payload = json.dumps(result)
+        for sql in [original, *alternatives]:
+            self.assertNotIn(sql, payload)
+        self.assertFalse(result["publishable"])
+        self.assertFalse(result["valid"])
+        self.assertEqual(result["validation"]["sql"], "")
+        self.assertIn("sql_validate", result["delivery"]["instruction"])
+        self.assertIn("без SQL-кода", result["delivery"]["instruction"])
+        self.runtime.facts.assert_not_called()
+
+    async def test_alternative_is_publishable_only_after_separate_valid_validation(self):
+        alternative = "SELECT PA_ID, COUNT(SN_ID) FROM UVZ_SELFSERVICE_SRC.MV_UVZ_WORK_PLANS GROUP BY PA_ID"
+        with patch.object(module, "validate_sql", return_value=validation(alternative)):
+            rejected = await self.runtime.validate(alternative, dialect="spark", table_ids=[1])
+        self.assertEqual(rejected["sql"], "")
+        with patch.object(module, "validate_sql", return_value=validation(alternative, True)):
+            accepted = await self.runtime.validate(alternative, dialect="spark", table_ids=[1])
+        self.assertEqual(accepted["status"], "valid")
+        self.assertTrue(accepted["valid"] and accepted["publishable"])
+        self.assertEqual(accepted["sql"], alternative)
 
     async def test_cli_validation_uses_same_delivery_gate_without_table_ids(self):
         from workspace.skills.sql_assistant.scripts import cli

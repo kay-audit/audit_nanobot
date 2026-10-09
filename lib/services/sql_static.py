@@ -329,10 +329,10 @@ def validate_sql(sql: str, *, dialect: str = "spark", schema: Mapping[str, Mappi
             return result
     known = _normalize_schema(schema or {})
     table_nodes = list(tree.find_all(exp.Table))
-    cte_names = {cte.alias_or_name.lower() for cte in tree.find_all(exp.CTE)}
+    cte_names = {cte.alias_or_name.casefold() for cte in tree.find_all(exp.CTE)}
     physical_table_nodes = [
         node for node in table_nodes
-        if node.db or node.catalog or node.name.lower() not in cte_names
+        if node.db or node.catalog or node.name.casefold() not in cte_names
     ]
     source_tables = [_table_name(node) for node in physical_table_nodes]
     if known:
@@ -345,18 +345,18 @@ def validate_sql(sql: str, *, dialect: str = "spark", schema: Mapping[str, Mappi
             full = _table_name(node)
             matched = _match_table(full, known)
             if matched:
-                aliases[node.alias_or_name.lower()] = matched
-                aliases[node.name.lower()] = matched
+                aliases[node.alias_or_name.casefold()] = matched
+                aliases[node.name.casefold()] = matched
         for col in tree.find_all(exp.Column):
             name = col.name
-            qualifier = col.table.lower() if col.table else ""
+            qualifier = col.table.casefold() if col.table else ""
             if qualifier and qualifier in aliases:
                 table = aliases[qualifier]
-                if name.lower() not in known[table]:
+                if name.casefold() not in known[table]:
                     result["issues"].append({"code": "unknown_column", "column": col.sql(), "table": table, "message": f"Unknown column {name} in {table}"})
             elif not qualifier:
                 query_tables = [matched for source in source_tables if (matched := _match_table(source, known))]
-                candidates = [table for table in query_tables if name.lower() in known[table]]
+                candidates = [table for table in query_tables if name.casefold() in known[table]]
                 if len(candidates) == 0 and source_tables:
                     result["issues"].append({"code": "unknown_column", "column": name, "message": f"Unknown column {name}"})
                 elif len(candidates) > 1 and len(source_tables) > 1:
@@ -364,7 +364,15 @@ def validate_sql(sql: str, *, dialect: str = "spark", schema: Mapping[str, Mappi
         if not unknown:
             try:
                 from sqlglot.optimizer.qualify import qualify
-                qualify(tree.copy(), dialect=parser_dialect(dialect), schema=known, validate_qualify_columns=True)
+                from sqlglot.schema import MappingSchema
+                qualification_tree = tree.copy()
+                if parser_dialect(dialect) == "spark":
+                    for identifier in qualification_tree.find_all(exp.Identifier):
+                        identifier.set("this", identifier.name.casefold())
+                    qualification_schema = MappingSchema(_qualification_schema(known), dialect="spark", normalize=False)
+                else:
+                    qualification_schema = MappingSchema(_qualification_schema(schema or {}), dialect=parser_dialect(dialect), normalize=False)
+                qualify(qualification_tree, dialect=parser_dialect(dialect), schema=qualification_schema, validate_qualify_columns=True)
             except Exception as exc:
                 message = str(exc)
                 code = "ambiguous_column" if "ambiguous" in message.lower() else "unknown_column"
@@ -413,18 +421,29 @@ def sql_facts(sql: str, *, dialect: str = "spark", schema: Mapping[str, Mapping[
         for owner, columns in columns_by_table.items():
             matched = _match_table(owner, known)
             if matched:
-                unknown_columns.extend(f"{owner}.{col}" for col in columns if col.lower() not in known[matched])
+                unknown_columns.extend(f"{owner}.{col}" for col in columns if col.casefold() not in known[matched])
     aggregations = [node.sql(dialect=parser_dialect(dialect)) for node in tree.find_all(exp.AggFunc)]
     windows = [node.sql(dialect=parser_dialect(dialect)) for node in tree.find_all(exp.Window)]
     return {"status": "ok", "dialect": dialect, "tables": tables, "ctes": ctes, "aliases": aliases, "columns_by_table": columns_by_table, "joins": joins, "join_keys": [j["on"] for j in joins if j["on"]], "filters": {"where": where.this.sql(dialect=parser_dialect(dialect)) if where else None, "having": having.this.sql(dialect=parser_dialect(dialect)) if having else None, "join": [j["on"] for j in joins if j["on"]]}, "aggregations": aggregations, "group_by": [x.sql(dialect=parser_dialect(dialect)) for x in group.expressions] if group else [], "windows": windows, "order_by": [x.sql(dialect=parser_dialect(dialect)) for x in order.expressions] if order else [], "limit": limit.expression.sql() if limit and limit.expression else None, "unknown_tables": sorted(set(unknown_tables)), "unknown_columns": sorted(set(unknown_columns)), "kb_descriptions": dict(descriptions or {}), "literal_values_verified": False}
 
 
 def _normalize_schema(schema: Mapping[str, Mapping[str, str]]) -> dict[str, dict[str, str]]:
-    return {str(table).lower(): {str(col).lower(): str(kind) for col, kind in columns.items()} for table, columns in schema.items()}
+    return {str(table).casefold(): {str(col).casefold(): str(kind) for col, kind in columns.items()} for table, columns in schema.items()}
+
+
+def _qualification_schema(schema: Mapping[str, Mapping[str, str]]) -> dict[str, Any]:
+    nested: dict[str, Any] = {}
+    for table, columns in schema.items():
+        parts = str(table).split(".")
+        target = nested
+        for part in parts[:-1]:
+            target = target.setdefault(part, {})
+        target[parts[-1]] = dict(columns)
+    return nested
 
 
 def _match_table(value: str, schema: Mapping[str, Any]) -> str | None:
-    candidate = value.replace('"', "").replace("`", "").lower()
+    candidate = value.replace('"', "").replace("`", "").casefold()
     for known in schema:
         if candidate == known or candidate.endswith("." + known) or known.endswith("." + candidate):
             return known

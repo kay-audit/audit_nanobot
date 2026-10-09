@@ -73,6 +73,13 @@ class KbStore:
     def tables_by_ids(self, ids: Iterable[Any]) -> list[dict[str, Any]]:
         return self._by_ids(KB_TABLES, ids)
 
+    def tables_by_names(self, names: Iterable[str]) -> list[dict[str, Any]]:
+        values = self._ids(str(name).strip().lower() for name in names)
+        if not values:
+            return []
+        marks = ",".join("?" for _ in values)
+        return self._query(f"SELECT * FROM {KB_TABLES} WHERE lower(table_name) IN ({marks}) ORDER BY id", values).rows
+
     def tables_by_group_keys(self, group_keys: Iterable[str]) -> list[dict[str, Any]]:
         values = self._ids(group_keys)
         if not values:

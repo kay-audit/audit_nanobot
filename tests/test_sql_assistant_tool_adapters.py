@@ -13,7 +13,7 @@ from lib.services import sql_assistant_runtime
 
 class TestToolAdapters(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        self.tool_modules = ("workspace.tools.kb_search", "workspace.tools.sql_validate")
+        self.tool_modules = ("workspace.tools.kb_search", "workspace.tools.sql_validate", "workspace.tools.kb_describe")
         self.previous = {name: sys.modules.get(name) for name in self.tool_modules}
         self.native_patch = None
         if importlib.util.find_spec("nanobot") is None:
@@ -63,6 +63,22 @@ class TestToolAdapters(unittest.IsolatedAsyncioTestCase):
         self.assertIsInstance(captured["embedder"].__self__, module.OsirisModels)
         self.assertIsInstance(captured["reranker"].__self__, module.OsirisModels)
         self.assertIn("|osiris|", captured["model_key"])
+
+    async def test_describe_exact_table_name_returns_only_kb_columns(self):
+        module = importlib.import_module("workspace.tools.kb_describe")
+        table = "UVZ_SELFSERVICE_SRC.MV_UVZ_WORK_PLANS"
+        class Provider:
+            def execute_readonly(self, sql, params=None, max_rows=1000):
+                if "lower(table_name) IN" in sql:
+                    return {"columns": ["id", "table_name"], "rows": [(10, table)]}
+                if "kb_columns" in sql:
+                    return {"columns": ["id", "table_id", "column_name", "data_type"], "rows": [(20, 10, "PA_ID", "BIGINT")]}
+                return {"columns": [], "rows": []}
+        tool = module.KbDescribeTool(config=module.KbDescribeConfig())
+        tool.set_provider(Provider())
+        result = json.loads(await tool.execute(table_names=[table], detail="full"))
+        self.assertEqual(result["tables"][0]["table_name"], table)
+        self.assertEqual([row["column_name"] for row in result["tables"][0]["selected_columns"]], ["PA_ID"])
 
     async def test_columns_tool_does_not_use_models(self):
         module = importlib.import_module("workspace.tools.kb_search")

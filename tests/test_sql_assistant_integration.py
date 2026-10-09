@@ -40,7 +40,7 @@ async def test_fake_end_to_end_retrieval_generation_validation_facts(monkeypatch
     search=runtime.search("orders amount",corpus="tables")
     result=await runtime.generate(question="total amount",dialect="spark",table_ids=[1],example_ids=[101,999])
     assert search["items"][0]["id"] == 1
-    assert result["status"] == "ok" and result["validation"]["valid"]
+    assert result["status"] == "valid" and result["validation"]["valid"] and result["publishable"]
     assert result["facts"]["tables"] == ["db.orders"]
     assert result["facts"]["example_notes"][0]["script_id"] == 338
     assert result["missing_example_ids"] == ["999"]

@@ -188,8 +188,10 @@ class SqlAssistantRuntime:
                 resolved["table_ids"] = set(table_ids)
         return resolved
 
-    async def describe(self, *, table_ids: Iterable[Any] = (), group_keys: Iterable[str] = (), example_ids: Iterable[Any] = (), detail: str = "summary", column_query: str = "", max_columns: int = 30, live_schema: bool = False, live_timeout_sec: float = 30.0) -> dict[str, Any]:
+    async def describe(self, *, table_ids: Iterable[Any] = (), table_names: Iterable[str] = (), group_keys: Iterable[str] = (), example_ids: Iterable[Any] = (), detail: str = "summary", column_query: str = "", max_columns: int = 30, live_schema: bool = False, live_timeout_sec: float = 30.0) -> dict[str, Any]:
         tables = self.store.tables_by_ids(table_ids)
+        known_ids = {str(table.get("id")) for table in tables}
+        tables.extend(table for table in self.store.tables_by_names(table_names) if str(table.get("id")) not in known_ids)
         if group_keys:
             known = {str(row.get("id")) for row in tables}
             tables.extend(row for row in self.store.tables_by_group_keys(group_keys) if str(row.get("id")) not in known)
@@ -271,7 +273,7 @@ class SqlAssistantRuntime:
                 validation["warnings"].append({"code": "repeated_issue", "message": "The same validation issue repeated; stopped early"})
                 break
             seen_issues.add(issue_signature)
-            attempts.append({"issues": validation["issues"]})
+            attempts.append({"issues": _public_diagnostics(validation["issues"])})
             fix_prompt = rules + "\nFix the SQL using only supplied grounding. Return only SQL.\n" + json.dumps({"sql": validation["sql"], "issues": validation["issues"], "grounding": payload}, ensure_ascii=False, default=str)
             response = await asyncio.wait_for(asyncio.to_thread(call_llm, [{"role": "system", "content": "Repair generated SQL without inventing schema."}, {"role": "user", "content": fix_prompt}], cfg=cfg, timeout=llm_timeout_sec), timeout=llm_timeout_sec + 1)
             validation = await self._validate_for_repair(response, dialect=dialect, table_ids=requested_table_ids, live_analyze=live_analyze)
@@ -287,7 +289,7 @@ class SqlAssistantRuntime:
             except Exception as exc:
                 facts = {"status": "invalid", "error": str(exc), "error_type": type(exc).__name__}
         public_validation = _delivery_gate(validation)
-        return {"status": "ok" if validation["valid"] else public_validation["status"], "valid": validation["valid"], "publishable": public_validation["publishable"], "sql": public_validation["sql"], "delivery": public_validation["delivery"], "validation": public_validation, "repair_attempts": attempts, "facts": facts, "missing_example_ids": missing_example_ids, "grounding_warnings": ([{"code": "unknown_example_id", "ids": missing_example_ids}] if missing_example_ids else [])}
+        return {"status": public_validation["status"], "valid": public_validation["valid"], "publishable": public_validation["publishable"], "sql": public_validation["sql"], "delivery": public_validation["delivery"], "validation": public_validation, "repair_attempts": attempts, "facts": facts, "missing_example_ids": missing_example_ids, "grounding_warnings": ([{"code": "unknown_example_id", "ids": missing_example_ids}] if missing_example_ids else [])}
 
 
 def _delivery_gate(validation: Mapping[str, Any]) -> dict[str, Any]:
@@ -299,16 +301,24 @@ def _delivery_gate(validation: Mapping[str, Any]) -> dict[str, Any]:
         "instruction": (
             "SQL прошёл указанную проверку. Не утверждай выполнение на реальных данных."
             if publishable else
-            "Не выдавай SQL-блок и не называй запрос корректным. Сообщи, что проверка не пройдена, перечисли issues и запроси уточнение метаданных либо исправление."
+            "Не выдавай никакой SQL-код, включая исходный, alternative/fallback, примеры, COUNT и control SQL. Каждый новый вариант сначала отдельно передай в sql_validate; выдача разрешена только из результата status=valid, valid=true, publishable=true, без правки его sql. Если repair исчерпан, верни только причины ошибки и рекомендации без SQL-кода."
         ),
     }
     if not publishable:
+        result = _public_diagnostics(result)
         result["sql"] = ""
-        spark = dict(result.get("spark") or {})
-        spark.pop("sql", None)
-        result["spark"] = spark
-        result.pop("ast", None)
     return result
+
+
+def _public_diagnostics(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {key: _public_diagnostics(item) for key, item in value.items()
+                if not any(token in str(key).casefold() for token in ("sql", "ast", "plan", "alternative", "fallback"))}
+    if isinstance(value, (list, tuple)):
+        return [_public_diagnostics(item) for item in value]
+    if isinstance(value, str) and re.search(r"\b(?:SELECT|WITH|INSERT|CREATE|DELETE|UPDATE)\b", value, re.I):
+        return "Validation failed; SQL text omitted from diagnostics."
+    return value
 
 
 def _compact_item(corpus: str, row: Mapping[str, Any]) -> dict[str, Any]:

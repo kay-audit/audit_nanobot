@@ -42,13 +42,20 @@ metadata: {"nanobot":{"emoji":"🗄️","always":true}}
 
 1. Уточни сущности, период, метрику, разрез и диалект, только если неоднозначность
    существенно меняет ответ.
-2. `kb_search` для examples и tables.
+2. Если пользователь явно указал полное `schema.table`, сразу вызови
+   `kb_describe(table_names=["schema.table"], detail="full")`: exact lookup,
+   без semantic search как условия доступа. Используй возвращённый table ID.
+   Выбирай только реально возвращённые колонки; не придумывай имена до describe.
+   Если нужной колонки нет или columns усечены — запроси другую полную карточку
+   с нужным column_query/уточнение, а не угадывай PA_ID, SN_ID или CTL_VALIDFROM.
+   Если таблица явно не задана — `kb_search` для examples и tables.
 3. `kb_describe(detail="summary")`, затем `detail="full"` с `column_query`.
 4. Передай реальные table/example IDs в `sql_generate`.
-5. Tool уже выполняет validate и максимум два repair. При ручной правке снова
-   вызови `sql_validate`.
-6. Продолжай только при `publishable=true`, `valid=true` и успешном semantic
-   status результата. `status: ok` в tool audit означает лишь успешный вызов
+5. Tool уже выполняет validate и максимум два repair. Затем передай точный
+   возвращённый SQL в `sql_validate` перед финальной выдачей. После любой ручной
+   правки/нового варианта снова вызови `sql_validate`.
+6. Продолжай только при `status=valid`, `publishable=true`, `valid=true`.
+   `status: ok` в tool audit означает лишь успешный вызов
    инструмента; это НЕ доказательство валидности SQL.
 7. Если `sql_generate` или последующий `sql_validate` вернул invalid,
    `publishable=false`, unavailable или error, НЕ показывай SQL-блок,
@@ -56,6 +63,11 @@ metadata: {"nanobot":{"emoji":"🗄️","always":true}}
    Следуй `delivery.instruction`: сообщи причины из issues, что готовый SQL
    получить не удалось, и какие метаданные/уточнения нужны. Не восстанавливай
    скрытый SQL из предыдущих сообщений, prior_sql или repair attempts.
+   Нельзя сочинять альтернативный/fallback SQL после отказа, даже «для примера»
+   или как рекомендацию PA_ID/COUNT(SN_ID). Любой новый вариант отдельно передай
+   в `sql_validate`. Любой SQL-код финального generated-ответа должен быть точным
+   sql из результата `status=valid`, `valid=true`, `publishable=true`.
+   Если repair исчерпан — только причины и рекомендации без любого SQL-кода.
 8. Только для прошедшей проверки версии вызови `sql_facts`.
    Не утверждай того, чего нет в facts/KB. Static-only не означает выполнение
    или успешный анализ на реальной БД.

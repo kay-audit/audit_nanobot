@@ -204,6 +204,34 @@ explicit diagnostic mode.
 
 ## External-network verification
 
+### Identifier/delivery regression (2026-10-09)
+
+Spark AST/KB table, alias and column membership use the same casefold keys.
+The qualifier receives nested schema -> table -> columns through MappingSchema,
+not flat schema.table keys. Spark comparison is case-insensitive (including its
+backtick identifiers); the PostgreSQL qualifier retains quoted identifier case.
+Regression cases: HRPL_LM_SELFSERVICE_SRC.PRODUCT.INSERTED_DTTM and
+UVZ_SELFSERVICE_SRC.MV_UVZ_WORK_PLANS.PA_ID, including lowercase parser output.
+
+Explicit table names bypass semantic search via
+kb_describe(table_names=["schema.table"], detail="full"). Only returned columns
+and IDs are grounding. Missing/truncated columns require another describe or
+clarification, never inferred physical names.
+
+Generated success now has status=valid (not the former status=ok), valid=true,
+publishable=true. After invalid/exhausted repair no original, alternative,
+fallback or control SQL may be delivered until that exact new version passes
+sql_validate. Failed payloads redact SQL/AST/plan fields and SQL statements from
+diagnostic messages. This is a local payload/skill contract, not a generic
+outbound enforcement layer. Ready-script verbatim flow remains separate.
+
+Run identifier regressions with:
+`python -B -m unittest tests.test_sql_assistant_identifiers tests.test_sql_assistant_delivery -v`.
+Real parser tests explicitly skip if sqlglot is absent; mock parser tests verify
+the lowercase-AST/uppercase-KB and nested qualifier schema paths independently.
+Schema shape was checked against the official
+[SQLGlot MappingSchema documentation](https://sqlglot.com/sqlglot/schema.html).
+
 ```bash
 python -B -m unittest tests.test_sql_assistant_bootstrap tests.test_sql_assistant_dependencies tests.test_sql_assistant_delivery tests.test_sql_assistant_admin_dsn tests.test_sql_assistant_osiris tests.test_sql_assistant_index_complete tests.test_sql_assistant_tool_adapters -v
 ```
