@@ -1,0 +1,151 @@
+feature:
+  id: d3_crm
+  name: appeals-analyzer
+  version: 1.0.0
+  description: 'Скилл анализа обращений граждан (D3): фильтры по продукту/каналу/периоду,
+    LLM-relevance, отчёт с гипотезами и выгрузка в XLSX. Тестовые данные — PostgreSQL,
+    схема test_d3 (PRT8). Production-путь (Greenplum + Osiris/GPU) в bridge-окружении
+    не проверяется.'
+  documentation: docs/D3.md
+  maintainer: '@kay-audit/audit-team'
+requires:
+  nanobot_version: '>=2.5.2'
+  system_deps:
+  - python>=3.14
+  env_vars:
+  - name: NANOBOT_SKILLS_RUNTIME
+    required: false
+    default: production
+    allowed:
+    - production
+    - testing
+    description: Режим работы skill'а. testing → чтение из PostgreSQL (схема test_d3),
+      иначе → Greenplum + startup structural cache.
+    scope: feature
+  - name: TEST_PG_DSN
+    required: false
+    default: ''
+    allowed: null
+    description: DSN тестовой БД фичи (схема test_d3). Пусто → fallback в DATABASE_URL.
+    scope: feature
+  secrets:
+  - name: DATABASE_URL
+    source: existing
+  - name: OPENAI_API_KEY
+    source: existing
+  sql_migrations: []
+skills:
+- name: appeals-analyzer
+  path: workspace/skills/appeals-analyzer
+  pattern: full
+  config_section: skills.appeals_analyzer
+tools:
+- name: appeals_analyzer
+  path: workspace/tools/appeals_analyzer.py
+  config_key: appeals_analyzer
+  config_section: gateway.appeals_analyzer
+overlays:
+  project_json:
+  - op: upsert
+    path: gateway.appeals_analyzer.enable
+    value: true
+    rationale: 'Регистрация native tool через RuntimePatcher.patch_project_tools.
+      config_key="appeals_analyzer", секция gateway.appeals_analyzer обязательна
+      даже при наличии safety-дефолта в tool''е.'
+  - op: upsert
+    path: skills.appeals_analyzer.enabled
+    value: false
+    rationale: 'Полнотабличная синхронизация обращений в DuckDB отключена намеренно:
+      стартовый structural-загрузчик в appeals_structural_cache.py сам тянет пять
+      колонок из Greenplum, а generic sync поднял бы полный текст.'
+  - op: upsert
+    path: skills.appeals_analyzer.tables
+    value:
+    - name: s_grnplm_ld_audit_da_project_27.40_kaluginvs_anofl_appeal_2026
+    - name: s_grnplm_ld_audit_da_project_27.40_kaluginvs_anofl_appeal_dialogs_2026
+    - name: s_grnplm_ld_audit_da_project_27.40_kaluginvs_anofl_appeal_task_2026
+    rationale: 'Три слоя гидратации обращения. Без tracking_column: они не участвуют
+      в инкрементальном sync, данные берёт startup structural loader (Greenplum) и
+      слой гидратации по ключу app_row_id.'
+  env_files: []
+  templates: []
+  sql_migrations:
+  - sql/test_d3_schema.sql
+lib_additions: []
+tests:
+- path: tests/test_appeals_production_contracts.py
+- path: tests/test_appeals_hybrid_contracts.py
+- path: tests/test_appeals_structural_cache.py
+- path: tests/test_appeals_osiris_lifecycle.py
+- path: tests/test_appeals_standalone_cli.py
+- path: tests/test_tools_appeals_analyzer.py
+testing:
+  runtime_env: NANOBOT_SKILLS_RUNTIME
+  runtime_value: testing
+  runtime_data_backend: testing_pg
+  data_generator:
+    path: workspace/skills/appeals-analyzer/testing/data_generator.py
+    command: python workspace/skills/appeals-analyzer/testing/data_generator.py --force
+    target_storage: postgres
+    postgres:
+      dsn_env: TEST_PG_DSN
+      schema_name: test_d3
+      schema_setup:
+      - path: sql/test_d3_schema.sql
+      table_map:
+        appeals_structural: test_d3.appeals_structural
+        appeal_body: test_d3.appeal_body
+        appeal_dialogs: test_d3.appeal_dialogs
+        appeal_task: test_d3.appeal_task
+      batch_size: 1000
+      cleanup_on_rollback: true
+    filesystem: null
+    idempotent: true
+    deterministic: true
+    seed: 20260921
+    record_count: 1000
+  runner:
+    path: workspace/skills/appeals-analyzer/testing/runner.py
+    smoke_command: python workspace/skills/appeals-analyzer/testing/runner.py
+    smoke_prompt: 'мошенничество с кредитом'
+    smoke_expected:
+      source_schema: test_d3
+      min_records: 1000
+  pytest:
+    command: python -m pytest tests/test_appeals_production_contracts.py tests/test_appeals_hybrid_contracts.py
+      tests/test_appeals_standalone_cli.py tests/test_appeals_osiris_lifecycle.py
+      tests/test_tools_appeals_analyzer.py
+  pg_loader: null
+dev_env: {}
+isolation:
+  removable: true
+  strategy: files_and_config
+  files_added:
+  - docs/D3.md
+  - docs/OSIRIS_RUNTIME.md
+  - openspec/changes/appeals-structural-startup-cache/**
+  - openspec/specs/data/appeals-structural-cache/spec.md
+  - workspace/skills/appeals-analyzer/**
+  - workspace/tools/appeals_analyzer.py
+  - workspace/utils/appeals_structural_cache.py
+  - workspace/utils/skill_runtime_mode.py
+  - workspace/utils/osiris_runtime/**
+  - appeals_osiris_job.py
+  - osiris_job.py
+  - sql/test_d3_schema.sql
+  - tests/test_appeals_production_contracts.py
+  - tests/test_appeals_hybrid_contracts.py
+  - tests/test_appeals_structural_cache.py
+  - tests/test_appeals_osiris_lifecycle.py
+  - tests/test_appeals_standalone_cli.py
+  - tests/test_tools_appeals_analyzer.py
+  files_modified:
+  - gateway.py
+  - project.json
+  - tests/test_gateway.py
+  - openspec/specs/COMPONENTS.md
+  config_keys_added:
+  - gateway.appeals_analyzer.enable
+  - skills.appeals_analyzer.enabled
+  - skills.appeals_analyzer.tables
+  config_keys_removed: []
