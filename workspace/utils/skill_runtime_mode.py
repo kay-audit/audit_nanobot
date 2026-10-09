@@ -64,15 +64,3 @@ def load_testing_module(skill_directory: str, module_name: str) -> ModuleType:
         sys.modules[package_name] = package
         spec.loader.exec_module(package)
     return importlib.import_module(f"{package_name}.{module_name}")
-
-
-def build_sql_assistant_runtime(provider=None, **kwargs):
-    runtime = get_skill_runtime()
-    logging.getLogger(__name__).info("[sql_assistant] runtime=%s", runtime)
-    if runtime == "testing":
-        from workspace.skills.sql_assistant.testing.runtime import SqlTestingRuntime
-
-        return SqlTestingRuntime(provider)
-    from lib.services.sql_assistant_runtime import SqlAssistantRuntime
-
-    return SqlAssistantRuntime(provider, **kwargs)

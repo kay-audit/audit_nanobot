@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 
-from lib.services.skill_runtime_mode import load_testing_module
+from utils.skill_runtime_mode import load_testing_module
 
 
 data_generator = load_testing_module("appeals-analyzer", "data_generator")

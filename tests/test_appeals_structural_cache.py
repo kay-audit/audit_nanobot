@@ -1,4 +1,4 @@
-"""Real DuckDB/Arrow tests with offline GP cursor and routing contracts."""
+﻿"""Real DuckDB/Arrow tests with offline GP cursor and routing contracts."""
 from __future__ import annotations
 
 import asyncio
@@ -173,7 +173,7 @@ def test_prebuilt_source_failure_aborts_gateway_without_fallback(tmp_path, monke
         monkeypatch.setattr(db, "run", lambda fn: fn(source))
         shutdown = Mock()
         monkeypatch.setattr(db, "shutdown", shutdown)
-        monkeypatch.setattr("lib.services.skill_runtime_mode.is_testing_runtime", lambda: False)
+        monkeypatch.setattr("utils.skill_runtime_mode.is_testing_runtime", lambda: False)
         published = Mock()
         monkeypatch.setattr(store, "publish", published)
         ctx = types.SimpleNamespace(settings={}, cache_store=store, sync_service=Mock())
@@ -255,10 +255,10 @@ def test_arrow_bulk_failure_rolls_back_without_deduplication(tmp_path):
     schema = cache.structural_arrow_schema()
     good = pa.RecordBatch.from_pylist([dict(zip(cache.STRUCTURAL_COLUMNS,
         ("1", datetime(2026, 1, 1), "A", "X", "Chat")))], schema=schema)
-    assert store.replace_arrow_batches(cache.STRUCTURAL_TABLE, schema, [good]) == 1
+    assert cache._replace_arrow_batches(store, cache.STRUCTURAL_TABLE, schema, [good]) == 1
     bad = pa.RecordBatch.from_pylist([{"unexpected": "text"}])
     with pytest.raises(ValueError, match="schema mismatch"):
-        store.replace_arrow_batches(cache.STRUCTURAL_TABLE, schema, [good, bad])
+        cache._replace_arrow_batches(store, cache.STRUCTURAL_TABLE, schema, [good, bad])
     assert store.query_sql(f"SELECT count(*) AS n FROM {cache.STRUCTURAL_TABLE}")["rows"] == [{"n": 1}]
     store.close()
 
@@ -326,32 +326,32 @@ def test_production_and_standalone_routing(tmp_path, monkeypatch):
 def test_hydration_reapplies_filters_before_duplicate_id_aggregation(monkeypatch):
     rows = pd.DataFrame([
         {"source_year": 2026, "id": "42", "app_row_id": "42", "_join_app_row_id": "42",
-         "prd": "Другое", "s_prd": "Другое", "chnl": "Office", "req_reg_date": datetime(2026, 1, 3)},
+         "prd": "Р”СЂСѓРіРѕРµ", "s_prd": "Р”СЂСѓРіРѕРµ", "chnl": "Office", "req_reg_date": datetime(2026, 1, 3)},
         {"source_year": 2026, "id": "42", "app_row_id": "42", "_join_app_row_id": "42",
-         "prd": "Банковские карты", "s_prd": "Кредитные карты", "chnl": "Chat", "req_reg_date": datetime(2026, 1, 3)},
+         "prd": "Р‘Р°РЅРєРѕРІСЃРєРёРµ РєР°СЂС‚С‹", "s_prd": "РљСЂРµРґРёС‚РЅС‹Рµ РєР°СЂС‚С‹", "chnl": "Chat", "req_reg_date": datetime(2026, 1, 3)},
     ])
     observed = []
 
     def query(statement, params=None):
         observed.append(statement)
         if "a.prd" in statement:
-            assert "a.prd IN ('Банковские карты')" in statement
-            assert "a.s_prd IN ('Кредитные карты')" in statement
+            assert "a.prd IN ('Р‘Р°РЅРєРѕРІСЃРєРёРµ РєР°СЂС‚С‹')" in statement
+            assert "a.s_prd IN ('РљСЂРµРґРёС‚РЅС‹Рµ РєР°СЂС‚С‹')" in statement
             assert "a.chnl IN ('Chat')" in statement
             assert "a.req_reg_date < DATE '2026-02-01'" in statement
-            return rows.loc[rows.prd == "Банковские карты"]
+            return rows.loc[rows.prd == "Р‘Р°РЅРєРѕРІСЃРєРёРµ РєР°СЂС‚С‹"]
         assert "prd IN" not in statement and "req_reg_date" not in statement
         return pd.DataFrame()
 
     monkeypatch.setattr(gp, "query_sql", query)
     result = gp.fetch_appeals_by_ids(["42"], ("2026-01-01", "2026-01-31"),
-        products=["Банковские карты"], subproducts=["Кредитные карты"], channels=["Chat"])
+        products=["Р‘Р°РЅРєРѕРІСЃРєРёРµ РєР°СЂС‚С‹"], subproducts=["РљСЂРµРґРёС‚РЅС‹Рµ РєР°СЂС‚С‹"], channels=["Chat"])
     assert len(observed) == 3
-    assert result.prd.tolist() == ["Банковские карты"]
-    assert result.s_prd.tolist() == ["Кредитные карты"]
+    assert result.prd.tolist() == ["Р‘Р°РЅРєРѕРІСЃРєРёРµ РєР°СЂС‚С‹"]
+    assert result.s_prd.tolist() == ["РљСЂРµРґРёС‚РЅС‹Рµ РєР°СЂС‚С‹"]
     monkeypatch.setattr(gp, "query_sql", lambda *args: rows)
     with pytest.raises(RuntimeError, match="violates requested prd"):
-        gp.fetch_appeals_by_ids(["42"], products=["Банковские карты"])
+        gp.fetch_appeals_by_ids(["42"], products=["Р‘Р°РЅРєРѕРІСЃРєРёРµ РєР°СЂС‚С‹"])
 
 
 def test_empty_source_publishes_valid_empty_table(tmp_path):
@@ -391,9 +391,9 @@ def test_hydration_defensive_date_guard():
 
 def test_disabled_or_testing_runtime_skips_startup(monkeypatch):
     monkeypatch.setattr(cache, "load_structural_cache", Mock(side_effect=AssertionError("load invoked")))
-    monkeypatch.setattr("lib.services.skill_runtime_mode.is_testing_runtime", lambda: False)
+    monkeypatch.setattr("utils.skill_runtime_mode.is_testing_runtime", lambda: False)
     cache.prepare_gateway_structural_cache(types.SimpleNamespace(settings={"gateway": {"appeals_analyzer": {"enable": False}}}))
-    monkeypatch.setattr("lib.services.skill_runtime_mode.is_testing_runtime", lambda: True)
+    monkeypatch.setattr("utils.skill_runtime_mode.is_testing_runtime", lambda: True)
     cache.prepare_gateway_structural_cache(types.SimpleNamespace(settings={}))
 
 
@@ -404,7 +404,7 @@ def test_gateway_startup_publication_and_readiness(tmp_path, monkeypatch):
     store = store_at(path)
     monkeypatch.setattr(db, "run", lambda fn: fn(SourceConnection([])))
     monkeypatch.setattr(db, "shutdown", Mock())
-    monkeypatch.setattr("lib.services.skill_runtime_mode.is_testing_runtime", lambda: False)
+    monkeypatch.setattr("utils.skill_runtime_mode.is_testing_runtime", lambda: False)
     ctx = types.SimpleNamespace(settings={}, cache_store=store, sync_service=Mock(), runtime_readiness=RuntimeReadiness())
     cache.prepare_gateway_structural_cache(ctx)
     assert ctx.runtime_readiness.check().status == "READY"
@@ -419,7 +419,7 @@ def test_gateway_startup_failure_blocks_requests(tmp_path, monkeypatch, failure)
     import utils.db as db
 
     store = store_at(tmp_path / "cache.duckdb")
-    monkeypatch.setattr("lib.services.skill_runtime_mode.is_testing_runtime", lambda: False)
+    monkeypatch.setattr("utils.skill_runtime_mode.is_testing_runtime", lambda: False)
     monkeypatch.setattr(db, "shutdown", Mock())
     monkeypatch.setattr(db, "run", Mock(side_effect=RuntimeError("GP unavailable")))
     ctx = types.SimpleNamespace(settings={}, cache_store=store, sync_service=Mock())
@@ -499,7 +499,7 @@ def test_report_forwards_filters_and_keeps_them_for_followup(monkeypatch):
     asyncio.run(reports._search_population("session", "q", ["42"], ("2026-01-01", None), structural_filters=filters))
     assert observed == [(["42"], ("2026-01-01", None), filters)]
     monkeypatch.setattr(reports, "answer_complaint_details", lambda *args, **kwargs: "details")
-    asyncio.run(reports._run_follow_up("session", "обращение 42", {
+    asyncio.run(reports._run_follow_up("session", "РѕР±СЂР°С‰РµРЅРёРµ 42", {
         "final_ids": ["42"], "structural_filters": filters, "date_range": ("2026-01-01", None),
     }))
     assert observed[-1] == observed[0]

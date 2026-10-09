@@ -88,6 +88,54 @@ def structural_arrow_schema():
     ])
 
 
+def _replace_arrow_batches(store, table: str, schema, batches) -> int:
+    """Атомарно пересоздать таблицу из потока Arrow-батчей.
+
+    Живёт здесь, а не в ``lib/services/duckdb_cache_store.py``: общий стор
+    не входит в зону ответственности скилла и не должен меняться под него.
+    Дубли сохраняются — в отличие от upsert здесь нет вывода ID.
+    """
+    import pyarrow as pa
+
+    namespace, _, name = table.rpartition(".")
+
+    def quote(value: str) -> str:
+        return '"' + value.replace('"', '""') + '"'
+
+    full = f"{quote(namespace)}.{quote(name)}"
+    count = 0
+    with store._lock:
+        store._open_locked()
+        conn = store._conn
+        conn.execute("BEGIN")
+        try:
+            conn.execute(f"CREATE SCHEMA IF NOT EXISTS {quote(namespace)}")
+            conn.register("_appeals_arrow", pa.Table.from_batches([], schema=schema))
+            try:
+                conn.execute(f"CREATE OR REPLACE TABLE {full} AS SELECT * FROM _appeals_arrow")
+            finally:
+                conn.unregister("_appeals_arrow")
+            for batch in batches:
+                if batch.schema != schema:
+                    raise ValueError(f"Arrow schema mismatch for {table}")
+                conn.register("_appeals_arrow", batch)
+                try:
+                    conn.execute(f"INSERT INTO {full} SELECT * FROM _appeals_arrow")
+                finally:
+                    conn.unregister("_appeals_arrow")
+                count += batch.num_rows
+            conn.execute("COMMIT")
+        except BaseException:
+            conn.execute("ROLLBACK")
+            raise
+        if store._tables is None:
+            store._tables = []
+        if table not in store._tables:
+            store._tables.append(table)
+        store._dirty = True
+    return count
+
+
 def load_structural_cache(store, db_run, *, batch_size: int = BATCH_SIZE) -> int:
     """Use a server cursor on a leased shared-pool connection; never fetchall."""
     import pyarrow as pa
@@ -143,7 +191,7 @@ def load_structural_cache(store, db_run, *, batch_size: int = BATCH_SIZE) -> int
                         progress.set_stage("DuckDB batch inserted", written=progress.written + len(rows))
                         progress.report(f"INSERT DONE insert_elapsed={time.monotonic() - insert_started:.1f}s")
 
-                return store.replace_arrow_batches(STRUCTURAL_TABLE, schema, batches())
+                return _replace_arrow_batches(store, STRUCTURAL_TABLE, schema, batches())
         except Exception as exc:
             progress.report(f"LOAD FAILED {type(exc).__name__}: {exc}")
             raise
@@ -247,7 +295,7 @@ def prepare_gateway_structural_cache(ctx) -> None:
     """Build and publish before gateway starts accepting production requests."""
     from loguru import logger
 
-    from lib.services.skill_runtime_mode import is_testing_runtime
+    from utils.skill_runtime_mode import is_testing_runtime
 
     settings = ctx.settings
     if is_testing_runtime() or not settings.get("gateway", {}).get("appeals_analyzer", {}).get("enable", True):
