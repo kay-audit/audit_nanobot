@@ -14,6 +14,17 @@ _ENV_NAME = "NANOBOT_SKILLS_RUNTIME"
 _VALID_RUNTIMES = frozenset({"production", "testing"})
 
 
+def _env_name_for(skill_name: str) -> str:
+    """Имя переменной переопределения для конкретного скилла.
+
+    ``appeals-analyzer`` -> ``APPEALS_ANALYZER_RUNTIME``. Так выбирается
+    рантайм одного скилла, не переключая остальные: глобальный
+    ``NANOBOT_SKILLS_RUNTIME`` действует на все скиллы сразу.
+    """
+    slug = skill_name.strip().replace("-", "_").replace(".", "_").upper()
+    return f"{slug}_RUNTIME" if slug else ""
+
+
 def get_skill_runtime() -> str:
     value = os.environ.get(_ENV_NAME, "production").strip().lower() or "production"
     if value not in _VALID_RUNTIMES:
@@ -23,13 +34,35 @@ def get_skill_runtime() -> str:
     return value
 
 
-def is_testing_runtime() -> bool:
-    return get_skill_runtime() == "testing"
+def resolve_skill_runtime(skill_name: str) -> str:
+    """Рантайм скилла: его собственная переменная важнее общей.
+
+    Пустое значение переменной скилла означает «использовать общую», поэтому
+    на ПРОМе, где задано только ``NANOBOT_SKILLS_RUNTIME``, поведение
+    не меняется.
+    """
+    env_name = _env_name_for(skill_name)
+    override = os.environ.get(env_name, "").strip().lower() if env_name else ""
+    if not override:
+        return get_skill_runtime()
+    if override not in _VALID_RUNTIMES:
+        raise ValueError(
+            f"{env_name} must be 'production' or 'testing', got {override!r}"
+        )
+    return override
+
+
+def is_testing_runtime(skill_name: str | None = None) -> bool:
+    if skill_name is None:
+        return get_skill_runtime() == "testing"
+    return resolve_skill_runtime(skill_name) == "testing"
 
 
 def log_skill_runtime(skill_name: str, logger: logging.Logger) -> str:
-    runtime = get_skill_runtime()
-    logger.info("[%s] runtime=%s", skill_name, runtime)
+    runtime = resolve_skill_runtime(skill_name)
+    env_name = _env_name_for(skill_name)
+    scope = "override" if os.environ.get(env_name, "").strip() else _ENV_NAME
+    logger.info("[%s] runtime=%s (via %s)", skill_name, runtime, scope)
     return runtime
 
 
