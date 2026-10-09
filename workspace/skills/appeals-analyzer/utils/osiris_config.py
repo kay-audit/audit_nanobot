@@ -31,7 +31,37 @@ HEARTBEAT_MAX_AGE_SEC = 12.0
 HEARTBEAT_PATH = NFS_ROOT / "worker_heartbeat.json"
 JOB_META_PATH = NFS_ROOT / "osiris_job.json"
 LAUNCH_LOCK_PATH = NFS_ROOT / "launcher.lock"
-TOKEN_OSC = 'e7f09dca9063520a54a5b6d8643fbbbafc1e72ae'
+
+
+def get_package_token() -> str:
+    """Read the secret inside the worker; gateway environment is not forwarded.
+
+    The local .env supports TOKEN_OSC=value (optionally quoted), comments and
+    blank lines. It is read as data, never sourced or interpolated.
+    """
+    token = os.environ.get("TOKEN_OSC", "").strip()
+    if token:
+        return token
+    env_path = Path(__file__).resolve().parents[1] / ".env"
+    try:
+        lines = env_path.read_text(encoding="utf-8-sig").splitlines()
+    except FileNotFoundError:
+        lines = []
+    except OSError:
+        raise RuntimeError(f"Cannot read Appeals Osiris secret file: {env_path}") from None
+    for line in lines:
+        key, separator, value = line.strip().partition("=")
+        if separator and key.strip() == "TOKEN_OSC":
+            token = value.strip()
+            if len(token) >= 2 and token[0] == token[-1] and token[0] in "\"'":
+                token = token[1:-1].strip()
+            if token:
+                return token
+    raise RuntimeError(
+        "TOKEN_OSC is missing: set it in the Osiris worker environment or copy "
+        f"{env_path.with_name('example.env')} to {env_path} and fill TOKEN_OSC. "
+        "The file must be readable by the worker on shared NFS."
+    )
 
 SERVICE = ServiceProfile(
     service_name="appeals",

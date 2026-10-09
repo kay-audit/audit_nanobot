@@ -44,6 +44,32 @@ Reference parameters: `FAISS_K=2048`, `BM25_TOTAL_K=1372`, `ALPHA=0.3`, `K_RRF=6
 
 ## NFS, startup and delivery
 
+### Internal package registry token
+
+The worker installs runtime packages using `sys.executable -m pip` through
+`subprocess`, before loading models. The gateway does not install these packages.
+On the closed contour, from the repository root (first setup only):
+
+```bash
+cp workspace/skills/appeals-analyzer/example.env workspace/skills/appeals-analyzer/.env
+chmod 600 workspace/skills/appeals-analyzer/.env
+nano workspace/skills/appeals-analyzer/.env
+```
+
+Fill `TOKEN_OSC` with your personal registry token. Keep your existing `.env` on
+subsequent updates. `.env` is ignored by Git; `example.env` contains no secret.
+The worker reads this file relative to its configuration on shared NFS, without
+requiring gateway environment forwarding. The worker identity must have read
+access (adjust ownership if it differs from your user). Alternatively set
+`TOKEN_OSC` in the **worker** environment; it takes precedence. Setting it only in
+the gateway environment is insufficient. The file supports `TOKEN_OSC=value`,
+optionally quoted, comments and blank lines; no shell execution or interpolation.
+Missing/empty tokens fail before pip. Credentials are passed via pip's environment,
+never command arguments. Pip output is captured and suppressed because it can
+contain authenticated URLs; failures report the exit code and troubleshooting
+hints. Restart the Appeals Osiris job after changing the token. Never commit
+`.env` or a token literal to Bitbucket.
+
 Osiris lifecycle is shared by `workspace/utils/osiris_runtime/`, used by both the root operator CLI and Appeals requests. `utils/srb_d3.py` is the Appeals-specific retrieve/rerank adapter. Requests auto-start an absent or terminal job under the shared NFS lock and wait up to `OSIRIS_START_WAIT_TIMEOUT_SEC` (default 300 seconds). Startup failure returns a retry-later message using `OSIRIS_RETRY_AFTER_SEC` (default 900 seconds). The worker exits after `OSIRIS_IDLE_TIMEOUT_SEC` (default 3600 seconds) without requests; each completed request renews the full TTL. See [shared runtime guide](../../../docs/OSIRIS_RUNTIME.md).
 
 Run from the repository root:

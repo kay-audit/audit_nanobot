@@ -87,7 +87,7 @@ def install_runtime_packages():
         "bm25s==0.3.8",
     ]
 
-    token = osiris_config.TOKEN_OSC.strip()
+    token = osiris_config.get_package_token()
     install_env = os.environ.copy()
     install_env["PIP_INDEX_URL"] = (
         "https://token:" + quote(token, safe="")
@@ -96,20 +96,30 @@ def install_runtime_packages():
     install_env["PIP_TRUSTED_HOST"] = "sberosc.ca.sbrf.ru"
     install_env.pop("PIP_EXTRA_INDEX_URL", None)
 
-    subprocess.run(
+    print("[appeals-osiris] Installing runtime packages from the internal registry", flush=True)
+    result = subprocess.run(
         [
             sys.executable,
             "-m",
             "pip",
             "install",
             "--disable-pip-version-check",
+            "--retries", "5",
             *packages,
         ],
-        check=True,
         env=install_env,
+        capture_output=True,
+        text=True,
     )
+    if result.returncode != 0:
+        # pip output can contain credential-bearing URLs; never print it.
+        raise RuntimeError(
+            f"Appeals Osiris package installation failed (pip exit {result.returncode}). "
+            "Check TOKEN_OSC, internal registry access and package availability."
+        )
 
     importlib.invalidate_caches()
+    print("[appeals-osiris] Runtime packages installed", flush=True)
 
 def load_runtime():
     install_runtime_packages()

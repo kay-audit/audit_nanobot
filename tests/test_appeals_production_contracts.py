@@ -629,8 +629,8 @@ class WorkerInitializationTests(unittest.TestCase):
             self.assertEqual(heartbeat["ready_gpus"], 0)
 
     def test_closed_contour_packages_use_existing_token_without_argv_leak(self):
-        with patch.object(worker.osiris_config, "TOKEN_OSC", "test@token"), patch.object(
-            worker.subprocess, "run",
+        with patch.object(worker.osiris_config, "get_package_token", return_value="test@token"), patch.object(
+            worker.subprocess, "run", return_value=types.SimpleNamespace(returncode=0),
         ) as install, patch.object(worker.importlib, "invalidate_caches") as invalidate:
             worker.install_runtime_packages()
         args = install.call_args.args[0]
@@ -639,7 +639,53 @@ class WorkerInitializationTests(unittest.TestCase):
         self.assertNotIn("test@token", repr(args))
         self.assertIn("test%40token", install.call_args.kwargs["env"]["PIP_INDEX_URL"])
         self.assertEqual(install.call_args.kwargs["env"]["PIP_TRUSTED_HOST"], "sberosc.ca.sbrf.ru")
+        self.assertTrue(install.call_args.kwargs["capture_output"])
+        self.assertNotIn("shell", install.call_args.kwargs)
         invalidate.assert_called_once_with()
+
+    def test_package_token_environment_takes_precedence(self):
+        with patch.dict(worker.os.environ, {"TOKEN_OSC": " env-token "}), patch.object(Path, "read_text") as read:
+            self.assertEqual(worker.osiris_config.get_package_token(), "env-token")
+        read.assert_not_called()
+
+    def test_package_token_reads_skill_env_inside_worker(self):
+        with patch.dict(worker.os.environ, {}, clear=True), patch.object(
+            Path, "read_text", return_value='# comment\nOTHER=x\nTOKEN_OSC="file-token"\n',
+        ) as read:
+            self.assertEqual(worker.osiris_config.get_package_token(), "file-token")
+        read.assert_called_once_with(encoding="utf-8-sig")
+
+    def test_missing_or_empty_package_token_fails_before_pip(self):
+        for content in ("", "TOKEN_OSC=  ", "TOKEN_OSC=''", "# TOKEN_OSC=ignored"):
+            with self.subTest(content=content), patch.dict(worker.os.environ, {}, clear=True), patch.object(
+                Path, "read_text", return_value=content,
+            ), patch.object(worker.subprocess, "run") as install:
+                with self.assertRaisesRegex(RuntimeError, "TOKEN_OSC is missing"):
+                    worker.install_runtime_packages()
+                install.assert_not_called()
+        with patch.dict(worker.os.environ, {}, clear=True), patch.object(Path, "read_text", side_effect=FileNotFoundError):
+            with self.assertRaisesRegex(RuntimeError, "shared NFS"):
+                worker.osiris_config.get_package_token()
+
+    def test_unreadable_secret_has_safe_diagnostic(self):
+        with patch.dict(worker.os.environ, {}, clear=True), patch.object(
+            Path, "read_text", side_effect=PermissionError("sensitive detail"),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "Cannot read Appeals Osiris secret file") as caught:
+                worker.osiris_config.get_package_token()
+            self.assertNotIn("sensitive detail", str(caught.exception))
+
+    def test_pip_failure_does_not_print_credentials_or_continue(self):
+        with patch.object(worker.osiris_config, "get_package_token", return_value="secret@value"), patch.object(
+            worker.subprocess, "run", return_value=types.SimpleNamespace(
+                returncode=1, stdout="secret@value", stderr="secret%40value",
+            ),
+        ), patch.object(worker.importlib, "invalidate_caches") as invalidate, patch("builtins.print") as output:
+            with self.assertRaisesRegex(RuntimeError, "pip exit 1") as caught:
+                worker.install_runtime_packages()
+        self.assertNotIn("secret", str(caught.exception))
+        self.assertNotIn("secret", repr(output.call_args_list))
+        invalidate.assert_not_called()
 
     def test_metadata_loader_does_not_require_texts_or_embeddings(self):
         with tempfile.TemporaryDirectory() as directory:
