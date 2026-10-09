@@ -30,6 +30,27 @@ def import_osiris():
         raise OsirisUnavailableError("Osiris SDK is unavailable") from exc
 
 
+def _replace_with_retry(temporary: Path, path: Path, attempts: int = 5) -> None:
+    """os.replace с повтором: на Windows целевой файл могут держать другие.
+
+    Несколько вызывающих могут писать один и тот же metadata-файл почти
+    одновременно (две задачи стартуют параллельно). Windows в этом случае
+    возвращает PermissionError/WinError 5 вместо атомарной замены, тогда как
+    POSIX заменяет без ошибки. Повтор с паузой снимает гонку; исчерпание
+    попыток поднимает исходную ошибку, а не маскирует её.
+    """
+    last: OSError | None = None
+    for attempt in range(attempts):
+        try:
+            os.replace(temporary, path)
+            return
+        except PermissionError as exc:      # WinError 5: файл занят
+            last = exc
+            if attempt + 1 < attempts:
+                time.sleep(0.02 * (attempt + 1))
+    raise last  # type: ignore[misc]
+
+
 def _atomic_json(data: dict, path: Path):
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(path.name + f".tmp.{uuid.uuid4().hex}")
@@ -38,7 +59,7 @@ def _atomic_json(data: dict, path: Path):
             json.dump(data, handle, ensure_ascii=False)
             handle.flush()
             os.fsync(handle.fileno())
-        os.replace(temporary, path)
+        _replace_with_retry(temporary, path)
     finally:
         temporary.unlink(missing_ok=True)
 
