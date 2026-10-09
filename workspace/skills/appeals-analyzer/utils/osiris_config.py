@@ -31,7 +31,12 @@ HEARTBEAT_MAX_AGE_SEC = 12.0
 HEARTBEAT_PATH = NFS_ROOT / "worker_heartbeat.json"
 JOB_META_PATH = NFS_ROOT / "osiris_job.json"
 LAUNCH_LOCK_PATH = NFS_ROOT / "launcher.lock"
-TOKEN_OSC = 'e7f09dca9063520a54a5b6d8643fbbbafc1e72ae'
+
+# Внутренний pypi-индекс Osiris. Токен НЕ хранится в коде: в dev/локальной
+# разработке достаточно публичного PyPI, поэтому значение по умолчанию пустое.
+# В закрытом контуре токен передаётся через переменную окружения.
+OSIRIS_PIP_INDEX_URL = os.environ.get("APPEALS_OSIRIS_PIP_INDEX_URL", "").strip()
+OSIRIS_PIP_TRUSTED_HOST = os.environ.get("APPEALS_OSIRIS_PIP_TRUSTED_HOST", "").strip()
 
 SERVICE = ServiceProfile(
     service_name="appeals",

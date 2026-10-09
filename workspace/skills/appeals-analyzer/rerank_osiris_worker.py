@@ -16,7 +16,6 @@ import traceback
 import uuid
 from dataclasses import replace
 from pathlib import Path
-from urllib.parse import quote
 
 import numpy as np
 
@@ -87,13 +86,15 @@ def install_runtime_packages():
         "bm25s==0.3.8",
     ]
 
-    token = osiris_config.TOKEN_OSC.strip()
     install_env = os.environ.copy()
-    install_env["PIP_INDEX_URL"] = (
-        "https://token:" + quote(token, safe="")
-        + "@sberosc.ca.sbrf.ru/repo/pypi/simple"
-    )
-    install_env["PIP_TRUSTED_HOST"] = "sberosc.ca.sbrf.ru"
+    # Публичный PyPI по умолчанию — токен в код не зашит. Закрытый контур
+    # задаёт APPEALS_OSIRIS_PIP_INDEX_URL / _TRUSTED_HOST через окружение.
+    index_url = getattr(osiris_config, "OSIRIS_PIP_INDEX_URL", "")
+    if index_url:
+        install_env["PIP_INDEX_URL"] = index_url
+        trusted_host = getattr(osiris_config, "OSIRIS_PIP_TRUSTED_HOST", "")
+        if trusted_host:
+            install_env["PIP_TRUSTED_HOST"] = trusted_host
     install_env.pop("PIP_EXTRA_INDEX_URL", None)
 
     subprocess.run(

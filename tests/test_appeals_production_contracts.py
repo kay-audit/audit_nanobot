@@ -628,18 +628,41 @@ class WorkerInitializationTests(unittest.TestCase):
             self.assertEqual(heartbeat["status"], "stopped")
             self.assertEqual(heartbeat["ready_gpus"], 0)
 
-    def test_closed_contour_packages_use_existing_token_without_argv_leak(self):
-        with patch.object(worker.osiris_config, "TOKEN_OSC", "test@token"), patch.object(
+    def test_closed_contour_packages_use_public_index_without_token(self):
+        with patch.object(worker.osiris_config, "OSIRIS_PIP_INDEX_URL", ""), patch.object(
+            worker.osiris_config, "OSIRIS_PIP_TRUSTED_HOST", "",
+        ), patch.object(
             worker.subprocess, "run",
         ) as install, patch.object(worker.importlib, "invalidate_caches") as invalidate:
             worker.install_runtime_packages()
         args = install.call_args.args[0]
         self.assertIn("sentence-transformers==3.2.0", args)
         self.assertIn("faiss-gpu-cu12", args)
-        self.assertNotIn("test@token", repr(args))
-        self.assertIn("test%40token", install.call_args.kwargs["env"]["PIP_INDEX_URL"])
-        self.assertEqual(install.call_args.kwargs["env"]["PIP_TRUSTED_HOST"], "sberosc.ca.sbrf.ru")
+        env = install.call_args.kwargs["env"]
+        # Публичный PyPI: внутренний индекс не навязывается и токена в коде нет.
+        self.assertNotIn("PIP_INDEX_URL", env)
+        self.assertNotIn("PIP_TRUSTED_HOST", env)
         invalidate.assert_called_once_with()
+
+    def test_closed_contour_index_uses_env_when_configured(self):
+        with patch.object(
+            worker.osiris_config, "OSIRIS_PIP_INDEX_URL",
+            "https://token:secret@sberosc.ca.sbrf.ru/repo/pypi/simple",
+        ), patch.object(
+            worker.osiris_config, "OSIRIS_PIP_TRUSTED_HOST", "sberosc.ca.sbrf.ru",
+        ), patch.object(
+            worker.subprocess, "run",
+        ) as install, patch.object(worker.importlib, "invalidate_caches"):
+            worker.install_runtime_packages()
+        args = install.call_args.args[0]
+        env = install.call_args.kwargs["env"]
+        # Токен передаётся только через окружение, в argv не утекает.
+        self.assertNotIn("secret", repr(args))
+        self.assertEqual(
+            env["PIP_INDEX_URL"],
+            "https://token:secret@sberosc.ca.sbrf.ru/repo/pypi/simple",
+        )
+        self.assertEqual(env["PIP_TRUSTED_HOST"], "sberosc.ca.sbrf.ru")
 
     def test_metadata_loader_does_not_require_texts_or_embeddings(self):
         with tempfile.TemporaryDirectory() as directory:

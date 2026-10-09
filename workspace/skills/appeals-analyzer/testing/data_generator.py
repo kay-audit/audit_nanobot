@@ -7,7 +7,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 DEFAULT_SEED = 20260921
-RECORD_COUNT = 100
+RECORD_COUNT = 1000
 DATA_PATH = Path(__file__).resolve().parents[3] / "data_store" / "cache" / "testing" / "appeals" / "appeals.json"
 
 TOPICS = [
