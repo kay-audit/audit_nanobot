@@ -45,16 +45,28 @@ SUFFIXES = [
 
 
 def _dsn_from_secrets_env() -> str:
-    """Прочитать DATABASE_URL/TEST_PG_DSN из .secrets.env настроек проекта.
+    """Прочитать DSN из ``.secrets.env`` там, где файл реально лежит.
 
-    Тот же источник, что и ``${DATABASE_URL}`` в project.json для канала.
-    Нужно потому, что audit_bridge запускает data_generator отдельным
-    процессом и не подкладывает ему окружение gateway.
+    ``audit_bridge`` выполняет pre-flight в распакованном архиве ветки, а он
+    собран из git и не содержит ``.secrets.env`` (файл в .gitignore). Поэтому
+    ищем не только корень проекта, но и рабочие копии рядом: конфиг лежит в
+    том каталоге, где запущен nanobot. Тот же источник, что ``${DATABASE_URL}``
+    в project.json для канала PostgresChannel.
     """
-    for candidate in (
-        Path(__file__).resolve().parents[4] / ".secrets.env",
-        Path(__file__).resolve().parents[3] / ".secrets.env",
-    ):
+    here = Path(__file__).resolve()
+    # Корни, где может лежать .secrets.env. audit_bridge распаковывает ветку в
+    # <bridge>/worktrees/<branch>, а конфиг живёт в рабочей копии audit_nanobot,
+    # лежащей рядом с audit_bridge. Поиск ограничен этими корнями: подниматься
+    # дальше и искать наугад нельзя — это риск подхватить чужой конфиг
+    # с секретами.
+    extract = here.parents[4]
+    tree = extract.parent.parent.parent          # общий корень рабочих копий
+    roots = [extract, here.parents[3],
+             tree, tree / "audit_nanobot"]
+    candidates: list[Path] = []
+    for root in roots:
+        candidates.append(root / ".secrets.env")
+    for candidate in candidates:
         if not candidate.is_file():
             continue
         try:
