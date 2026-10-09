@@ -9,7 +9,7 @@ LLM client.
 ## Подготовка данных
 
 ```
-set TEST_PG_DSN=postgresql://...        # либо DATABASE_URL
+set APPEALS_TEST_DATABASE_URL=postgresql://...        # либо DATABASE_URL
 python workspace/skills/appeals-analyzer/testing/data_generator.py --force
 ```
 

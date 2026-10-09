@@ -8,15 +8,26 @@ PRT8 из ``bridge_skills.md`` — тестовые данные фичи обя
 
     python workspace/skills/appeals-analyzer/testing/data_generator.py --force
 
-DSN берётся из ``TEST_PG_DSN``, иначе из ``DATABASE_URL``.
+DSN берётся из ``APPEALS_TEST_DATABASE_URL``, иначе из ``DATABASE_URL``.
 """
 from __future__ import annotations
 
 import argparse
 import os
 import random
+import sys
 from datetime import date, timedelta
 from pathlib import Path
+
+# Скрипт запускают и как файл (bridge: python .../data_generator.py), и как
+# модуль пакета testing. В первом случае ни корень репозитория, ни каталог
+# workspace в sys.path не попадают, а workspace.utils.db нужен обоим путям.
+# Каталоги продублированы: в репозитории два пакета utils (lib/ и workspace/),
+# поэтому везде используется однозначный префикс workspace.utils.
+_REPO_ROOT = Path(__file__).resolve().parents[4]
+for _entry in (_REPO_ROOT, _REPO_ROOT / "workspace"):
+    if str(_entry) not in sys.path:
+        sys.path.insert(0, str(_entry))
 
 DEFAULT_SEED = 20260921
 RECORD_COUNT = 1000
@@ -78,7 +89,7 @@ def _dsn_from_secrets_env() -> str:
             if not line or line.startswith("#") or "=" not in line:
                 continue
             key, _, value = line.partition("=")
-            if key.strip() in {"DATABASE_URL", "TEST_PG_DSN", "channels__postgres__dsn"}:
+            if key.strip() in {"DATABASE_URL", "APPEALS_TEST_DATABASE_URL", "channels__postgres__dsn"}:
                 value = value.strip()
                 if value:
                     return value
@@ -88,29 +99,44 @@ def _dsn_from_secrets_env() -> str:
 def resolve_dsn() -> str:
     """DSN тестовой БД. Пустой DSN — явная ошибка, а не молчаливый пустой набор."""
     dsn = (
-        os.environ.get("TEST_PG_DSN")
+        os.environ.get("APPEALS_TEST_DATABASE_URL")
         or os.environ.get("DATABASE_URL")
         or _dsn_from_secrets_env()
     ).strip()
     if not dsn:
         raise RuntimeError(
-            "Не задан DSN тестовой БД: установите TEST_PG_DSN (или DATABASE_URL) "
+            "Не задан DSN тестовой БД: установите APPEALS_TEST_DATABASE_URL (или DATABASE_URL) "
             "либо заполните DATABASE_URL в .secrets.env — для схемы test_d3"
         )
     return dsn
 
 
 def _connect(dsn: str):
-    import psycopg2
+    """Открыть соединение через общий слой workspace/utils/db.py.
 
-    return psycopg2.connect(dsn)
+    Скилл не владеет ни пулом, ни соединением — этим занимается gateway-wide
+    runtime. Собственное подключение к БД здесь запрещено контрактом: проверка
+    ``test_appeals_active_runtime_contains_no_private_connection_path``
+    запрещает в коде скилла прямые вызовы драйвера и конструкторы пулов.
+    """
+    from workspace.utils import db as shared_db
+
+    shared_db.configure(dsn)
+    shared_db.start()
+    return shared_db
 
 
-def ensure_schema(conn) -> None:
+def _cursor(db, fn):
+    """Выполнить функцию с курсором, отданным фасадом db.run()."""
+    return db.run(lambda conn: fn(conn.cursor()))
+
+
+def ensure_schema(db) -> None:
     """Создать схему и таблицы test_d3, если их ещё нет."""
-    with conn.cursor() as cur:
+    def _apply(cur):
         cur.execute(_SCHEMA_SQL.read_text(encoding="utf-8"))
-    conn.commit()
+
+    _cursor(db, _apply)
 
 
 def generate_records(rng_seed: int = DEFAULT_SEED, count: int = RECORD_COUNT) -> list[dict]:
@@ -154,21 +180,24 @@ def _seed_dialogs_and_tasks(row: dict, rng: random.Random) -> tuple[list, list]:
     return dialogs, tasks
 
 
-def seed(conn, *, rng_seed: int = DEFAULT_SEED, count: int = RECORD_COUNT,
+def seed(db, *, rng_seed: int = DEFAULT_SEED, count: int = RECORD_COUNT,
         force: bool = False) -> int:
     """Заполнить test_d3 синтетическими обращениями. Возвращает число записей."""
-    with conn.cursor() as cur:
+    def _count(cur):
         cur.execute(
             "SELECT to_regclass(%s), (SELECT count(*) FROM test_d3.appeals_structural)",
             (f"{TEST_SCHEMA}.appeals_structural",),
         )
-        relation, existing = cur.fetchone()
-        if relation is not None and existing and not force:
-            return int(existing)
+        return cur.fetchone()
+
+    relation, existing = _cursor(db, _count)
+    if relation is not None and existing and not force:
+        return int(existing)
 
     records = generate_records(rng_seed, count)
     rng = random.Random(rng_seed + 1)
-    with conn.cursor() as cur:
+
+    def _write(cur):
         cur.execute(f"TRUNCATE {TEST_SCHEMA}.appeal_task, {TEST_SCHEMA}.appeal_dialogs, "
                     f"{TEST_SCHEMA}.appeal_body, {TEST_SCHEMA}.appeals_structural")
         cur.executemany(
@@ -197,19 +226,23 @@ def seed(conn, *, rng_seed: int = DEFAULT_SEED, count: int = RECORD_COUNT,
             "(app_row_id, task_no, assignee, task_text, due_date) VALUES (%s, %s, %s, %s, %s)",
             tasks,
         )
-    conn.commit()
+
+    _cursor(db, _write)
     return len(records)
 
 
 def ensure_testing_data(*, force: bool = False, rng_seed: int = DEFAULT_SEED,
                         count: int = RECORD_COUNT, dsn: str | None = None) -> int:
     """Подготовить test_d3 и вернуть число записей."""
-    connection = _connect(dsn or resolve_dsn())
+    from workspace.utils import db as shared_db
+
+    shared_db.configure(dsn or resolve_dsn())
+    db = _connect(dsn or resolve_dsn())
     try:
-        ensure_schema(connection)
-        return seed(connection, rng_seed=rng_seed, count=count, force=force)
+        ensure_schema(db)
+        return seed(db, rng_seed=rng_seed, count=count, force=force)
     finally:
-        connection.close()
+        shared_db.shutdown()
 
 
 def load_records(dsn: str | None = None) -> list[dict]:
@@ -218,34 +251,34 @@ def load_records(dsn: str | None = None) -> list[dict]:
     Структурный слой и текст соединяются по app_row_id — так же, как
     продакшн-код соединяет Greenplum-структуру с гидратацией.
     """
-    connection = _connect(dsn or resolve_dsn())
-    try:
-        with connection.cursor() as cur:
-            cur.execute(
-                f"""
-                SELECT s.app_row_id,
-                       to_char(s.req_reg_date, 'YYYY-MM-DD') AS req_reg_date,
-                       s.prd, s.s_prd, s.chnl,
-                       b.body
-                FROM {TEST_SCHEMA}.appeals_structural s
-                JOIN {TEST_SCHEMA}.appeal_body b USING (app_row_id)
-                ORDER BY s.app_row_id
-                """
-            )
-            rows = cur.fetchall()
-        return [
-            {
-                "appeal_id": row[0],
-                "date": row[1],
-                "prd": row[2],
-                "s_prd": row[3],
-                "chnl": row[4],
-                "text": row[5],
-            }
-            for row in rows
-        ]
-    finally:
-        connection.close()
+    db = _connect(dsn or resolve_dsn())
+
+    def _select(cur):
+        cur.execute(
+            f"""
+            SELECT s.app_row_id,
+                   to_char(s.req_reg_date, 'YYYY-MM-DD') AS req_reg_date,
+                   s.prd, s.s_prd, s.chnl,
+                   b.body
+            FROM {TEST_SCHEMA}.appeals_structural s
+            JOIN {TEST_SCHEMA}.appeal_body b USING (app_row_id)
+            ORDER BY s.app_row_id
+            """
+        )
+        return cur.fetchall()
+
+    rows = _cursor(db, _select)
+    return [
+        {
+            "appeal_id": row[0],
+            "date": row[1],
+            "prd": row[2],
+            "s_prd": row[3],
+            "chnl": row[4],
+            "text": row[5],
+        }
+        for row in rows
+    ]
 
 
 if __name__ == "__main__":
@@ -255,4 +288,4 @@ if __name__ == "__main__":
     parser.add_argument("--count", type=int, default=RECORD_COUNT)
     args = parser.parse_args()
     total = ensure_testing_data(force=args.force, rng_seed=args.seed, count=args.count)
-    print(f"{TEST_SCHEMA}: {total} обращений")
+    print(f"{TEST_SCHEMA}: {total} appeals seeded")

@@ -22,7 +22,7 @@ requires:
     description: Режим работы skill'а. testing → чтение из PostgreSQL (схема test_d3),
       иначе → Greenplum + startup structural cache.
     scope: feature
-  - name: TEST_PG_DSN
+  - name: APPEALS_TEST_DATABASE_URL
     required: false
     default: ''
     allowed: null
@@ -88,7 +88,7 @@ testing:
     command: python workspace/skills/appeals-analyzer/testing/data_generator.py --force
     target_storage: postgres
     postgres:
-      dsn_env: TEST_PG_DSN
+      dsn_env: APPEALS_TEST_DATABASE_URL
       schema_name: test_d3
       schema_setup:
       - path: sql/test_d3_schema.sql

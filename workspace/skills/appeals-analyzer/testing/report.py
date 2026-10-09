@@ -9,29 +9,28 @@ def source_provenance(dsn: str | None = None) -> str:
     быть видно в артефакте, а не утверждаться.
     """
     try:
-        from .data_generator import TEST_SCHEMA, load_records, resolve_dsn, _connect
+        from .data_generator import TEST_SCHEMA, _connect, _cursor, resolve_dsn
     except ImportError:  # pragma: no cover - прямой запуск модуля
-        from data_generator import TEST_SCHEMA, load_records, resolve_dsn, _connect
+        from data_generator import TEST_SCHEMA, _connect, _cursor, resolve_dsn
 
     try:
-        connection = _connect(dsn or resolve_dsn())
+        db = _connect(dsn or resolve_dsn())
     except Exception as exc:
         return f"Источник данных недоступен: {exc}"
 
-    try:
-        counts = {}
-        with connection.cursor() as cur:
-            for table in ("appeals_structural", "appeal_body", "appeal_dialogs", "appeal_task"):
-                cur.execute(f"SELECT count(*) FROM {TEST_SCHEMA}.{table}")
-                counts[table] = cur.fetchone()[0]
-            cur.execute(
-                f"SELECT string_agg(app_row_id, ', ' ORDER BY app_row_id) "
-                f"FROM (SELECT app_row_id FROM {TEST_SCHEMA}.appeals_structural "
-                f"ORDER BY app_row_id LIMIT 3) t"
-            )
-            sample = cur.fetchone()[0] or "—"
-    finally:
-        connection.close()
+    def _counts(cur):
+        values = {}
+        for table in ("appeals_structural", "appeal_body", "appeal_dialogs", "appeal_task"):
+            cur.execute(f"SELECT count(*) FROM {TEST_SCHEMA}.{table}")
+            values[table] = cur.fetchone()[0]
+        cur.execute(
+            f"SELECT string_agg(app_row_id, ', ' ORDER BY app_row_id) "
+            f"FROM (SELECT app_row_id FROM {TEST_SCHEMA}.appeals_structural "
+            f"ORDER BY app_row_id LIMIT 3) t"
+        )
+        return values, cur.fetchone()[0] or "—"
+
+    counts, sample = _cursor(db, _counts)
 
     rows = "\n".join(f"  - {name}: {value}" for name, value in counts.items())
     return (
