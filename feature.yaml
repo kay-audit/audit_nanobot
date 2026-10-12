@@ -72,6 +72,22 @@ tools:
     path: workspace/tools/follow_up.py
     config_key: follow_up
     config_section: gateway.follow_up
+    # config_key — это ключ КОНФИГУРАЦИИ (config.json::tools.follow_up.enable),
+    # а не имя инструмента в реестре gateway. Модуль workspace/tools/follow_up.py
+    # — MCP-агрегатор: он поднимает внешний MCP-сервер
+    # (workspace/skills/follow_up/scripts/follow_up_mcp) и регистрирует по одному
+    # инструменту на каждую запись workspace/skills/follow_up/tools.json, с
+    # префиксом TOOL_PREFIX = "mcp_follow_up_". Без registered_names
+    # activation_check искал бы в логе имя "follow_up", которого там нет по
+    # определению, и падал бы с ложным "missing tools".
+    registered_names:
+      - mcp_follow_up_ask
+      - mcp_follow_up_hypotheses
+      - mcp_follow_up_deviations
+      - mcp_follow_up_status
+      - mcp_follow_up_card_start
+      - mcp_follow_up_card_status
+      - mcp_follow_up_forget
 
 overlays:
   project_json:
@@ -209,8 +225,11 @@ isolation:
     - tools/seed_follow_up_data.py
     - tools/seed_follow_up_extended.py
     - feature.yaml
-  files_modified:
-    - project.json        # + skills.follow-up (таблицы для sync) — overlay only
+  files_modified: []
+  # project.json здесь НЕ указан намеренно: ветка его не меняет, изменения
+  # вносятся только оверлеями (overlays.project_json) на этапе apply.
+  # Раньше он был в files_modified, и префлит каждый раз выдавал
+  # DECLARED_BUT_NOT_IN_DIFF: файл объявлен, но в git diff ветки его нет.
   config_keys_added:
     - gateway.follow_up.enable
     - skills.follow_up.enabled
