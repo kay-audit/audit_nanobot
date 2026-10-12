@@ -150,3 +150,12 @@ isolation:
   - skills.appeals_analyzer.enabled
   - skills.appeals_analyzer.tables
   config_keys_removed: []
+
+
+# Локальный стенд audit_nanobot ходит за данными в PostgreSQL. Appeals-analyzer
+# в проде работает через Greenplum + startup structural cache, а на стенде
+# читает тестовую схему test_d3 из PostgreSQL. APPEALS_ANALYZER_RUNTIME —
+# персональный переключатель скилла, он не задевает другие скиллы.
+# Пишется в .secrets.env только при --env=dev, на ПРОМ блок пропускается.
+dev_env:
+  APPEALS_ANALYZER_RUNTIME: testing
