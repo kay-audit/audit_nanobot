@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS public.t_fu_poruch_shadow (
             processed_at timestamp NULL,
             processed_by varchar(255) NULL,
             PRIMARY KEY (poruch_key)
-        )
+        );
 
 -- statement #2
 CREATE TABLE IF NOT EXISTS public.t_fu_poruch_chunks (
@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS public.t_fu_poruch_chunks (
             emb         float4[] NOT NULL,
             created_by  varchar(255) NOT NULL,
             created_at  timestamp NOT NULL DEFAULT now()
-        )
+        );
 
 -- statement #3
 CREATE TABLE IF NOT EXISTS public.t_fu_act_docs (
@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS public.t_fu_act_docs (
             created_by  varchar(255) NOT NULL,
             created_at  timestamp NOT NULL DEFAULT now(),
             PRIMARY KEY (file_id)
-        )
+        );
 
 -- statement #4
 CREATE TABLE IF NOT EXISTS public.t_fu_act_chunks (
@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS public.t_fu_act_chunks (
             chunk_text   text NOT NULL,
             emb          float4[] NOT NULL,
             created_at   timestamp NOT NULL DEFAULT now()
-        )
+        );
 
 -- statement #5
 CREATE TABLE IF NOT EXISTS public.t_fu_deviations (
@@ -72,7 +72,7 @@ CREATE TABLE IF NOT EXISTS public.t_fu_deviations (
             recommendation       text NULL,
             source_chunk_index   int4 NULL,
             created_at    timestamp NOT NULL DEFAULT now()
-        )
+        );
 
 -- statement #6
 CREATE TABLE IF NOT EXISTS public.t_fu_repo_index (
@@ -85,7 +85,7 @@ CREATE TABLE IF NOT EXISTS public.t_fu_repo_index (
             parsed_at    timestamp NOT NULL DEFAULT now(),
             parsed_by    varchar(255) NOT NULL,
             PRIMARY KEY (check_id)
-        )
+        );
 
 -- statement #7
 CREATE TABLE IF NOT EXISTS public.t_fu_repo_files (
@@ -99,7 +99,7 @@ CREATE TABLE IF NOT EXISTS public.t_fu_repo_files (
             data_sources varchar(1000) NULL,
             tech         varchar(255) NULL,
             file_url     varchar(1000) NOT NULL
-        )
+        );
 
 -- statement #8
 CREATE TABLE IF NOT EXISTS public.t_fu_km_method (
@@ -110,7 +110,7 @@ CREATE TABLE IF NOT EXISTS public.t_fu_km_method (
             created_by    varchar(255) NOT NULL,
             created_at    timestamp NOT NULL DEFAULT now(),
             PRIMARY KEY (check_id)
-        )
+        );
 
 -- statement #9
 CREATE TABLE IF NOT EXISTS public.t_fu_verdicts (
@@ -121,7 +121,7 @@ CREATE TABLE IF NOT EXISTS public.t_fu_verdicts (
             comment     text NULL,
             author      varchar(255) NOT NULL,
             created_at  timestamp NOT NULL DEFAULT now()
-        )
+        );
 
 -- statement #10
 CREATE TABLE IF NOT EXISTS public.t_fu_sync_lock (
@@ -129,7 +129,7 @@ CREATE TABLE IF NOT EXISTS public.t_fu_sync_lock (
             locked_by    varchar(255) NULL,
             lease_until  timestamp NULL,
             PRIMARY KEY (task_key)
-        )
+        );
 
 -- statement #11
 CREATE TABLE IF NOT EXISTS public.t_fu_skill_log (
@@ -141,7 +141,7 @@ CREATE TABLE IF NOT EXISTS public.t_fu_skill_log (
             blocks_filled varchar(255) NULL,
             resolved_how  varchar(30) NULL,
             created_at    timestamp NOT NULL DEFAULT now()
-        )
+        );
 
 -- statement #12
 CREATE TABLE IF NOT EXISTS public.t_fu_llm_calls (
@@ -154,7 +154,7 @@ CREATE TABLE IF NOT EXISTS public.t_fu_llm_calls (
             waited_sec    float8 NULL,
             ran_sec       float8 NULL,
             created_at    timestamp NOT NULL DEFAULT now()
-        )
+        );
 
 -- statement #13
 CREATE TABLE IF NOT EXISTS public.t_fu_check_id_audit (
@@ -171,7 +171,7 @@ CREATE TABLE IF NOT EXISTS public.t_fu_check_id_audit (
             n_devs        int4 NOT NULL DEFAULT 0,
             orphan_devs   bool NOT NULL DEFAULT false,
             created_at    timestamp NOT NULL DEFAULT now()
-        )
+        );
 
 -- statement #14
 CREATE TABLE IF NOT EXISTS public.t_fu_card_baseline (
@@ -191,7 +191,7 @@ CREATE TABLE IF NOT EXISTS public.t_fu_card_baseline (
             size_chars    int4 NULL,
             note          text NULL,
             created_at    timestamp NOT NULL DEFAULT now()
-        )
+        );
 
 -- statement #15
 CREATE TABLE IF NOT EXISTS public.t_fu_checklist (
@@ -201,7 +201,7 @@ CREATE TABLE IF NOT EXISTS public.t_fu_checklist (
             note       text NULL,
             author     varchar(255) NOT NULL,
             updated_at timestamp NOT NULL DEFAULT now()
-        )
+        );
 
 -- statement #16
 CREATE TABLE IF NOT EXISTS public.t_fu_script_annot (
@@ -211,7 +211,7 @@ CREATE TABLE IF NOT EXISTS public.t_fu_script_annot (
             model_used  varchar(128) NULL,
             created_by  varchar(255) NOT NULL,
             created_at  timestamp NOT NULL DEFAULT now()
-        )
+        );
 
 -- statement #17
 CREATE TABLE IF NOT EXISTS public.t_fu_resolve_log (
@@ -226,7 +226,7 @@ CREATE TABLE IF NOT EXISTS public.t_fu_resolve_log (
             how          varchar(16) NULL,
             duration_ms  int4 NULL,
             created_at   timestamp NOT NULL DEFAULT now()
-        )
+        );
 
 -- statement #18
 CREATE TABLE IF NOT EXISTS public.t_fu_card_analysis (
@@ -239,5 +239,5 @@ CREATE TABLE IF NOT EXISTS public.t_fu_card_analysis (
             evidence_quality varchar(16) NULL,
             formality        varchar(16) NULL,
             created_at       timestamp NOT NULL DEFAULT now()
-        )
+        );
 
