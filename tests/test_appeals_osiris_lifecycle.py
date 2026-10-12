@@ -1,6 +1,7 @@
 """Offline contracts for the reusable Osiris lifecycle, transport and idle worker."""
 from __future__ import annotations
 
+import contextlib
 import json
 import queue
 import subprocess
@@ -20,10 +21,24 @@ from workspace.utils.osiris_runtime import OsirisUnavailableError, ServiceProfil
 from workspace.utils.osiris_runtime import client, lifecycle, worker
 
 
+def _cleanup_quietly(directory: tempfile.TemporaryDirectory) -> None:
+    """Удалить временный каталог, не падая на Windows.
+
+    ``TemporaryDirectory(ignore_cleanup_errors=True)`` на Windows недостаточно:
+    в CPython ``_rmtree`` вызывает ``_resetperms`` (chmod) ДО проверки
+    ``ignore_errors`` (tempfile.py:906), поэтому PermissionError от процесса,
+    держащего файл (антивирус, индексатор), пробивает и этот флаг и роняет
+    teardown теста. Проверки внутри тестов от этого не зависят — страдает
+    только уборка.
+    """
+    with contextlib.suppress(OSError):
+        directory.cleanup()
+
+
 class LifecycleTests(unittest.TestCase):
     def setUp(self):
-        temporary = tempfile.TemporaryDirectory()
-        self.addCleanup(temporary.cleanup)
+        temporary = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+        self.addCleanup(_cleanup_quietly, temporary)
         root = Path(temporary.name)
         script = root / "worker.py"
         script.write_text("", encoding="utf-8")
@@ -145,12 +160,19 @@ assert 'osiris' not in sys.modules
         self.assertEqual(client.DEFAULT_REQUEST_TIMEOUT_SEC, 1800)
 
     def test_two_callers_share_one_create(self):
+        # Второй вызов не создаёт job сам, а ждёт первый под lifecycle_lock.
+        # Дедлайн ensure_ready по умолчанию (startup_wait_timeout_sec=.2 у
+        # профиля) сопоставим с задержкой slow_create, поэтому на загруженной
+        # машине гонка вырождалась в OsirisStartupTimeoutError. Проверяем здесь
+        # именно отсутствие второго create, а не успех уложиться в 25 мс —
+        # отдаём явный запас по времени.
         def slow_create(**kwargs):
             time.sleep(.025)
             return self.create_ready(**kwargs)
         self.sdk.create.side_effect = slow_create
         with patch.object(lifecycle, "POLL_SEC", .005), ThreadPoolExecutor(max_workers=2) as pool:
-            futures = [pool.submit(lifecycle.ensure_ready, self.profile, self.sdk) for _ in range(2)]
+            futures = [pool.submit(lifecycle.ensure_ready, self.profile, self.sdk, timeout=10)
+                       for _ in range(2)]
             self.assertEqual([future.result() for future in futures], ["operator-test-job"] * 2)
         self.sdk.create.assert_called_once()
 
@@ -245,8 +267,8 @@ assert 'osiris' not in sys.modules
 
 class WorkerIdleTests(unittest.TestCase):
     def setUp(self):
-        temporary = tempfile.TemporaryDirectory()
-        self.addCleanup(temporary.cleanup)
+        temporary = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+        self.addCleanup(_cleanup_quietly, temporary)
         self.profile = ServiceProfile("test", "job", "image", "pool", "worker.py", 1,
                                       Path(temporary.name), ("retrieve",), idle_timeout_sec=.025)
         self.profile.prepare_nfs()
@@ -294,8 +316,8 @@ class WorkerIdleTests(unittest.TestCase):
 
 class TransportRecoveryTests(unittest.TestCase):
     def setUp(self):
-        temporary = tempfile.TemporaryDirectory()
-        self.addCleanup(temporary.cleanup)
+        temporary = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+        self.addCleanup(_cleanup_quietly, temporary)
         self.profile = ServiceProfile("test", "job", "image", "pool", "worker.py", 1,
                                       Path(temporary.name), ("retrieve",))
 

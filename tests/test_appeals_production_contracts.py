@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import ast
 import asyncio
+import contextlib
 import importlib
 import importlib.util
 import json
@@ -437,7 +438,7 @@ class PipelineTests(unittest.TestCase):
     def test_xlsx_and_final_session_ids(self):
         frame = pd.DataFrame({"id": ["123", "456"], "app_row_id": ["123", "456"],
                               "req_desc": ["desc", "desc"], "score": [.9, .49]})
-        with tempfile.TemporaryDirectory() as directory:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as directory:
             paths = []
             with artifacts.artifact_scope(Path(directory), paths), \
                     patch.object(reports, "fetch_candidate_ids_by_product", return_value=["123", "456"]), \
@@ -485,10 +486,24 @@ assert 'safe_appeals.utils.db' not in sys.modules
         self.assertEqual(result.returncode, 0, result.stderr)
 
 
+def _cleanup_quietly(directory: tempfile.TemporaryDirectory) -> None:
+    """Удалить временный каталог, не падая на Windows.
+
+    ``TemporaryDirectory(ignore_cleanup_errors=True)`` на Windows недостаточно:
+    в CPython ``_rmtree`` вызывает ``_resetperms`` (chmod) ДО проверки
+    ``ignore_errors`` (tempfile.py:906), поэтому PermissionError от процесса,
+    держащего файл (антивирус, индексатор), пробивает и этот флаг и роняет
+    teardown теста. Проверки внутри тестов от этого не зависят — страдает
+    только уборка.
+    """
+    with contextlib.suppress(OSError):
+        directory.cleanup()
+
+
 class ProtocolTests(unittest.TestCase):
     def setUp(self):
-        self.directory = tempfile.TemporaryDirectory()
-        self.addCleanup(self.directory.cleanup)
+        self.directory = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+        self.addCleanup(_cleanup_quietly, self.directory)
         self.root = Path(self.directory.name)
         profile = replace(client.SERVICE, nfs_root=self.root)
         for module, values in (
@@ -612,7 +627,7 @@ class ProtocolTests(unittest.TestCase):
 
 class WorkerInitializationTests(unittest.TestCase):
     def test_main_exits_and_marks_stopped_after_idle_ttl(self):
-        with tempfile.TemporaryDirectory() as directory:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as directory:
             root = Path(directory)
             profile = replace(worker.PROFILE, nfs_root=root, idle_timeout_sec=.025)
             with patch.object(worker, "PROFILE", profile), patch.object(
@@ -665,7 +680,7 @@ class WorkerInitializationTests(unittest.TestCase):
         self.assertEqual(env["PIP_TRUSTED_HOST"], "sberosc.ca.sbrf.ru")
 
     def test_metadata_loader_does_not_require_texts_or_embeddings(self):
-        with tempfile.TemporaryDirectory() as directory:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as directory:
             root = Path(directory)
             (root / "bm25s_shards/shard_0").mkdir(parents=True)
             with (root / "meta.pkl").open("wb") as handle:
@@ -729,8 +744,8 @@ class NativeDeliveryTests(unittest.IsolatedAsyncioTestCase):
         self.tool = self.native.AppealsAnalyzerTool(
             config=self.native.AppealsAnalyzerToolConfig(), message_tool=self.message,
         )
-        self.temp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temp.cleanup)
+        self.temp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+        self.addCleanup(_cleanup_quietly, self.temp)
         self.root = Path(self.temp.name)
         self.addCleanup(patch.stopall)
         patch.object(self.native, "log_skill_runtime", return_value="production").start()
