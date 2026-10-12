@@ -53,6 +53,7 @@ from utils.resolve.grounding import apply_smart_filter, ground_query, diagnose_e
 from ior_hypothesis import generate_hypothesis_narrative
 from preset_analysis.registry import get_analyzer
 from preset_analysis.common import deduplicate_detail_entities, find_column
+from source_planner import has_comparative_threshold, plan_widening_presets
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
@@ -493,7 +494,8 @@ def detect_preset_from_prompt(user_prompt: str) -> Optional[str]:
         return "report_period_specific_ior"
     if any(k in low for k in ("возмещ", "возврат", "страхов", "взыскан", "компенсац")):
         return "vozmeshenie_ior"
-    elif any(k in low for k in ("удал", "отмен", "причина удален")):
+    elif any(k in low for k in ("удал", "отменен", "отменён", "отменил",
+                                 "причина удален", "аннулир")):
         return "deleted_ior"
     elif any(k in low for k in ("нефинанс", "качествен", "репутац", "прерыван")):
         return "ior_nonfinancial_consequences"
@@ -984,7 +986,19 @@ async def run_ior_report(
     has_code = has_specific_codes(user_prompt)
     period = parse_period(user_prompt)
     ground_hits = ground_query(user_prompt)
-    has_filters = has_code or (period is not None) or bool(ground_hits) or any(k in user_prompt.lower() for k in ("удал", "утвержд", "более", "больше", "свыше"))
+    # Сравнительные слова («больше», «более», «свыше») сами по себе не являются
+    # фильтром: они встречаются в обычных вопросах («на какую общую сумму
+    # потерь больше всего?») и уводили навык с корректного пресетного SQL на
+    # сгенерированный запрос, который возвращал ноль строк. Считаем их
+    # фильтром только когда рядом стоит число — это и есть настоящий порог.
+    comparative_filter = has_comparative_threshold(user_prompt)
+    has_filters = (
+        has_code
+        or (period is not None)
+        or bool(ground_hits)
+        or comparative_filter
+        or any(k in user_prompt.lower() for k in ("удал", "утвержд"))
+    )
 
     preset = resolve_preset_for_request(preset_name, user_prompt)
     logger.info(
@@ -1001,6 +1015,7 @@ async def run_ior_report(
         }.get(preset),
     )
 
+    empty_source_report = ""
     if session_data and not preset_name and not user_prompt:
         logger.info(f"[ior_reports] Re-using existing session DataFrame ({len(session_data['df'])} rows)")
         df = session_data["df"]
@@ -1009,7 +1024,26 @@ async def run_ior_report(
         table_registry = getattr(store, "tables", GREENPLUM_TABLES)
         preset_queries = build_preset_sql_queries(table_registry)
 
-        if has_filters:
+        # Источник доступен, если строки физически дошли до сюда: любая
+        # ошибка GP/доступности поднимается наверх и не маскируется
+        # пустой выгрузкой. Пустой результат — это валидный «ноль строк».
+        attempts: list[str] = []
+
+        def _run_preset(name: str):
+            sql_query = preset_queries.get(name)
+            if sql_query is None:
+                logger.warning(
+                    "[ior_reports] Preset %r is not available for %r: "
+                    "its physical source table is not configured",
+                    name, getattr(store, "backend_name", "unknown"),
+                )
+                return None
+            logger.info(f"[ior_reports] Executing preset SQL query for preset '{name}'")
+            result = store.query_sql(sql_query)
+            attempts.append(f"пресет {name}: {len(result)} строк")
+            return result
+
+        def _run_dynamic() -> Any:
             logger.info(f"[ior_reports] Executing targeted dynamic SQL query for prompt: '{user_prompt}' (has_filters=True)")
             dynamic_sql = build_dynamic_sql_from_prompt(
                 user_prompt,
@@ -1018,21 +1052,45 @@ async def run_ior_report(
             )
             where_debug = re.search(r"\bWHERE\b(.+?)(?:\bORDER\s+BY\b|$)", dynamic_sql, re.IGNORECASE | re.DOTALL)
             logger.debug("[ior_reports] generated WHERE predicates: %s", where_debug.group(1).strip() if where_debug else "<none>")
+            result = store.query_sql(dynamic_sql)
+            attempts.append(f"динамический запрос: {len(result)} строк")
+            return result
+
+        if has_filters:
             # A production GP error must reach the tool boundary.  Returning an
             # empty report here would make an outage look like a valid zero-row
             # business result.
-            df = store.query_sql(dynamic_sql)
+            df = _run_dynamic()
         else:
-            sql_query = preset_queries.get(preset)
-            if sql_query is None:
+            preset_df = _run_preset(preset)
+            if preset_df is None:
                 raise RuntimeError(
                     f"Preset {preset!r} is not available for "
                     f"{getattr(store, 'backend_name', 'unknown')!r}: "
                     "its physical source table is not configured"
                 )
-            else:
-                logger.info(f"[ior_reports] Executing preset SQL query for preset '{preset}'")
-                df = store.query_sql(sql_query)
+            df = preset_df
+
+        # Пустой результат не равен «данных нет»: динамический WHERE или
+        # ошибочно выбранный предметный пресет (например, deleted_ior на
+        # вопрос «сколько ИОР всего») дают ноль строк при непустой базе.
+        # Поэтому последовательно пробуем более широкие источники — сначала
+        # предметный пресет, затем базовую витрину инцидентов.
+        if df.empty:
+            for wider_preset in plan_widening_presets(preset, has_filters):
+                logger.info(
+                    "[ior_reports] Empty result, widening source: retry preset '%s'",
+                    wider_preset,
+                )
+                wider_df = _run_preset(wider_preset)
+                if wider_df is not None and not wider_df.empty:
+                    df = wider_df
+                    preset = wider_preset
+                    logger.info(
+                        "[ior_reports] Widened source returned %s rows for preset '%s'",
+                        len(df), preset,
+                    )
+                    break
 
         # Вторичная точная фильтрация DataFrame по периоду при необходимости (если SQL не отфильтровал)
         if not df.empty and period:
@@ -1049,6 +1107,24 @@ async def run_ior_report(
                 df = df_filtered
 
         logger.info("[ior_reports] row funnel final joined population: %s rows, %s columns", len(df), len(df.columns))
+        if df.empty:
+            # Источник доступен (иначе запрос упал бы с ошибкой), но под
+            # фильтры попало ноль строк. Раньше навык отдавал «выгрузка пуста»,
+            # и агент делал вывод, что данных в базе нет вообще — это неверно.
+            # Явно называем источник и выполненные попытки.
+            base_table = table_registry.get("ior", "витрина ИОР")
+            tried = "; ".join(attempts) if attempts else "запрос не выполнялся"
+            empty_source_report = (
+                "**Источник данных доступен, но под заданные условия не попал ни один инцидент.**\n"
+                f"- Источник: `{base_table}` (бэкенд: {getattr(store, 'backend_name', 'unknown')})\n"
+                f"- Выполнено запросов: {tried}\n"
+                "- Это НЕ означает, что в базе нет данных ИОР: скорее всего, "
+                "условия запроса слишком узкие. Уточните критерии (период, "
+                "подразделение, тип последствий) или попросите выгрузку без фильтров.\n"
+            )
+            logger.warning(
+                "[ior_reports] Source reachable but selection empty (attempts: %s)", tried,
+            )
 
         if not df.empty:
             detail_presets = {"vozmeshenie_ior", "financial_consequences_ior", "ior_nonfinancial_consequences", "report_period_specific_ior", "deleted_ior"}
@@ -1132,6 +1208,8 @@ async def run_ior_report(
             user_prompt or "Выгрузка ИОР", df, session_id, preset_name=preset,
             analysis_context={"original_user_intent": user_prompt, "preset": preset},
         )
+        if empty_source_report:
+            narrative = f"{empty_source_report}\n\n{narrative}"
         if xlsx_path and xlsx_path.exists():
             excel_card = format_excel_inspection_markdown(
                 xlsx_path,
