@@ -182,6 +182,7 @@ isolation:
   # config.json, project.json. Изменения конфигурации идут только через
   # overlays.project_json.
   files_added:
+    - sql/seed/seed_ior_dev_data.sql
     - docs/INSTALL.md
     - docs/D6.md
     - .gitignore
