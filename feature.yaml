@@ -135,11 +135,9 @@ overlays:
 # env_files. Существующий master-файл lib/services/skill_runtime_mode.py
 # НЕ модифицируется (навык не должен трогать инфраструктуру Nanobot).
 
-tests:
-  - path: tests/test_tools_ior_analyzer.py
-    marker: optional        # LLM-зависимости мокаются; red на CI не блокирует apply
-  - path: tests/test_ior_bge_followup_contract.py
-    marker: required        # контракт BGE-M3 retrieval - критичен для прод-логики
+# В этой ветке IOR-тестов нет: они живут в feature/d6-nanobot-with-manifest.
+# Объявлять несуществующие пути нельзя — префлит падает на pytest с rc=4.
+tests: []
 
 testing:
   runtime_env: NANOBOT_SKILLS_RUNTIME
@@ -170,10 +168,9 @@ testing:
     command: "python workspace/skills/ior-analyzer/testing/seed_test_data.py --json workspace/data_store/cache/testing/ior/ior.json"
     requires_migration: V006__d6_ior_tables_real
     idempotent: true
-  pytest:
-    command: "C:\\Users\\pasco\\opencode_projects\\audit_point\\audit_bridge\\venvs\\bot_venv\\Scripts\\python.exe -m pytest tests/test_tools_ior_analyzer.py tests/test_ior_bge_followup_contract.py -q --tb=short -p no:cacheprovider"
-    marker_required_strict: true
-    marker_optional_strict: false
+  # pytest-блока нет: в ветке нет IOR-тестов (см. tests: [] выше), а зашитый
+  # в манифест абсолютный путь к venv делал бы ветку непереносимой.
+  # Функциональная проверка навыка делается отдельно.
 
 isolation:
   removable: true
@@ -189,8 +186,6 @@ isolation:
     - workspace/skills/ior-analyzer/**
     - workspace/tools/ior_analyzer.py
     - sql/migrations/V006__d6_ior_tables_real.sql
-    - tests/test_tools_ior_analyzer.py
-    - tests/test_ior_bge_followup_contract.py
   files_modified:
     - project.json        # + skills.ior-analyzer (таблицы IOR для sync) — overlay only
     - feature.yaml        # манифест ветки
