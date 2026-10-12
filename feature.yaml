@@ -11,7 +11,12 @@ feature:
 requires:
   nanobot_version: '>=2.5.2'
   system_deps:
-  - python>=3.14
+  # Раньше было заявлено python>=3.14, но это неверно: окружение нанобота —
+  # bot_venv на Python 3.12, и весь код ветки (skills/appeals-analyzer,
+  # workspace/utils/*, tools/appeals_analyzer.py) под 3.12 компилируется и
+  # проходит тесты. Завышенное требование делало манифест недоисполнимым по
+  # условиям установки, хотя по коду ограничения реально нет.
+  - python>=3.12
   env_vars:
   - name: NANOBOT_SKILLS_RUNTIME
     required: false
@@ -116,7 +121,6 @@ testing:
       tests/test_appeals_standalone_cli.py tests/test_appeals_osiris_lifecycle.py
       tests/test_tools_appeals_analyzer.py
   pg_loader: null
-dev_env: {}
 isolation:
   removable: true
   strategy: files_and_config
@@ -141,10 +145,12 @@ isolation:
   - tests/test_appeals_standalone_cli.py
   - tests/test_tools_appeals_analyzer.py
   files_modified:
+  # Только файлы, которые ветка действительно меняет относительно master.
+  # project.json и openspec/specs/COMPONENTS.md раньше были здесь указаны,
+  # но в git diff ветки их нет (project.json правится оверлеями на этапе
+  # apply), из-за чего префлит каждый раз выдавал DECLARED_BUT_NOT_IN_DIFF.
   - gateway.py
-  - project.json
   - tests/test_gateway.py
-  - openspec/specs/COMPONENTS.md
   config_keys_added:
   - gateway.appeals_analyzer.enable
   - skills.appeals_analyzer.enabled
