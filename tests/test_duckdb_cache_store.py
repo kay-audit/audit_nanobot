@@ -83,7 +83,7 @@ def store(tmp_path):
         vector_db_table=TEST_VECTOR_TABLE,
         embedding_base_url="",
     )
-    assert st.open()
+    assert st.connect()
     yield st
     st.close()
 
@@ -123,6 +123,36 @@ class TestUpsert:
         ])
         r = store.query_sql(f"SELECT id, amount FROM {TEST_TABLE} WHERE id = 2")
         assert r["rows"][0]["amount"] == 100
+
+    def test_upsert_with_explicit_key_column(self, store):
+        """Явный ``key_column`` MUST использоваться вместо дефолта ``id``.
+
+        Таблицы вроде ``public.agent_predefined_scripts`` имеют PK ``name``,
+        а не ``id``. Без явного ключа store уходит в CREATE OR REPLACE,
+        что для дельты от ``_fetch_incremental`` удаляет несвязанные строки.
+        """
+        table = "test.script_registry"
+        assert store.upsert_records(
+            table,
+            [{"name": "a", "sql": "SELECT 1"}, {"name": "b", "sql": "SELECT 2"}],
+            key_column="name",
+        )
+        assert store.upsert_records(
+            table, [{"name": "a", "sql": "SELECT 3"}], key_column="name"
+        )
+        r = store.query_sql(
+            f"SELECT name, sql FROM {table} ORDER BY name"
+        )
+        assert [row["name"] for row in r["rows"]] == ["a", "b"]
+        assert r["rows"][0]["sql"] == "SELECT 3"
+
+    def test_upsert_without_key_recreates_table(self, store):
+        """Без ключа и без ``id`` — таблица пересоздаётся (documented fallback)."""
+        table = "test.keyless"
+        assert store.upsert_records(table, [{"x": 1}, {"x": 2}])
+        assert store.upsert_records(table, [{"x": 9}])
+        r = store.query_sql(f"SELECT x FROM {table}")
+        assert [row["x"] for row in r["rows"]] == [9]
 
     def test_empty_batch_is_noop(self, store):
         assert store.upsert_records(TEST_TABLE, []) is True
@@ -232,7 +262,7 @@ class TestSkillVectorFromCache:
             tables=["audits"],
             vector_db_table=TEST_VECTOR_TABLE,
         )
-        store.open()
+        store.connect()
         store.upsert_records(TEST_VECTOR_TABLE, _VECTOR_RECORDS)
         assert store.publish() is True
         store.close()
@@ -256,7 +286,7 @@ class TestSkillVectorFromCache:
             tables=["audits"],
             vector_db_table=TEST_VECTOR_TABLE,
         )
-        store.open()
+        store.connect()
         store.upsert_records(TEST_VECTOR_TABLE, _VECTOR_RECORDS)
         assert store.publish() is True
         store.close()
@@ -289,7 +319,7 @@ class TestSkillVectorFromCache:
             tables=["audits"],
             vector_db_table=TEST_VECTOR_TABLE,
         )
-        store.open()
+        store.connect()
         store.upsert_records(TEST_VECTOR_TABLE, _VECTOR_RECORDS)
         assert store.publish() is True
         store.close()
@@ -323,7 +353,7 @@ class TestPublish:
             schema=_test_schema,
             tables=["audits", "violations"],
         )
-        store.open()
+        store.connect()
         store.upsert_records(TEST_TABLE, [{"id": 1, "title": "П1", "status": "open"}])
         assert store.get_stats()["dirty"] is True
         assert store.publish() is True
@@ -347,7 +377,7 @@ class TestPublish:
             schema=_test_schema,
             tables=["audits"],
         )
-        store.open()
+        store.connect()
         store.upsert_records(TEST_TABLE, [{"id": 1, "title": "А", "status": "open"}])
         store.publish()
         store.upsert_records(TEST_TABLE, [{"id": 1, "title": "Б", "status": "open"}])
@@ -361,13 +391,168 @@ class TestPublish:
         assert store.get_stats()["publishes"] == 2
         store.close()
 
+    def test_publish_refuses_when_working_db_is_the_publish_file(self, tmp_path):
+        """Рабочая БД = файл снапшота — конфигурация запрещена.
+
+        Раньше она считалась «реальной», и publish справлялся обходом
+        close() → replace → reopen. Обход удалён вместе с самой
+        конфигурацией: подменять файл с открытым handle на Windows нельзя
+        (WinError 5), и, главное, весь жизненный цикл файл недоступен
+        остальным (CLI навыка, READER). Теперь store отказывает явно.
+        """
+        target = tmp_path / "cache.duckdb"
+        store = DuckDbCacheStore(
+            cache_path=str(target),
+            publish_path=str(target),
+            schema=_test_schema,
+            tables=["audits"],
+        )
+        store.connect()
+        store.upsert_records(TEST_TABLE, [{"id": 1, "title": "А", "status": "open"}])
+
+        assert store.publish() is False
+        assert "один файл" in (store.get_stats().get("last_error") or "")
+        store.close()
+
+    def test_publish_works_when_working_db_differs_from_publish_path(self, tmp_path):
+        """Рабочий контракт: рабочая БД в памяти, снапшот — отдельный файл.
+
+        Именно так OWNER поднимает store (``_make_sync_services``): publish
+        подменяет файл, не трогая живое соединение, поэтому после публикации
+        данные на месте, соединение рабочее, а файл свободен для читателя —
+        его можно открыть вторым подключением, не закрывая store.
+        """
+        import duckdb
+
+        target = tmp_path / "cache.duckdb"
+        store = DuckDbCacheStore(
+            cache_path="",
+            publish_path=str(target),
+            schema=_test_schema,
+            tables=["audits"],
+        )
+        store.connect()
+        store.upsert_records(TEST_TABLE, [{"id": 1, "title": "А", "status": "open"}])
+        assert store.publish() is True, store.get_stats().get("last_error")
+
+        store.upsert_records(TEST_TABLE, [{"id": 1, "title": "Б", "status": "open"}])
+        assert store.publish() is True, store.get_stats().get("last_error")
+        assert store.get_stats()["publishes"] == 2
+
+        # Соединение осталось рабочим после подмены файла.
+        assert store.is_ready() is True
+        r = store.query_sql(f"SELECT title FROM {TEST_TABLE} WHERE id = 1")
+        assert r["rows"][0]["title"] == "Б"
+
+        # Файл читается ВТОРЫМ подключением, пока store жив и держит
+        # рабочую базу: ровно то, что не могло работать раньше.
+        ro = duckdb.connect(str(target), read_only=True)
+        try:
+            title = ro.execute(
+                f"SELECT title FROM {TEST_TABLE} WHERE id = 1"
+            ).fetchall()[0][0]
+        finally:
+            ro.close()
+        assert title == "Б"
+        store.close()
+
+    def test_publish_leaves_no_tmp_files_behind(self, tmp_path):
+        """После успешного publish не остаётся осиротевших .tmp файлов."""
+        target = tmp_path / "cache.duckdb"
+        store = DuckDbCacheStore(
+            cache_path="",
+            publish_path=str(target),
+            schema=_test_schema,
+            tables=["audits"],
+        )
+        store.connect()
+        store.upsert_records(TEST_TABLE, [{"id": 1, "title": "А", "status": "open"}])
+        assert store.publish() is True
+        leftovers = sorted(p.name for p in tmp_path.iterdir() if p.name.endswith(".tmp"))
+        assert leftovers == [], f" осиротевшие .tmp: {leftovers}"
+        store.close()
+
+    # -- adopt_snapshot (reuse_ttl_hours) ---------------------------------
+
+    def test_adopt_snapshot_loads_tables_and_releases_the_file(self, tmp_path):
+        """OWNER переиспользует готовый снапшот и ОТПУСКАЕТ файл.
+
+        Сценарий ``reuse_ttl_hours``: снапшот моложе TTL → gateway не идёт
+        в PostgreSQL, а читает файл в рабочую базу. Ключевое свойство —
+        после ``adopt_snapshot`` файл не открыт нигде, поэтому его может
+        взять внешний читатель (CLI навыка). Раньше рабочей базой был сам
+        файл снапшота, и такой читатель получал «File is already open».
+        """
+        import duckdb
+
+        target = tmp_path / "cache.duckdb"
+
+        publisher = DuckDbCacheStore(
+            cache_path="",
+            publish_path=str(target),
+            schema=_test_schema,
+            tables=["audits"],
+        )
+        publisher.connect()
+        publisher.upsert_records(
+            TEST_TABLE, [{"id": 1, "title": "из снапшота", "status": "open"}]
+        )
+        assert publisher.publish(force=True) is True
+        publisher.close()
+
+        owner = DuckDbCacheStore(
+            cache_path="",
+            publish_path=str(target),
+            schema=_test_schema,
+            tables=["audits"],
+        )
+        owner.connect()
+        assert owner.adopt_snapshot(str(target)) is True
+        assert owner.is_ready() is True
+
+        r = owner.query_sql(f"SELECT title FROM {TEST_TABLE} WHERE id = 1")
+        assert r["rows"][0]["title"] == "из снапшота"
+
+        # Файл свободен: читается вторым подключением, пока owner жив.
+        ro = duckdb.connect(str(target), read_only=True)
+        try:
+            n = ro.execute(f"SELECT COUNT(*) FROM {TEST_TABLE}").fetchone()[0]
+        finally:
+            ro.close()
+        assert n == 1
+        owner.close()
+
+    def test_adopt_snapshot_missing_file_returns_false(self, tmp_path):
+        store = DuckDbCacheStore(
+            cache_path="",
+            publish_path=str(tmp_path / "out.duckdb"),
+            schema=_test_schema,
+            tables=["audits"],
+        )
+        store.connect()
+        assert store.adopt_snapshot(str(tmp_path / "absent.duckdb")) is False
+        store.close()
+
+    def test_adopt_snapshot_refuses_when_working_db_is_the_snapshot(self, tmp_path):
+        """Нельзя «прочитать файл в себя» — возвращается отказ, а не no-op."""
+        target = tmp_path / "cache.duckdb"
+        store = DuckDbCacheStore(
+            cache_path=str(target),
+            publish_path=str(target),
+            schema=_test_schema,
+            tables=["audits"],
+        )
+        store.connect()
+        assert store.adopt_snapshot(str(target)) is False
+        assert "один файл" in (store.get_stats().get("last_error") or "")
+        store.close()
+
     def test_publish_noop_when_not_dirty(self, tmp_path):
         target = tmp_path / "out.duckdb"
         store = DuckDbCacheStore(cache_path="", publish_path=str(target), schema=_test_schema)
-        store.open()
+        store.connect()
         assert store.publish() is True
         assert not target.exists()
-        store.close()
 
     def test_publish_force_recreates_when_not_dirty(self, tmp_path):
         target = tmp_path / "out.duckdb"
@@ -377,7 +562,7 @@ class TestPublish:
             schema=_test_schema,
             tables=["audits"],
         )
-        store.open()
+        store.connect()
         # нет данных (store не грязный) — обычный publish no-op, force — создаёт снимок
         assert store.publish() is True
         assert not target.exists()
@@ -388,7 +573,7 @@ class TestPublish:
 
     def test_publish_force_noop_without_publish_path(self):
         store = DuckDbCacheStore(cache_path="", schema=_test_schema)
-        store.open()
+        store.connect()
         assert store.publish(force=True) is True
         store.close()
 
@@ -400,7 +585,7 @@ class TestPublish:
             schema=_test_schema,
             tables=["audits", "violations"],  # violations не заполнена
         )
-        store.open()
+        store.connect()
         store.upsert_records(TEST_TABLE, [{"id": 1, "title": "А", "status": "open"}])
         assert store.publish() is True
         import duckdb
@@ -414,7 +599,7 @@ class TestPublish:
 
     def test_publish_without_publish_path_is_noop(self):
         store = DuckDbCacheStore(cache_path="", schema=_test_schema)
-        store.open()
+        store.connect()
         store.upsert_records(TEST_TABLE, [{"id": 1, "title": "А", "status": "open"}])
         assert store.publish() is True
         store.close()
@@ -523,7 +708,7 @@ class TestReplace:
         st = DuckDbCacheStore(
             cache_path="", publish_path=str(target), schema=_test_schema, tables=["audits"],
         )
-        st.open()
+        st.connect()
         st.ensure_schema(TEST_TABLE, _COLS)
         st.upsert_records(TEST_TABLE, [{"id": 1, "title": "П1", "amount": 1.5, "checked_on": "2024-05-21"}])
         assert st.publish() is True

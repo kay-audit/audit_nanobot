@@ -13,7 +13,7 @@ import pytest
 
 @pytest.fixture
 def full_fake_modules(tmp_path):
-    """Подменяем ВСЕ модули, от которых зависит ApplicationContext.create()."""
+    """Подменяем ВСЕ модули, от которых зависит ApplicationContext.create(role='gateway', )."""
     with patch.dict("sys.modules"):
 
         # nanobot.agent
@@ -36,6 +36,22 @@ def full_fake_modules(tmp_path):
         sys.modules["nanobot.agent"] = sol.agent
         sys.modules["nanobot.agent.loop"] = loop
         sys.modules["nanobot.agent.hook"] = hook
+
+        # nanobot.agent.tools — AgentFactory импортирует
+        # ``from nanobot.agent.tools.registry import ToolRegistry``, а
+        # project_tool_loader — ``from nanobot.agent.tools.base import Tool``.
+        # Модуль должен быть ПАКЕТОМ (``__path__``), иначе импорт
+        # подмодуля падает («nanobot.agent.tools is not a package»).
+        tools_pkg = types.ModuleType("nanobot.agent.tools")
+        tools_pkg.__path__ = []  # type: ignore[attr-defined]
+        tools_registry = types.ModuleType("nanobot.agent.tools.registry")
+        tools_registry.ToolRegistry = MagicMock()
+        tools_base = types.ModuleType("nanobot.agent.tools.base")
+        tools_base.Tool = type("Tool", (), {"config_key": "", "config_cls": None})
+        sol.agent.tools = tools_pkg
+        sys.modules["nanobot.agent.tools"] = tools_pkg
+        sys.modules["nanobot.agent.tools.registry"] = tools_registry
+        sys.modules["nanobot.agent.tools.base"] = tools_base
 
         # nanobot.bus
         sol.bus = types.ModuleType("nanobot.bus")
@@ -188,7 +204,7 @@ class TestCreate:
         from lib.core.application_context import ApplicationContext
 
         script = Path(__file__).resolve().parent.parent
-        ctx = ApplicationContext.create(
+        ctx = ApplicationContext.create(role='gateway', 
             script_dir=script,
             workspace_dir=script / "workspace",
             enable_db_logging=False,
@@ -210,13 +226,53 @@ class TestCreate:
         from lib.core.application_context import ApplicationContext
 
         script = Path(__file__).resolve().parent.parent
-        ctx = ApplicationContext.create(
+        ctx = ApplicationContext.create(role='gateway', 
             script_dir=script,
             workspace_dir=script / "workspace",
             enable_db_logging=False,
             enable_audit=False,
         )
         assert ctx.storage_mode == "file"
+
+    def test_creates_startup_gate(self, full_fake_modules):
+        """Гейт «данные → векторы → каналы» собирается всегда.
+
+        Даже при выключенном аудите: его ``phase`` читает readiness, и
+        создавать его позже по требованию значило бы оставить проверку
+        без источника состояния. Гейт связан с теми же preload-сервисом
+        и cache-хранилищем, что и остальной контекст.
+        """
+        from lib.core.application_context import ApplicationContext
+
+        script = Path(__file__).resolve().parent.parent
+        ctx = ApplicationContext.create(role='gateway',
+            script_dir=script,
+            workspace_dir=script / "workspace",
+            enable_db_logging=False,
+            enable_audit=False,
+        )
+        assert ctx.startup_gate is not None
+        assert ctx.startup_gate.config.enabled is True
+        assert ctx.startup_gate.config.await_ready is True
+        assert ctx.startup_gate.config.on_unavailable == "warn"
+        assert ctx.startup_gate.phase == "pending"
+        assert ctx.startup_gate._preload_service is ctx.preload_service
+        assert ctx.startup_gate._cache_store is ctx.cache_provider
+
+    def test_startup_gate_defaults_hold_without_audit(self):
+        """Дефолты гейта не зависят от наличия sync-сервиса."""
+        from lib.core.application_context import _make_startup_gate
+        from lib.services.startup_gate import VectorPreloadConfig
+
+        gate = _make_startup_gate({}, None, None)
+        assert isinstance(gate.config, VectorPreloadConfig)
+        # Ни кэша, ни preload-сервиса — гейт обязан это пережить и
+        # завершиться skip, а не упасть на старте.
+        import asyncio
+
+        report = asyncio.run(gate.prepare(None))
+        assert report.phase == "skipped"
+        assert report.ok is True
 
     def test_pool_config_applied_from_settings(self, full_fake_modules):
         from unittest.mock import MagicMock
@@ -232,7 +288,7 @@ class TestCreate:
         from lib.core.application_context import ApplicationContext
 
         script = Path(__file__).resolve().parent.parent
-        ApplicationContext.create(
+        ApplicationContext.create(role='gateway', 
             script_dir=script,
             workspace_dir=script / "workspace",
             enable_db_logging=False,
@@ -254,7 +310,7 @@ class TestCreate:
         full_fake_modules["settings"].gateway.storage = "file"
         # Override, но DSN пуст → SessionStorageService должен упасть,
         # но ApplicationContext делает fallback на "file".
-        ctx = ApplicationContext.create(
+        ctx = ApplicationContext.create(role='gateway', 
             script_dir=script,
             workspace_dir=script / "workspace",
             enable_db_logging=False,
@@ -267,7 +323,7 @@ class TestCreate:
         from lib.core.application_context import ApplicationContext
 
         script = Path(__file__).resolve().parent.parent
-        ctx = ApplicationContext.create(
+        ctx = ApplicationContext.create(role='gateway', 
             script_dir=script,
             workspace_dir=script / "workspace",
             enable_db_logging=False,
@@ -287,7 +343,7 @@ class TestCreate:
         from lib.core.application_context import ApplicationContext
 
         script = Path(__file__).resolve().parent.parent
-        ctx = ApplicationContext.create(
+        ctx = ApplicationContext.create(role='gateway', 
             script_dir=script,
             workspace_dir=script / "workspace",
             enable_db_logging=False,
@@ -320,7 +376,7 @@ class TestCreate:
         from lib.core.application_context import ApplicationContext
 
         script = Path(__file__).resolve().parent.parent
-        ApplicationContext.create(
+        ApplicationContext.create(role='gateway', 
             script_dir=script,
             workspace_dir=script / "workspace",
             enable_db_logging=False,
@@ -342,7 +398,7 @@ class TestCreate:
 
 
 class TestTableRegistryReset:
-    """``ApplicationContext.create()`` сбрасывает singleton
+    """``ApplicationContext.create(role='gateway', )`` сбрасывает singleton
     ``table_registry`` в начале, чтобы при повторном создании context
     в одном процессе (тесты, streamlit-reload) не утекали ресурсы
     от предыдущего context.
@@ -368,7 +424,7 @@ class TestTableRegistryReset:
         assert "leftover_skill" in table_registry.names()
 
         script = Path(__file__).resolve().parent.parent
-        ApplicationContext.create(
+        ApplicationContext.create(role='gateway', 
             script_dir=script,
             workspace_dir=script / "workspace",
             enable_db_logging=False,
@@ -376,7 +432,7 @@ class TestTableRegistryReset:
         )
 
         assert "leftover_skill" not in table_registry.names(), (
-            "ApplicationContext.create() должен сбрасывать TableRegistry "
+            "ApplicationContext.create(role='gateway', ) должен сбрасывать TableRegistry "
             "в начале; остались ресурсы от предыдущего context"
         )
 

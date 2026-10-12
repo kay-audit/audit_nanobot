@@ -15,7 +15,6 @@ import sys
 import traceback
 from pathlib import Path
 
-
 _SUPPORTED_PROFILES = ("prod", "test")
 
 
@@ -25,6 +24,14 @@ _SUPPORTED_PROFILES = ("prod", "test")
 # профиль). Сам импорт ``config`` чистый (никаких side-effects на
 # module-level — Phase A).
 from config import ConfigurationError  # noqa: E402
+from lib.services.startup_gate import (  # noqa: E402
+    StartupGateError,
+    ThreadSafeSignal,
+)
+from lib.utils.windows_terminal import enable_vt, is_windows_console  # noqa: E402
+
+if is_windows_console():
+    enable_vt()
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -89,8 +96,8 @@ if sys.platform != "win32":
     os.environ.setdefault("LC_ALL", "C.UTF-8")
     os.environ.setdefault("LANG", "C.UTF-8")
 
-from loguru import logger
-from rich.console import Console
+from loguru import logger  # noqa: E402
+from rich.console import Console  # noqa: E402
 
 
 def _entrypoint_main(args: argparse.Namespace, script_dir: Path, workspace_dir: Path) -> None:
@@ -108,15 +115,16 @@ def _entrypoint_main(args: argparse.Namespace, script_dir: Path, workspace_dir: 
     #    если кто-то вызовет lifecycle-gate напрямую минуя CLI).
     _cfg._initialize_settings(profile=args.profile)
 
-    from lib.core.application_context import ApplicationContext
+    from lib.core.application_context import (  # noqa: E402
+        ApplicationContext,
+        evaluate_cache_snapshot,
+        format_cache_age,
+    )
     from lib.lifecycle.gateway_runner import GatewayRunner
 
-    ctx = ApplicationContext.create(
+    ctx = ApplicationContext.create(role='gateway',
         script_dir=script_dir,
         workspace_dir=workspace_dir,
-        enable_db_logging=True,
-        enable_audit=True,
-        print_llm_calls=_gateway_print_llm_calls(),
     )
 
     # 3. Smoke-режим: печатает баннер и runtime-таблицу, выходит сразу.
@@ -125,8 +133,9 @@ def _entrypoint_main(args: argparse.Namespace, script_dir: Path, workspace_dir: 
     # Импорты — выше ``if args.smoke:`` чтобы избежать
     # UnboundLocalError (Python видит имя в теле функции и считает
     # его локальным; ветка else не имеет своего импорта).
-    from lib.utils.project_version import project_version
     from nanobot.cli.commands import __logo__, __version__
+
+    from lib.utils.project_version import project_version
 
     if args.smoke:
         runtime_table = ctx.settings["logging"]["db"]["table_name"]
@@ -149,34 +158,93 @@ def _entrypoint_main(args: argparse.Namespace, script_dir: Path, workspace_dir: 
     # PgDuckDbSyncService.worker-тред успеет сделать initial_load раньше,
     # чем мы поставим callback (set_on_new_records_callback=None), и
     # данные не попадут in-memory DuckDB.
-    first_sync_event: "asyncio.Event | None" = None
+    #
+    # ``ThreadSafeSignal``, а не ``asyncio.Event``: сигнал выставляется из
+    # worker-треда, а ждёт его startup-фаза в своём loop. Без явного
+    # ``call_soon_threadsafe`` такое ожидание (а таймаутов здесь нет по
+    # решению фичи) могло бы длиться бесконечно уже после загрузки.
+    first_sync_event: ThreadSafeSignal | None = None
     if ctx.sync_service is not None and ctx.cache_store is not None:
-        ctx.cache_store.open()
-        # Пересоздаём снапшот при каждом старте: удаляем устаревший файл,
-        # чтобы CLI/skill не читали данные с прошлого запуска, пока
-        # initial_load не заполнит свежий снимок заново.
-        _old_snapshot = ctx.cache_store.get_stats().get("publish_path")
-        if _old_snapshot:
-            # Чистим и финальный снапшот, и осиротевший .tmp (publish мог быть
-            # убит между ATTACH и os.replace — тогда .tmp лежит залоченный
-            # через NFS lockd, и новый publish отстрелит "PID 0" на ATTACH).
-            for _candidate in (Path(_old_snapshot),
-                               Path(_old_snapshot + ".tmp")):
-                try:
-                    _candidate.unlink(missing_ok=True)
-                except OSError:
-                    pass
-        ctx.sync_service.set_on_new_records_callback(
-            ctx.cache_store.upsert_records
+        ctx.cache_store.connect()
+
+        # Свежесть снапшота решает, грузим ли мы данные заново.
+        # TTL — ``gateway.cache.reuse_ttl_hours`` (дефолт 23 ч), считается по
+        # mtime файла = момент последней публикации. См. evaluate_cache_snapshot.
+        _ttl_hours = 23.0
+        try:
+            _cache_cfg = ctx.settings.get("gateway", {}).get("cache", {}) or {}
+            _ttl_hours = float(_cache_cfg.get("reuse_ttl_hours", _ttl_hours))
+        except (AttributeError, TypeError, ValueError):
+            # Настройка битая — безопасный путь: старое поведение (пересоздать).
+            _ttl_hours = 0.0
+            logger.warning(
+                "gateway.cache.reuse_ttl_hours нечитаем — снапшот будет "
+                "пересоздан (reuse_ttl_hours=0)"
+            )
+        _snapshot_path = ctx.cache_store.get_stats().get("publish_path") or ""
+        _decision = evaluate_cache_snapshot(_snapshot_path, _ttl_hours)
+        # «Переиспользовать» = взять данные ИЗ ФАЙЛА. У OWNER рабочая БД
+        # в памяти, поэтому файл нужно прочитать и сразу отпустить
+        # (``adopt_snapshot``); раньше он просто оставался открытым весь
+        # жизненный цикл, и второй процесс не мог его открыть.
+        # ``is_ready()`` как критерий больше не годится: он истинно для
+        # пустой in-memory базы и молча дал бы работу без данных.
+        _reuse = False
+        if _decision.reuse:
+            _adopt = getattr(ctx.cache_store, "adopt_snapshot", None)
+            if callable(_adopt):
+                _reuse = bool(_adopt(_snapshot_path))
+            else:  # store без adopt_snapshot — доверяем факту открытия
+                _reuse = ctx.cache_store.is_ready()
+        if _decision.reuse and not _reuse:
+            logger.warning(
+                "cache snapshot {} считается свежим (age={}), но загрузить его "
+                "не удалось — принудительный пересоздан",
+                _snapshot_path, format_cache_age(_decision.age_sec),
+            )
+        logger.info(
+            "cache snapshot: path={} age={} ttl={} decision={} reuse={}",
+            _snapshot_path,
+            format_cache_age(_decision.age_sec),
+            format_cache_age(_decision.ttl_sec),
+            _decision.reason,
+            _reuse,
         )
+
+        if not _reuse:
+            # Пересоздаём снапшот: удаляем устаревший файл, чтобы CLI/skill не
+            # читали данные с прошлого запуска, пока initial_load не заполнит
+            # свежий снимок заново.
+            if _snapshot_path:
+                # Чистим и финальный снапшот, и осиротевший .tmp (publish мог быть
+                # убит между ATTACH и os.replace — тогда .tmp лежит залоченный
+                # через NFS lockd, и новый publish отстрелит "PID 0" на ATTACH).
+                for _candidate in (Path(_snapshot_path),
+                                   Path(_snapshot_path + ".tmp")):
+                    try:
+                        _candidate.unlink(missing_ok=True)
+                    except OSError:
+                        pass
+
+        # Колбэк upsert НЕ переустанавливаем: его уже выставил
+        # ``_make_sync_services`` как PK-aware обёртку
+        # (``_upsert_with_pk``), которая резолвит PK источника и передаёт
+        # ``key_column=sync.key_column_for(table)``. Простая замена на
+        # ``cache_store.upsert_records`` откатывала бы её к дефолту
+        # ``key_column=None`` — и таблицы с PK не ``id``
+        # (``public.agent_predefined_scripts`` с PK ``name``) уходили бы в
+        # ветку пересоздания, которая для дельты от ``_fetch_incremental``
+        # удаляет несвязанные строки. Назначение колбэков — контракт
+        # composition root'а, а не callers'а.
+        #
         # Сохраняем оригинальный callback и подменяем на обёртку,
-        # которая set-ит Event при первом вызове И публикует снимок
-        # DuckDB в publish_path после каждого цикла синхронизации.
+        # которая публикует снимок DuckDB в publish_path после каждого
+        # цикла синхронизации и выставляет сигнал готовности данных.
         # Без publish() файл workspace/data_store/duckdb/cache.duckdb
         # не создаётся — CLI/skill читают пусто/404. Путь вычисляется
         # через table_registry.snapshot_path() в ApplicationContext.
         prev_cb = getattr(ctx.sync_service, "_on_sync_callback", None)
-        first_sync_event = asyncio.Event()
+        first_sync_event = ThreadSafeSignal()
         memory_store = ctx.cache_store
         _first_sync_done = False
 
@@ -186,7 +254,6 @@ def _entrypoint_main(args: argparse.Namespace, script_dir: Path, workspace_dir: 
 
         def _wrapped() -> None:
             nonlocal _first_sync_done
-            _on_first_sync()
             try:
                 # Первая публикация — принудительная: снапшот пересоздаётся
                 # даже если initial_load не нашёл ни одной строки (иначе
@@ -195,6 +262,11 @@ def _entrypoint_main(args: argparse.Namespace, script_dir: Path, workspace_dir: 
                 _first_sync_done = True
             except Exception:
                 pass
+            # Event выставляется ПОСЛЕ publish: «DuckDB загружен» должно
+            # означать и данные в памяти, и снапшот на диске. Раньше event
+            # снимался до publish, поэтому стартовый гейт мог начать
+            # сборку векторов, пока снапшот ещё писался.
+            _on_first_sync()
             if prev_cb is not None:
                 try:
                     prev_cb()
@@ -203,14 +275,41 @@ def _entrypoint_main(args: argparse.Namespace, script_dir: Path, workspace_dir: 
 
         ctx.sync_service.set_on_sync_callback(_wrapped)
 
+        if _reuse:
+            # Синхронизатор не запустится (см. ApplicationContext.start и
+            # skip_data_load) — значит он НИКОГДА не вызовет ``_wrapped`` и
+            # сигнал готовности не будет поставлен. StartupGate ждёт этот
+            # сигнал без таймаутов, поэтому удовлетворяем его здесь, явно:
+            # данные уже в DuckDB (store открыт и is_ready), снапшот лежит
+            # на диске. Молча ждать тут нельзя — гейт висел бы вечно.
+            ctx.skip_data_load = True  # type: ignore[attr-defined]
+            console.print(
+                f"[cache] свежий снапшот использован как есть "
+                f"(age={format_cache_age(_decision.age_sec)}, "
+                f"ttl={format_cache_age(_decision.ttl_sec)}): "
+                f"{_snapshot_path} — фаза загрузки данных пропущена"
+            )
+            first_sync_event.set()
+
+    # Сигнал готовности данных публикуем на ctx: фоновый режим
+    # (``await_ready=false``) ждёт его уже в рабочем цикле.
+    ctx.cache_ready_signal = first_sync_event  # type: ignore[attr-defined]
+
     ctx.start()
 
     _report_db_pool_startup()
 
+    _check_websocket_port_available(ctx)
+
+    # Фаза подготовки — ДО ``run_forever``: DuckDB → векторы. Только
+    # после неё поднимаются каналы, то есть очередь вопросов начинает
+    # обслуживаться с готовыми FAISS-индексами. Вынесено из рабочего
+    # цикла намеренно: у подготовки своя семантика отказа (fail → exit 2),
+    # а ``GatewayRunner`` перезапускает именно рабочий цикл.
+    _run_startup_preparation(ctx, first_sync_event)
+
     try:
-        GatewayRunner().run_forever(
-            lambda: asyncio.run(_run(ctx, first_sync_event))
-        )
+        GatewayRunner().run_forever(lambda: asyncio.run(_run(ctx)))
     finally:
         # Финальный снимок в publish_path — гарантируем, что CLI/skill
         # увидят свежие данные даже если цикл поллинга не успел
@@ -223,6 +322,89 @@ def _entrypoint_main(args: argparse.Namespace, script_dir: Path, workspace_dir: 
         # Останавливаем фоновые сервисы, которые создал ApplicationContext,
         # но Streamlit/channels — отдельно (живут в shutdown(ctx))
         ctx.stop()
+
+
+def _run_startup_preparation(ctx, first_sync_event) -> None:
+    """Явная фаза «данные → векторы» перед стартом каналов.
+
+    Шаги (без таймаутов, порядок держится на сигнале готовности):
+
+    1. ``StartupGate.wait_for_cache`` — ждёт сигнал ``PgDuckDbSyncService``
+       «данные в DuckDB + снапшот опубликован»;
+    2. ``StartupGate.load_vectors`` — дождаться сборки FAISS-индексов.
+
+    Пока шаг 1 не завершён, процесс жив, но каналы закрыты: вопросы не
+    принимаются. Это видно и в логе (строка ожидания печатается), и в
+    readiness (``vector_search=DOWN``, ``gate: pending``).
+
+    Raises:
+        StartupGateError: ``gateway.startup.vector_preload.on_unavailable
+            ="fail"`` и векторы не готовы — ``gateway.main()`` превращает
+            это в ``FATAL`` + ``exit 2``, каналы не поднимаются.
+    """
+    from lib.services.startup_gate import StartupGateError
+
+    gate = getattr(ctx, "startup_gate", None)
+    cache_store = getattr(ctx, "cache_store", None)
+    sync_service = getattr(ctx, "sync_service", None)
+
+    # Без сервиса синхронизации (аудит выключен) данных ждать нечего, а
+    # FAISS строится из DuckDB-кэша, которого нет: гейт не применяется.
+    if gate is None or cache_store is None or sync_service is None:
+        return
+
+    config = getattr(gate, "config", None)
+    if config is None or not config.enabled:
+        console.print(
+            "[dim]vector preload выключен "
+            "(gateway.startup.vector_preload.enabled=false)[/dim]"
+        )
+        return
+
+    if not config.await_ready:
+        # Явный отказ от ожидания по требованию конфига: каналы стартуют
+        # сразу, индексы догружаются в фоне рабочего цикла (там же, где
+        # живёт loop фоновой задачи — из подготовки её запускать нельзя).
+        ctx.background_vector_preload = True  # type: ignore[attr-defined]
+        console.print(
+            "[yellow]⚠[/yellow] Векторные индексы готовятся в фоне "
+            "(gateway.startup.vector_preload.await_ready=false): "
+            "первые вопросы уйдут агенту без векторов"
+        )
+        return
+
+    console.print(
+        "[dim]⏳ Подготовка данных: PG → DuckDB → FAISS-индексы. "
+        "Каналы стартуют после этого шага.[/dim]"
+    )
+
+    try:
+        asyncio.run(
+            _run_startup_preparation_async(ctx, first_sync_event)
+        )
+    except StartupGateError as exc:
+        _print_gate_report(exc.report)
+        raise
+
+
+async def _run_startup_preparation_async(ctx, cache_ready_signal) -> None:
+    """async-шаги подготовки (тело ``_run_startup_preparation``).
+
+    Отделено от синхронной обёртки, чтобы порядок можно было проверять
+    тестом изнутри одного loop, а не гонять ``asyncio.run`` в потоке.
+
+    ``StartupGate.wait_for_cache`` сам привязывает loop к сигналу
+    (``ThreadSafeSignal``), поэтому пробуждение из worker-треда
+    синхронизации надёжно даже без таймаута.
+
+    Raises:
+        StartupGateError: при ``on_unavailable="fail"`` — векторы не
+            готовы, значит каналы не поднимаются.
+    """
+    gate = ctx.startup_gate
+    await gate.wait_for_cache(cache_ready_signal)
+    report = await gate.load_vectors()
+    _print_gate_report(report)
 
 
 def _project_version() -> str:
@@ -238,8 +420,14 @@ def _project_version() -> str:
     return project_version()
 
 
-async def _run(ctx, first_sync_event) -> None:
-    """Основной рабочий цикл gateway: каналы + Streamlit + агент."""
+async def _run(ctx) -> None:
+    """Основной рабочий цикл gateway: каналы + Streamlit + агент.
+
+    Вызывается из ``GatewayRunner.run_forever`` — то есть **после**
+    фазы подготовки (``_run_startup_preparation``): данные в DuckDB уже
+    загружены, FAISS-индексы собраны, и только теперь поднимаются
+    каналы. Отсюда и порядок в вопросах: канал стартует после векторов.
+    """
     from lib.services.channel_factory import ChannelFactory
 
     channel_factory = ChannelFactory(
@@ -270,52 +458,21 @@ async def _run(ctx, first_sync_event) -> None:
         else:
             console.print("[green]✓[/green] audit_analyzer sync started")
 
-        # Фоновый прогрев FAISS-индексов в память; результат печатается
-        # по мере готовности. Дожидаемся первого sync-callback от
-        # PgDuckDbSyncService (он вызывается после initial_load), иначе
-        # preload стартует на пустом DuckDB-кеше и видит "нет данных".
-        async def _preload_and_report() -> None:
-            if first_sync_event is not None:
-                try:
-                    await asyncio.wait_for(
-                        first_sync_event.wait(), timeout=30.0
-                    )
-                except asyncio.TimeoutError:
-                    console.print(
-                        "[yellow]⚠[/yellow] audit_analyzer initial load "
-                        "timeout (>30s), preload на текущем состоянии"
-                    )
-            loaded = await ctx.preload_service.preload_vector_indexes(
-                cache_store
-            )
-            errs = cache_store.preload_errors()
-            if errs:
-                console.print(
-                    f"[yellow]⚠[/yellow] vector index build errors: "
-                    f"{len(errs)}"
-                )
-                for err in errs:
-                    name = err.get("index_name") or "?"
-                    console.print(
-                        f"  [red]✗[/red] '{name}': "
-                        f"{err.get('error_type')}: {err.get('error')}"
-                    )
-            if not loaded:
-                if not errs:
-                    console.print(
-                        "[dim]audit_analyzer vector indexes: "
-                        "нет данных в кэше[/dim]"
-                    )
-                return
-            for item in loaded:
-                console.print(
-                    f"[green]✓[/green] vector index '{item['index_name']}' "
-                    f"built in memory: {item['vectors']} vectors"
-                )
-
-        asyncio.create_task(_preload_and_report())
-
+    # Данные и векторы к этому моменту уже готовы — фаза подготовки
+    # отработала до ``run_forever`` (``_run_startup_preparation``).
+    # Здесь стартуют каналы, то есть очередь вопросов.
     channels_task = asyncio.create_task(channels.start_all())
+
+    if getattr(ctx, "background_vector_preload", False):
+        # Явный отказ от ожидания (``await_ready=false``): вопросы уже
+        # принимаются, индексы догружаются здесь же, в loop агента.
+        asyncio.create_task(_preload_in_background(ctx))
+
+    if cache_store is not None and sync_service is not None:
+        console.print(
+            "[green]✓[/green] Channels started: очередь вопросов "
+            "обслуживается с готовыми векторами"
+        )
 
     try:
         await ctx.agent.run()
@@ -331,13 +488,69 @@ async def _run(ctx, first_sync_event) -> None:
 
         subprocess_manager.terminate_all()
 
-        await ctx.agent.close_mcp()
+        await ctx.agent.aclose()
         ctx.agent.stop()
         await channels.stop_all()
 
         flushed = ctx.agent.sessions.flush_all()
         if flushed:
             logger.info("Flushed {} session(s) to disk", flushed)
+
+
+def _print_gate_report(report) -> None:
+    """Rich-вывод отчёта гейта: что загрузилось, что нет и почему."""
+    if report.phase == "skipped":
+        console.print(f"[dim]vector preload: {report.detail}[/dim]")
+        return
+    if not report.ok:
+        console.print(
+            f"[red]✗[/red] vector preload не завершён: {report.detail}"
+        )
+    for err in report.errors:
+        name = err.get("index_name") or "?"
+        console.print(
+            f"  [red]✗[/red] '{name}': "
+            f"{err.get('error_type')}: {err.get('error')}"
+        )
+    for item in report.loaded:
+        console.print(
+            f"[green]✓[/green] vector index '{item['index_name']}' "
+            f"built in memory: {item['vectors']} vectors"
+        )
+    if report.ok and not report.loaded and not report.errors:
+        console.print(
+            "[dim]vector indexes: нет данных в кэше[/dim]"
+        )
+    if report.ok and report.loaded:
+        console.print(
+            f"[green]✓[/green] vector indexes готовы "
+            f"({len(report.loaded)}, {report.duration_sec:.1f}s) — "
+            "каналы стартуют"
+        )
+
+
+async def _preload_in_background(ctx) -> None:
+    """Фоновый прогрев индексов (режим ``await_ready=false``).
+
+    Каналы к этому моменту уже стартовали — это осознанный отказ от
+    ожидания по требованию конфига, а не поведение по умолчанию.
+    Задача живёт в loop рабочего цикла (в preparation-loop её создать
+    нельзя: loop закроется вместе с фазой подготовки).
+
+    Сигнал готовности данных здесь по-прежнему ждём **без таймаута**:
+    пустой DuckDB-кэш дал бы нулевые индексы, то есть тихо худшие
+    ответы — ровно то, что фича убирает.
+    """
+    gate = getattr(ctx, "startup_gate", None)
+    if gate is None:
+        return
+    try:
+        await gate.wait_for_cache(getattr(ctx, "cache_ready_signal", None))
+        report = await gate.load_vectors()
+    except Exception as exc:  # noqa: BLE001 - фоновая задача не роняет loop
+        console.print(f"[yellow]⚠[/yellow] vector preload failed: {exc}")
+        return
+    _print_gate_report(report)
 
 
 _SCRIPT_DIR: Path | None = None
@@ -426,7 +639,7 @@ def _report_db_pool_startup() -> None:
     (при недоступной БД это честно выявляет ошибку вместо «0 connected»).
     """
     try:
-        from utils.db import probe_connections, get_stats
+        from utils.db import get_stats, probe_connections
 
         probe_connections()
         s = get_stats()
@@ -449,6 +662,93 @@ def _report_db_pool_startup() -> None:
             )
     except Exception:
         console.print("[red]✗[/red] DB pool: статус недоступен")
+
+
+def _check_websocket_port_available(ctx) -> None:
+    """Проверить занятость порта WebSocket-канала перед стартом цикла.
+
+    ``WebSocketChannel.start()`` биндит ``127.0.0.1:8765`` через
+    ``websockets.asyncio.server.serve``. Если предыдущий запуск gateway
+    был убит некорректно (крестик окна, диспетчер задач, kill -9), порт
+    остаётся занятым процессом, который не успел закрыть сокет. Без
+    этой проверки gateway падает с криптическим ``OSError: [Errno 10048]``
+    в недрах ``asyncio.create_server`` уже после прохождения половины
+    стартапа (включая Streamlit и Postgres-канал).
+
+    Хост/порт — upstream default из
+    ``nanobot.channels.websocket.runtime.WebSocketConfig`` (см.
+    ``runtime.py:197-198``). Функция читает фактические значения из
+    ``ctx.config.channels.websocket``, если они там заданы; иначе —
+    дефолты.
+
+    При занятости — печатает понятную диагностику (PID процесса-владельца
+    и подсказку про ``taskkill``/Ctrl+C) и завершает процесс с кодом 1
+    ДО запуска ``run_forever()``. Это предотвращает частичный старт
+    (Streamlit, синхронизация DuckDB) с последующим падением.
+    """
+    import socket
+
+    from rich.console import Console as _Console
+    _console = _Console()
+
+    host = "127.0.0.1"
+    port = 8765
+    try:
+        ws_cfg = getattr(getattr(ctx.config, "channels", None), "websocket", None)
+        if ws_cfg is not None:
+            host = getattr(ws_cfg, "host", host) or host
+            port = int(getattr(ws_cfg, "port", port) or port)
+    except Exception:
+        pass
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        try:
+            s.bind((host, port))
+        except OSError as e:
+            owner_pid = _find_listener_pid(host, port) or "?"
+            _console.print(
+                f"[red]✗[/red] Порт {host}:{port} уже занят (PID {owner_pid}). "
+                f"Вероятно, остался висеть предыдущий процесс gateway."
+            )
+            _console.print(
+                "  Завершите его одним из способов и запустите снова:"
+            )
+            _console.print(f"    taskkill /PID {owner_pid} /F")
+            _console.print("    (или закройте окно gateway через Ctrl+C в PowerShell)")
+            raise SystemExit(1) from e
+
+
+def _find_listener_pid(host: str, port: int) -> int | None:
+    """Найти PID процесса, слушающего ``host:port`` (Windows).
+
+    Использует ``netstat -ano`` через subprocess (PowerShell не имеет
+    нативного API для этого). При ошибке парсинга или отсутствии
+    процесса — возвращает ``None``.
+    """
+    import re
+    import subprocess
+
+    try:
+        out = subprocess.run(
+            ["netstat", "-ano", "-p", "TCP"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        ).stdout
+    except Exception:
+        return None
+
+    pattern = re.compile(
+        rf"\s+TCP\s+{re.escape(host)}:{port}\s+\S+\s+LISTENING\s+(\d+)\s*"
+    )
+    m = pattern.search(out)
+    if m:
+        try:
+            return int(m.group(1))
+        except ValueError:
+            return None
+    return None
 
 
 console = Console()
@@ -485,6 +785,13 @@ def main(argv: list[str] | None = None) -> int:
     try:
         _entrypoint_main(args, script_dir, workspace_dir)
     except ConfigurationError as exc:
+        sys.stderr.write(f"FATAL: {exc}\n")
+        return 2
+    except StartupGateError as exc:
+        # Векторы обязательны (on_unavailable="fail"), но не готовы:
+        # каналы не подняты, агент не запущен. Это отказ старта, а не
+        # падение в цикле — тот бы перезапустился по backoff и записал
+        # ту же ошибку в лог снова и снова.
         sys.stderr.write(f"FATAL: {exc}\n")
         return 2
     return 0

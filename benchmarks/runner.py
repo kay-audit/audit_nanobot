@@ -593,11 +593,9 @@ async def _run_suite(
     # enable_audit=False при --no-audit (только локальные прогоны без DSN).
     enable_audit = not getattr(args, "no_audit", False)
     try:
-        ctx = ApplicationContext.create(
+        ctx = ApplicationContext.create(role='gateway', 
             script_dir=BENCH_SCRIPT_DIR,
             workspace_dir=BENCH_WORKSPACE_DIR,
-            enable_db_logging=True,
-            enable_audit=enable_audit,
         )
     finally:
         # Восстанавливаем config.json даже при ошибке инициализации
@@ -617,7 +615,7 @@ async def _run_suite(
         ctx.sync_service is not None and ctx.cache_store is not None
     )
     if audit_ready:
-        ctx.cache_store.open()
+        ctx.cache_store.connect()
         ctx.sync_service.set_on_new_records_callback(
             ctx.cache_store.upsert_records
         )
@@ -723,11 +721,17 @@ async def _run_suite(
         )
         return suite_result
     finally:
-        # Корректный shutdown в стиле gateway.py:158-172
+        # Корректный shutdown в стиле gateway.py:476-489.
+        # ``AgentLoop.close_mcp`` удалён в nanobot 0.3.5 — shutdown-API
+        # это ``aclose()``; контракт зафиксирован в
+        # openspec/specs/runtime/agent-hooks/spec.md:37-45.
         try:
-            await ctx.agent.close_mcp()
-        except Exception:
-            pass
+            await ctx.agent.aclose()
+        except Exception as e:
+            # Раньше здесь стоял ``close_mcp()`` под пустым ``except:
+            # pass`` — метод не существует, AttributeError глох, и
+            # teardown выглядел успешным, не выполнив cleanup.
+            logger.warning("agent.aclose() failed during benchmark shutdown: {}", e)
         try:
             ctx.agent.stop()
         except Exception:

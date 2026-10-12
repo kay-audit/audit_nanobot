@@ -13,7 +13,7 @@ Public API:
 * :class:`predefined.DynamicQueryBuilder` — сборка SQL из шаблона.
 
 Канонический источник SQL — ``public.agent_predefined_scripts`` (PostgreSQL).
-Python ``REGISTRY`` удалён в Phase 7.
+Python ``REGISTRY`` (legacy) отсутствует.
 """
 
 from __future__ import annotations
@@ -41,7 +41,6 @@ from workspace.skills.audit_analyzer.scripts.predefined.validator import (
     ParameterValidator,
     ValidationError,
 )
-
 
 __all__ = [
     "BuildError",

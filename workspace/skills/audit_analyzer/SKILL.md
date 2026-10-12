@@ -83,11 +83,11 @@ Retry — задача **Agent'а** (обычно 2–3 переформулир
 ## Источник predefined скриптов
 
 Канонический источник SQL — `public.agent_predefined_scripts` в PostgreSQL.
-Python `REGISTRY` (legacy) удалён в Phase 7; единственный путь — DB-first lookup
+Python `REGISTRY` (legacy) отсутствует; единственный путь — DB-first lookup
 через `scripts/predefined/db_loader.py`. Sql-функция `load_all` живёт
 в `predefined`-подсистеме и **не дублируется** в `generated_sql_mode`.
 
-```
+```text
 PostgreSQL
     ↓ seed/migration
 public.agent_predefined_scripts (6 скриптов)
@@ -205,13 +205,16 @@ audit_analyze --mode vector --query 'статусы аудитов' \
 один — с наивысшим score. Остальные доступны через поле `matched_chunks`
 в ответе (см. `docs/VECTOR_INDEXES.md` § «Поведение при поиске»).
 
-## SQL guidance (режим generated_sql)
+## SQL guidance
 
-Режим `generated_sql` (NL→SQL через LLM) — **часть контракта навыка**:
-используется для точных аналитических запросов, когда predefined
-не подходит.
+Точные аналитические запросы агент пишет сам и отдаёт в `duckdb_query`:
+tool принимает готовый `SELECT`/`WITH`, а не текст на NL. Генерация
+NL→SQL (`--mode generated_sql` в CLI) — **вне** контракта агента:
+в tool её нет, и она навыку не нужна, потому что решение «какой запрос
+писать» принимает модель, а не LLM-цепочка внутри CLI.
 
 ```bash
+# только для standalone-разработки, gateway запущен — вызов упадёт
 python scripts/cli.py --mode generated_sql --query '<запрос на NL>'
 ```
 
@@ -303,10 +306,16 @@ Agent-цикл:
 - деталями хранения и валидации vector-индексов (Core);
 - LLM-протоколами (`lib/services/llm_client.py` / Core).
 
-Доступ агента — через CLI (`scripts/cli.py`). Generic tools
-(`duckdb_query_tool`, `vector_search_tool`) удалены в Phase 8 —
-Agent обращается к данным через маршрутизацию по CLI, и выбор режима —
-обязанность Agent'а (decision tree выше).
+Доступ агента — через tools `duckdb_query` и `vector_search`. Они
+исполняются **внутри gateway** на его уже открытом `CacheProvider`
+(loader прокидывает живой `ctx.cache_provider` через `set_provider`).
+
+CLI (`scripts/cli.py`) агентом **не вызывается**: это отдельный процесс,
+а gateway держит `cache.duckdb` открытым весь свой жизненный цикл —
+DuckDB отдаёт `File is already open in ... PID ...` даже в
+`read_only`-режиме, и CLI падает с «DuckDB-кеш не найден» при
+существующем файле. Выбор между SQL и векторным поиском — обязанность
+Agent'а (decision tree выше).
 
 ## Как добавить новый predefined-скрипт
 
@@ -322,20 +331,21 @@ skill'а.
 
 ## Discovery (актуальный каталог)
 
-Имена скриптов и индексов **не прописаны жёстко** в этом файле — они
-читаются из БД при старте CLI. Чтобы получить актуальный каталог:
+Имена скриптов и индексов **не прописаны жёстко** в этом файле. Актуальный
+каталог агент получает от самих tool'ов:
 
-```bash
-# Список predefined-скриптов (имя, описание, параметры)
-python workspace/skills/audit_analyzer/scripts/cli.py --list-scripts
+- `duckdb_query` — при отказе по неизвестной таблице перечисляет доступные
+  `schema.table`; каталог predefined-скриптов лежит в DuckDB-таблице
+  `public.agent_predefined_scripts` и читается обычным `SELECT`.
+- `vector_search` — при неизвестном `index_name` перечисляет индексы,
+  реально найденные в storage-таблице снапшота.
 
-# Список runtime-индексов (реальные FAISS-артефакты из PG store;
-# не декларация из project.json — её показывает tools/check_indexes.py).
-python workspace/skills/audit_analyzer/scripts/cli.py --list-indexes
-```
+CLI-команды `--list-scripts` / `--list-indexes` остаются для
+standalone-разработки (когда gateway не запущен и файл свободен), но
+агентом не вызываются.
 
-Оба возвращают JSON в stdout и не требуют `--mode`. Ошибки доступа к БД
-возвращаются как `{"status": "error", "data": {"error_type": "registry_unavailable", ...}}`.
+Оба tool'а при отказе возвращают перечень доступных имён в тексте
+ошибки — отдельного discovery-инструмента не требуется.
 
 ### Разделение ответственности discovery
 
@@ -344,7 +354,7 @@ python workspace/skills/audit_analyzer/scripts/cli.py --list-indexes
 | Источник | Что отвечает | Как обнаружить |
 |---|---|---|
 | `project.json::gateway.vector.index.indexes.*` | **желаемое состояние** — какие индексы должны быть построены и как | `tools/check_indexes.py --json` (секция `declared`) |
-| `public.agent_vector_index_store` (PG) | **фактическое состояние** — какие FAISS-blob'ы собраны и доступны | `--list-indexes` И `tools/check_indexes.py` (секция `runtime`) |
+| `gateway.vector.index.storage_table` в DuckDB-снапшоте | **фактическое состояние** — какие индексы реально собраны (значения `source`) | `vector_search` (перечень при отказе) и `tools/check_indexes.py` (секция `runtime`) |
 
 **Проверка согласованности:**
 
@@ -366,8 +376,9 @@ python tools/check_indexes.py --json      # structured diff, для CI
 
 **`--list-indexes` показывает только runtime-состояние.** Поэтому
 если ты только что добавил новый индекс в project.json — `--list-indexes`
-его **не покажет**, потому что FAISS-blob ещё не собран. Запусти
-`tools/build_vectors.py <name>` и проверь снова.
+его **не покажет**, потому что вектора ещё не собраны в
+`gateway.vector.index.storage_table`. Запусти `tools/build_vectors.py --index <name>`
+и проверь снова.
 
 ## Тесты
 
