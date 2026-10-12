@@ -145,7 +145,7 @@ flowchart LR
 для провайдерских ключей использует провайдер-скоупинг формат
 `.secrets.env`:
 
-```
+```text
 # providers: llm
 api_key=XavGPsHjtNt3uOtFGUhabUuad5PRm2D0W
 ```
@@ -255,14 +255,14 @@ Producer'ы (с обязательным keyword-only DI через `db_logging_
 
 | Producer | События | DI |
 |---|---|---|
-| `ContextCompactionService` | `context_compacted` | через `RuntimePatcher.patch_compact_command(partial(...))` или `run_repl(...)` параметр |
+| `ContextCompactionService` | `context_compacted` | kwarg `db_logging_service` (или `run_repl(...)` параметр); для upstream-событий — через `CompactionEventSubscriber` |
 | `PgDuckDbSyncService` | `sync_service_started`, `sync_initial_load_*`, `sync_table_loaded`, `sync_lag_exceeded`, `session_stale_detected` | kwarg `db_logging_service` |
 | `DuckDbCacheStore` | `sync_publish_ok`/`_failed`/`_empty`, `vector_preload_error`, `vector_index_build_failed` | kwarg `db_logging_service` |
 | `PreloadService` | `vector_index_preload_health` | kwarg `db_logging_service` |
 | `ApplicationContext._make_sync_services` | `sync_skipped_*` | inline `try_log_event` |
 | `DatabaseLoggingHook` (AgentLoop) | `tool_call`/`tool_result`/`llm_call`/`run_finished`/`turn_failed` | kwarg `db_logging_service` |
 
-DI поднимается через `functools.partial` (`RuntimePatcher.patch_compact_command`)
+DI поднимается через kwarg-инъекцию в composition root'ах
 и параметры composition root'ов (`run_repl(...)` в `lib/cli/console_loop.py`).
 **Никаких DI-полей на `agent`** (ни `_db_logging_service`, ни
 `db_logging_service`) — это историческая ошибка, исправленная в коммите
@@ -467,15 +467,17 @@ flowchart LR
 **Точки входа:**
 
 1. **Настоящая slash-команда ``/compact``** —
-   upstream `nanobot/command/builtin.py::cmd_compact`, расширяется
-   `RuntimePatcher.patch_compact_command` (fail-soft обёртка) в `agent.commands`
-   (`CommandRouter`), где это единственный путь, общий для всех каналов
-   (postgres, streamlit, telegram). В `run()` зарегистрированные команды
-   перехватываются **до** LLM (``_dispatch_command_inline`` /
-   ``_state_command``), поэтому сжатие срабатывает детерминированно и
-   безоговорочно, а не «по усмотрению» модели. Handler ставит
-   ``FINAL_TURN_KEY="_final_turn"`` в outbound (см. «Воркеры не берут
-   задачи»), зовёт ``svc.compact(session_key=ctx.key, idle=..., force=True)``.
+   upstream `nanobot/command/builtin.py::cmd_compact`. Handler
+   **не оборачивается**: метода `RuntimePatcher.patch_compact_command`
+   в проекте нет, локальный `lib/commands/compact_command.py` удалён
+   (см. CHANGELOG). Встроенная команда перехватывается в `run()`
+   **до** LLM (``_dispatch_command_inline`` / ``_state_command``),
+   поэтому сжатие срабатывает детерминированно. Факт сжатия в долговечный
+   журнал пишет не handler, а наблюдатель:
+   `lib/services/compaction_event_subscriber.py::CompactionEventSubscriber`,
+   который канал (`lib/channels/postgres_channel.py`) вызывает на
+   `ContextCompactionEvent` в outbound и который зовёт
+   `ContextCompactionService.notify_session_compacted`.
 
 2. **CLI-команда ``/compact``** (`lib/cli/console_loop.py::_run_cli_compact`).
    Приватный путь REPL: в `run_repl` после проверки `_is_exit_command`
@@ -489,8 +491,9 @@ flowchart LR
    уже подразумевает жёсткое idle-сжатие).
 
 3. **Tool ``compact_context``** (`workspace/tools/compact_context.py`),
-   регистрируется `RuntimePatcher.patch_project_tools` в `apply_all`
-   (см. `lib/services/runtime_patcher.py`). Параметры:
+   регистрируется `lib/services/project_tool_loader.py::register_project_tools`,
+   который вызывается из `ApplicationContext.create()` (отдельный loader,
+   не `RuntimePatcher.apply_all`). Параметры:
    `session_key: str | None` (по умолчанию — текущая из
    `current_request_session_key()`), ``idle: bool=False``, ``force: bool=True``.
    Пустой вызов ``compact_context({})`` (= ручная просьба пользователя)
@@ -552,7 +555,7 @@ async def _notify(self, session_key, report):
 
 Для ``archived > 0``:
 
-```
+```text
 <текст LLM-сводки (если есть)>
 
 Итог: заархивировано N сообщений (осталось K), BEFORE → AFTER токенов (экономия ≈P%).
@@ -560,13 +563,13 @@ async def _notify(self, session_key, report):
 
 Для ``archived == 0`` (сжатие не потребовалось):
 
-```
+```text
 Сжатие сессии «<key>» не потребовалось: контекст уже в пределах бюджета (N токенов).
 ```
 
 Для ошибки:
 
-```
+```text
 Сжатие не выполнено: <причина>
 ```
 
@@ -673,7 +676,7 @@ no-op — сбрасывая load практически до нуля (оста
 * `TestCompactContextTool` — `CompactContextTool.enabled`/`create`/`execute`
   (стандартный nanobot-паттерн, читает `gateway.compact.*` через
   `ctx._settings_ref`).
-* `TestCompactContextToolRegistered` — `patch_project_tools` реально
+* `TestCompactContextToolRegistered` — `register_project_tools` реально
   регистрирует `compact_context` в `agent.tools`.
 * `TestRecordExternalCompaction` — единый путь записи:
   `_write_history_notice` зовётся с правильным report,
@@ -1224,7 +1227,7 @@ outbound). Все остальные сообщения `send()` merge'ит в a
 `agent_conversation_messages` это `content = '/stop'`), и реализует
 `poll_priority_inbound` через параметризованный claim:
 
-```
+```text
 MessageExchange._poll_loop:
     poll_priority = getattr(channel, "poll_priority_inbound", None)
     while running:
@@ -1368,9 +1371,8 @@ SET status='pending', updated_at=NOW() WHERE id = '<task_id>';
 обязан ставить в `metadata` `FINAL_TURN_KEY="_final_turn"` (из `lib/utils/outbound_meta.py`).
 Иначе `postgres_channel.send()` трактует ответ как промежуточную публикацию и НЕ
 финализирует оборот → `status='completed'` не ставится, claim/слот не освобождаются,
-чата блокируется. Пример корректного паттерна — обработчик compact-команды
-(`RuntimePatcher.patch_compact_command`, ставит `_final_turn` во все свои
-`OutboundMessage`).
+чата блокируется. Пример корректного паттерна — собственная shortcut-команда агента
+(ставит `_final_turn` во все свои `OutboundMessage`).
 
 ### Lifecycle-инвариант оборота (PostgresChannel)
 
@@ -1505,7 +1507,7 @@ streamlit-UI, аварийными script'ами после deploy.
 
 ## 📁 Структура проекта
 
-```
+```text
 nanobot/
 ├── docs/                                  # каталог технической документации (навигация — docs/README.md)
 ├── tools/                                # инфраструктурные CLI-утилиты
@@ -1587,7 +1589,7 @@ nanobot/
 │   │   ├── session_file_redirect_hook.py #     перенаправление write/edit + media тула message в data_store/cache/sessions/
 │   │   ├── recent_files_hook.py          #     сбор созданных файлов для auto-attach в media
 │   │   └── debug_stream_diag.py          #     диагностика стриминга
-│   ├── tools/                            # кастомные tool'ы (auto-discover через patch_project_tools)
+│   ├── tools/                            # кастомные tool'ы (auto-discover через project_tool_loader)
 │   │   ├── compact_context.py, history_search_tool.py,
 │   │   │   legal_summarizer_query.py, example.py
 │   ├── utils/                            # утилиты workspace
@@ -1628,7 +1630,7 @@ Python-пакет внутри `scripts/` (корневой `pyproject.toml::pyt
 импорты плоские: `from application.service import ...`, `from document.physical import ...`).
 CLI-обёртки — `cli.py` / `cli_query.py`:
 
-```
+```text
 scripts/
 ├── cli.py                     # практики CLI (audit query) + разовые операции
 ├── cli_query.py               # QA по пакетам документов (tool legal_summarizer_query)

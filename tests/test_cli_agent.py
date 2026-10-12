@@ -4,7 +4,7 @@ import argparse
 import os
 import sys
 import types
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -165,6 +165,11 @@ class TestHookLoader:
         не выполнялось (в sys.path только workspace/), и в логе шли
         warning'и ``No module named 'session_file_redirect_hook'``.
         Фикс: spec_from_file_location под именем ``hooks.<stem>``.
+
+        Имя файла взято из ``_allowed_hook_names()``: allowlist появился
+        позже этой регрессии, и с выдуманным ``my_hook.py`` тест
+        отсекался фильтром до импорта — то есть проверял не тот механизм,
+        ради которого написан.
         """
         from lib.cli.hook_loader import scan_and_register
 
@@ -173,7 +178,7 @@ class TestHookLoader:
         real_path = sys.path[:]
         try:
             sys.path[:] = [p for p in sys.path if str(tmp_path) not in p]
-            fake_hook = tmp_path / "my_hook.py"
+            fake_hook = tmp_path / "recent_files_hook.py"
             fake_hook.write_text(
                 "from nanobot.agent import AgentHook\n"
                 "class MyHook(AgentHook):\n"
@@ -259,13 +264,14 @@ class TestHookLoader:
 
 
 class TestTypewriter:
-    @pytest.mark.asyncio
-    async def test_zero_speed_prints(self):
-        from lib.cli.console_loop import _typewriter
+    """DEPRECATED: ``_typewriter`` удалён из console_loop.py после перехода
+    на upstream ``nanobot.cli.terminal``. Reasoning/печать управляются
+    ``cli_terminal._ReasoningBuffer`` и ``cli_terminal._print_agent_response``.
+    Этот класс оставлен пустым как маркер миграции; удалить в следующем релизе.
+    """
 
-        with patch("lib.cli.console_loop.console") as mc:
-            await _typewriter("hello", "bold", 0)
-            mc.print.assert_called_once()
+    def test_marker(self):
+        pass
 
 
 # =================================================================
@@ -328,7 +334,22 @@ class TestRunVanillaForwardsStorageAndSession:
     def _capture_create_kwargs(self, monkeypatch):
         """Подменить ``ApplicationContext.create`` через ``__new__``
         construction-time shim нельзя (это classmethod). Используем
-        прямой monkeypatch на ``ApplicationContext.create``."""
+        прямой monkeypatch на ``ApplicationContext.create``.
+
+        Патчится атрибут в определяющем модуле: ``cli_agent`` импортирует
+        ``ApplicationContext`` **внутри функции** (``cli_agent.py:146``),
+        а не на уровне модуля, поэтому атрибута ``cli_agent.ApplicationContext``
+        не существует и патчить его нечего.
+
+        Известный открытый дефект изоляции: тесты
+        ``test_application_context.py`` держат ``full_fake_modules`` на
+        ``patch.dict("sys.modules")``, и после выхода импортированные внутри
+        окна модули выбрасываются. Если импорт произошёл внутри такого окна,
+        ``lib.core`` (пакет) и ``sys.modules`` могут ссылаться на разные
+        объекты модуля, и патч попадает не туда — тест падает только в
+        полном прогоне. Требует отдельной правки; здесь не маскируется
+        ослаблением проверки.
+        """
         captured: dict = {}
 
         def _fake_create(cls, *args, **kwargs):
@@ -336,6 +357,10 @@ class TestRunVanillaForwardsStorageAndSession:
             captured["kwargs"] = kwargs
             # Возвращаем мок-инстанс, чтобы _run_vanilla мог позвать .stop()
             mock = MagicMock()
+            # Shutdown-API nanobot 0.3.5 — ``aclose()``. Стоит именно
+            # здесь, а не в общем словаре: без него REPL-teardown
+            # уходит в ветку ``except`` и проверка молча теряет смысл.
+            mock.aclose = AsyncMock()
             mock.settings = {"logging": {"db": {"table_name": "agent_gateway_logs_test"}}}
             mock.config = MagicMock()
             mock.config_service = MagicMock()

@@ -44,6 +44,8 @@ from __future__ import annotations
 import inspect
 import logging
 import os
+import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
@@ -102,7 +104,7 @@ def _resolve_enable_kwargs(
     defaults = {
         "enable_db_logging": bool(gateways.get("enable_db_logging", True)),
         "enable_audit": bool(gateways.get("enable_audit", True)),
-        "enable_cron": bool(gateways.get("enable_cron", False)),
+        "enable_cron": bool(gateways.get("enable_cron", True)),
         "print_llm_calls": bool(gateways.get("print_llm_calls", False)),
     }
 
@@ -172,6 +174,23 @@ class ApplicationContext:
     session_storage_service: Any = None
     subprocess_manager: Any = None
     preload_service: Any = None
+    startup_gate: Any = None  # StartupGate (lib/services/startup_gate.py)
+
+    # Стартовый порядок «данные → векторы → каналы». Публикуются
+    # entrypoint'ом (gateway.py), который владеет sync-callback'ом:
+    # ``cache_ready_signal`` — сигнал «PG→DuckDB загружен, снапшот
+    # опубликован» (ThreadSafeSignal); ``background_vector_preload`` —
+    # признак режима ``await_ready=false``, при котором индексы
+    # догружаются уже после старта каналов.
+    cache_ready_signal: Any = None
+    background_vector_preload: bool = False
+
+    # Решение caller'а: не запускать PgDuckDbSyncService вовсе, потому что
+    # снапшот ``cache.duckdb`` моложе ``gateway.cache.reuse_ttl_hours`` и
+    # данные уже лежат на диске. Выставляется gateway.py ДО ``start()``.
+    # Не молчаливый флаг: caller, поставивший его, обязан сам удовлетворить
+    # ``cache_ready_signal``, иначе StartupGate будет ждать сигнал вечно.
+    skip_data_load: bool = False
 
     # Per-turn hook factories (для DatabaseLoggingHook и т.п.), которые
     # ``AgentFactory`` собрала из конфигурации и передала в
@@ -438,7 +457,6 @@ class ApplicationContext:
         from lib.services.runtime_health import (
             RuntimeHealth,
             RuntimeReadiness,
-            ComponentStatus,
         )
 
         ctx.runtime_health = RuntimeHealth()
@@ -501,12 +519,55 @@ class ApplicationContext:
         ctx.transcription_service = _make_transcription(ctx.config)
         ctx.preload_service = _make_preload(ctx.settings, ctx.db_logging_service)
 
+        # 8a. StartupGate — «данные → векторы → каналы». Создаётся
+        # после preload_service, потому что именно он готовит векторы.
+        # Вызывает его gateway (``_run``) перед ``channels.start_all()``;
+        # здесь гейт только конфигурируется, чтобы его ``phase`` уже на
+        # старте отражался в readiness.
+        ctx.startup_gate = _make_startup_gate(
+            ctx.settings,
+            ctx.preload_service,
+            ctx.cache_provider,
+            db_logging_service=ctx.db_logging_service,
+        )
+
         ctx.runtime_health.mark_started()
         return ctx
 
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
+
+    def _start_sync_or_skip(self) -> None:
+        """Старт синхронизатора — либо явный отказ от загрузки данных.
+
+        ``skip_data_load`` — решение caller'а (gateway) по свежести
+        снапшота ``cache.duckdb`` (``gateway.cache.reuse_ttl_hours``).
+        Выставленный флаг означает: данные уже лежат на диске и перечитывать
+        их из PG незачем.
+
+        Почему синхронизатор не стартует ВОВСЕ, а не «стартует без
+        ``initial_load````: poll-цикл с пустым ``_last_sync`` на первом же
+        такте делает полный ``_fetch_all`` — «пропуск» не был бы пропуском,
+        а лишь переставил бы ту же полную вычитку. Плюс воркеры синка
+        занимали бы пул БД, конкурируя с каналом вопросов.
+
+        Явный метод (а не ``if`` внутри ``start()``) — чтобы контракт можно
+        было проверить тестом, не поднимая пул БД и schema validation.
+        """
+        if self.sync_service is None:
+            return
+        if self.skip_data_load:
+            logger.info(
+                "PgDuckDbSyncService NOT started: data load skipped "
+                "(fresh cache snapshot) — данные берутся из cache.duckdb"
+            )
+            return
+        try:
+            self.sync_service.start(initial_load=True)
+            self._shutdown.register("sync_service", self.sync_service)
+        except Exception as exc:
+            logger.warning("PgDuckDbSyncService not started: %s", exc)
 
     def start(self) -> None:
         """Запустить фоновые сервисы (БД-логирование, аудит)."""
@@ -573,12 +634,7 @@ class ApplicationContext:
             self.db_logging_service.start()
             self._shutdown.register("db_logging_service", self.db_logging_service)
 
-        if self.sync_service is not None:
-            try:
-                self.sync_service.start(initial_load=True)
-                self._shutdown.register("sync_service", self.sync_service)
-            except Exception as exc:
-                logger.warning("PgDuckDbSyncService not started: %s", exc)
+        self._start_sync_or_skip()
 
         if self.session_cold_sync_service is not None:
             try:
@@ -718,6 +774,7 @@ class ApplicationContext:
             return
         try:
             from utils.db import fetch as _db_fetch
+
             from lib.services.schema_validation import SchemaValidationService
         except Exception as exc:
             # Если зависимости не загрузились — это серьёзная проблема,
@@ -928,7 +985,6 @@ def _emit_project_tools_inventory_banner(project_tools_result: Any) -> None:
         return
     registered = list(getattr(project_tools_result, "registered", []) or [])
     disabled = list(getattr(project_tools_result, "disabled", []) or [])
-    duplicate = list(getattr(project_tools_result, "duplicate", []) or [])
     failed = list(getattr(project_tools_result, "failed", []) or [])
     error = getattr(project_tools_result, "error", None)
 
@@ -1015,7 +1071,6 @@ def _register_readiness_checks(ctx: ApplicationContext) -> None:
     """
     from lib.services.runtime_health import (
         ComponentStatus,
-        compute_overall_status,
     )
 
     def check_postgres() -> ComponentStatus | None:
@@ -1100,6 +1155,21 @@ def _register_readiness_checks(ctx: ApplicationContext) -> None:
                 name="vector_search", required=False, status="DOWN",
                 detail="cache_store has no search_vector method",
             )
+        # Фаза StartupGate важнее наличия метода: до ``vectors_ready``
+        # метод есть всегда, а эмбеддингов в памяти ещё нет — и такой
+        # процесс обслуживает вопросы заметно хуже. Поэтому «ещё грузится»
+        # — это DOWN/DEGRADED, а не UP. Гейт читается поздно (late
+        # binding), т.к. регистрируется раньше, чем создаётся в create().
+        gate = getattr(ctx, "startup_gate", None)
+        if gate is not None and getattr(gate, "config", None) is not None:
+            if getattr(gate.config, "enabled", True) and gate.is_awaiting():
+                return ComponentStatus(
+                    name="vector_search", required=False, status="DOWN",
+                    detail=(
+                        "vector preload not finished yet "
+                        f"(gate: {gate.detail()})"
+                    ),
+                )
         return None
 
     ctx.runtime_readiness.register("postgres", check_postgres, required=True)
@@ -1218,7 +1288,7 @@ def _make_db_logging(ctx: ApplicationContext) -> Any | None:
     )
 
 
-def _default_local_cache_dir() -> "Path":
+def _default_local_cache_dir() -> Path:
     """Безопасный default для runtime-кеша: ``~/.cache/nanobot/duckdb``.
 
     DuckDB ATTACH берёт эксклюзивный flock, который NFS не отдаёт
@@ -1306,6 +1376,84 @@ def resolve_publish_path(workspace_path, cache_cfg: dict | None = None) -> str:
     default = _default_local_cache_dir()
     default.mkdir(parents=True, exist_ok=True)
     return str(default / "cache.duckdb")
+
+
+@dataclass(frozen=True)
+class CacheSnapshotDecision:
+    """Решение по снапшоту кэша на старте: переиспользовать или пересоздать.
+
+    ``age_sec is None`` — снапшота нет (или он нечитаем), поэтому age
+    неизвестен и переиспользовать нечего.
+    """
+
+    reuse: bool
+    age_sec: float | None
+    ttl_sec: float
+    reason: str
+
+
+def evaluate_cache_snapshot(
+    snapshot_path: str,
+    ttl_hours: float,
+    *,
+    now: float | None = None,
+) -> CacheSnapshotDecision:
+    """Свежий ли снапшот ``cache.duckdb`` — можно ли не грузить данные заново.
+
+    **Время жизни берётся по ``mtime``, а не по дате создания.** ``mtime`` —
+    это момент последней публикации (``publish()`` делает ``os.replace``
+    свежего файла поверх старого), то есть «данным в этом файле» ровно
+    столько, сколько прошло с последней успешной публикации. Дата создания
+    на POSIX — это ``st_ctime``, который меняется при любой правке
+    метаданных, а в Windows вообще другая семантика; для «свежести данных»
+    она непригодна.
+
+    TTL приходит из ``gateway.cache.reuse_ttl_hours``. ``0`` означает
+    «никогда не переиспользовать» — безопасный режим, полностью
+    воспроизводящий прежнее поведение (снапшот всегда пересоздаётся).
+
+    Функция чистая и не делает I/O кроме одного ``stat``: решение обязано
+    быть проверяемым тестом без поднятия БД и DuckDB.
+    """
+    from pathlib import Path
+
+    ttl_sec = max(0.0, float(ttl_hours)) * 3600.0
+    current = time.time() if now is None else float(now)
+
+    try:
+        st = Path(snapshot_path).stat()
+    except OSError:
+        return CacheSnapshotDecision(
+            reuse=False, age_sec=None, ttl_sec=ttl_sec, reason="snapshot_missing"
+        )
+
+    age_sec = max(0.0, current - st.st_mtime)
+
+    if ttl_sec <= 0.0:
+        return CacheSnapshotDecision(
+            reuse=False, age_sec=age_sec, ttl_sec=ttl_sec, reason="ttl_disabled"
+        )
+    if age_sec <= ttl_sec:
+        return CacheSnapshotDecision(
+            reuse=True, age_sec=age_sec, ttl_sec=ttl_sec, reason="fresh"
+        )
+    return CacheSnapshotDecision(
+        reuse=False, age_sec=age_sec, ttl_sec=ttl_sec, reason="stale"
+    )
+
+
+def format_cache_age(age_sec: float | None) -> str:
+    """Человекочитаемый возраст снапшота для лога (``2ч 13м`` / ``47с``)."""
+    if age_sec is None:
+        return "n/a"
+    seconds = int(age_sec)
+    if seconds < 60:
+        return f"{seconds}с"
+    minutes, sec = divmod(seconds, 60)
+    if minutes < 60:
+        return f"{minutes}м {sec}с"
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours}ч {minutes}м"
 
 
 def _warn_if_publish_path_on_nfs(publish_path: str) -> None:
@@ -1443,7 +1591,10 @@ def _make_sync_services(ctx: ApplicationContext) -> tuple:
         CacheAccessMode,
         CacheOwnershipCoordinator,
     )
-    from lib.services.duckdb_cache_store import DuckDbCacheStore
+    from lib.services.duckdb_cache_store import (
+        DuckDbCacheStore,
+        _reject_unsupported_filesystem,
+    )
     from lib.services.pg_duckdb_sync_service import PgDuckDbSyncService
 
     all_table_names = list(table_registry.table_names())
@@ -1528,8 +1679,10 @@ def _make_sync_services(ctx: ApplicationContext) -> tuple:
     # 1. CacheOwnershipCoordinator — координатор ownership для логического
     #    cache resource ``local_cache`` через таблицу ``agent_cache_ownership``
     #    (см. sql/migrations/V005__create_agent_cache_ownership.sql).
-    # 2. ``coord.try_claim()`` — atomic PG INSERT ... ON CONFLICT. Один процесс
-    #    получает acquired=True (OWNER), остальные — False (READER).
+    # 2. ``coord.try_claim()`` — atomic PG claim под advisory xact lock
+    #    (SELECT + INSERT/UPDATE, без ON CONFLICT — Greenplum 6.5 не
+    #    поддерживает). Один процесс получает acquired=True (OWNER),
+    #    остальные — False (READER).
     # 3. ``DuckDbCacheStore.open(path, mode)`` — concrete factory. mode
     #    зависит от результата claim:
     #      - acquired=True → READ_WRITE (OWNER может писать в cache);
@@ -1553,8 +1706,27 @@ def _make_sync_services(ctx: ApplicationContext) -> tuple:
 
     # Concrete factory — DuckDB connection opened с учётом ``mode``.
     # Если path не на локальной FS — ``UnsupportedFilesystemError`` поднимается.
+    #
+    # OWNER (claim.acquired=True): рабочая БД — **в памяти** (``path=""``),
+    # а ``publish_path`` остаётся отдельным файлом-снапшотом. Держать сам
+    # снапшот открытым нельзя: DuckDB допускает ровно одно соединение на
+    # файл, поэтому второй процесс (CLI навыка, READER) получал
+    # ``File is already open in ... PID ...`` даже в ``read_only``.
+    # Готовый снапшот при старте загружается через ``adopt_snapshot()``,
+    # который открывает файл на секунды и отпускает — так ``reuse_ttl_hours``
+    # работает без удержания файла.
+    #
+    # READER: открывает сам снапшот только на чтение — это и есть тот
+    # случай, когда файл свободен.
+    #
+    # NFS-гард: у OWNER рабочая БД в памяти, поэтому ``open(path="")`` не
+    # проверит FS. Проверяем путь снапшота явно — иначе network-FS вскрылся бы
+    # поздно и непонятно (ATTACH/REPLACE падает с «PID 0»), вместо
+    # fail-fast на старте.
+    if claim.acquired:
+        _reject_unsupported_filesystem(publish_path)
     store = DuckDbCacheStore.open(
-        path=publish_path,
+        path=(publish_path if not claim.acquired else ""),
         mode=mode,
     )
     # Конфигурируем store через конструктор args через post-init хак:
@@ -1723,8 +1895,41 @@ def _make_preload(
     )
 
 
+def _make_startup_gate(
+    settings: Any,
+    preload_service: Any,
+    cache_provider: Any,
+    db_logging_service: Any | None = None,
+) -> Any:
+    """Создать ``StartupGate`` — порядок «данные → векторы → каналы».
+
+    Гейт создаётся всегда (в т.ч. для CLI и при выключенном аудите):
+    его ``phase`` читает readiness-проверка ``vector_search``, поэтому
+    «векторы ещё грузятся» видно и в статусе процесса. Саму подготовку
+    вызывает только gateway (``_run``) — он ждёт её перед
+    ``channels.start_all()``.
+
+    Конфигурация — ``gateway.startup.vector_preload.*``
+    (``VectorPreloadConfig``); при ``enabled=false`` гейт ничего не
+    ждёт, что даёт оператору явный escape hatch.
+    """
+    from lib.services.startup_gate import StartupGate, read_vector_preload_config
+
+    return StartupGate(
+        read_vector_preload_config(settings),
+        preload_service=preload_service,
+        cache_store=cache_provider,
+        db_logging_service=db_logging_service,
+    )
+
+
 def _make_cron_service(config: Any) -> Any:
-    """Создать ``CronService`` для CLI-режима (только там он нужен).
+    """Создать ``CronService`` для роли ``gateway`` (только там он нужен).
+
+    Подключается при ``enable_cron`` (дефолт — ``True``, нормативная спека
+    ``openspec/specs/runtime/entrypoints/spec.md:48``) и только для
+    ``role="gateway"`` — см. design D7 «Cron = gateway-only».
+    Явно выключается через ``gateway.enable_cron: false`` в ``project.json``.
 
     ``CronService`` хранит задачи в ``workspace/cron/jobs.json`` —
     путь относительно ``config.workspace_path``. Если директории нет,

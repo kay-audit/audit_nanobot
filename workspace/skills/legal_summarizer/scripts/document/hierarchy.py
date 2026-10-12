@@ -37,13 +37,17 @@ Back-compat: builder производит **только** ``DocumentStructure``
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable
 
 from loguru import logger
 
 from document.heading import (
     HeadingCandidate,
+)
+from document.numbering import (
+    assign_sibling_ordinals,
+    parse_numbering,
 )
 from document.structure import (
     DocumentStructure,
@@ -52,10 +56,6 @@ from document.structure import (
     StructureEvidence,
     StructureNode,
     _make_node_id,
-)
-from document.numbering import (
-    assign_sibling_ordinals,
-    parse_numbering,
 )
 
 
@@ -467,7 +467,7 @@ def build_document_structure(
     )
 
     sibling_ordinals = assign_sibling_ordinals(numbering_list)
-    for nid, ordinal in zip(section_ids, sibling_ordinals):
+    for nid, ordinal in zip(section_ids, sibling_ordinals, strict=True):
         if ordinal is None:
             continue
         node = nodes[nid]

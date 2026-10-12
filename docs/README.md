@@ -71,6 +71,7 @@ reference** по своей подсистеме; README в корне — эт�
 | [VECTOR_INDEXES.md](VECTOR_INDEXES.md) | Векторная подсистема: `project.json` → `storage_table` → DuckDB-снапшот → in-memory FAISS, `tools/build_vectors.py`, edge-cases |
 | [INTERNAL_API.md](INTERNAL_API.md) | `tools.exec`, кастомные `workspace/tools/*.py`, CLI-режимы, `tools/`, добавление настроек |
 | [TESTING.md](TESTING.md) | Запуск тестов, контрактные тесты nanobot API, live e2e |
+| [spec-code-drift-audit.md](spec-code-drift-audit.md) | Срез соответствия «спека ↔ код ↔ документация» (2026-10-08): P0/P1/P2 расхождения, состояние валидаторов и реестра |
 
 ### Архив
 
@@ -109,11 +110,14 @@ invariant'ы, anti-patterns, decision-чеклист и правила зави�
 > - `TARGET_ARCHITECTURE.md` — *норма* (правила, цель, contract). Не содержит описания «as-is».
 > - `ARCHITECTURE.md`, `DATABASE.md`, `INTERNAL_API.md` (и этот каталог) — *текущая реализация*
 >   (что и как работает сейчас). Ссылаются на `TARGET_ARCHITECTURE.md §N` за правилами.
-> - [`openspec/specs/`](../openspec/specs/) — *контракты компонентов* (component-level normative specs
->   на русском): назначение, граница, требования, запрещённое поведение, зависимости, реализация,
+> - [`openspec/specs/`](../openspec/specs/) — *контракты компонентов* (component-level normative specs;
+>   нормативные спеки пишутся по-русски, но по факту английский шаблон сохранён у 21 спеки
+>   из 22 — русский применён только к `runtime/startup-schema-validation`):
+>   назначение, граница, требования, запрещённое поведение, зависимости, реализация,
 >   проверка. Шаблон и правила — [`architecture/component-model`](../openspec/specs/architecture/component-model/spec.md);
->   реестр — [`COMPONENTS.md`](../openspec/specs/COMPONENTS.md); автоматическая проверка структуры —
->   `python tools/validate_component_specs.py`.
+>   реестр — [`COMPONENTS.md`](../openspec/specs/COMPONENTS.md); структурная проверка —
+>   `python tools/validate_component_specs.py` (**сейчас падает**: 21 спека не переведена
+>   на русский шаблон, см. раздел «Расхождения реестра»).
 > - Где документы пересекаются по теме — детали реализации только в `docs/*`, правила только в `TARGET_ARCHITECTURE.md`,
 >   контракт компонента — только в соответствующей `openspec/specs/<domain>/<component>/spec.md`.
 
