@@ -83,6 +83,34 @@ context канала (он лежит в `media` payload сообщения).
 Конкретные правила для каждого skill'а — в его `SKILL.md` (секция
 «Чтение файлов из чата»).
 
+## Анализ формулировок отклонений по ВНД
+
+Когда аудитор формулирует отклонение/нарушение и прикладывает файл(ы)
+ВНД (`.pdf`/`.docx`/`.txt`), используй навык
+`audit_formulation_strengthener` — он возвращает человекочитаемый отчёт
+в строгом русском юридическом стиле:
+
+```bash
+python workspace/skills/audit_formulation_strengthener/scripts/cli.py \
+    --violation "<текст отклонения>" \
+    --vnd data_store/cache/sessions/<session_key>/<файл_ВНД>.pdf \
+    [--vnd data_store/cache/sessions/<session_key>/<файл_ВНД2>.docx ...] \
+    --output report.md
+```
+
+`--vnd` только с basename (без `data_store/cache/sessions/<session_key>/`)
+не работает — skill вернёт `vnd_not_found`, потому что в cwd такого файла нет
+(см. раздел «Пути к media-attach при вызове CLI skill'ов через `exec`»).
+
+`--output report.md` — короткое имя файла: skill сам кладёт отчёт в папку
+сессии `data_store/cache/sessions/<session_key>/` и печатает выбранный путь
+в stderr и в `saved_to`. Абсолютные пути вида `/home/<user>/...` указывать
+не нужно — на сервере их нет.
+
+Перед запуском на больших ВНД рекомендуется оценить объём работы
+(`--mode all --estimate-only`) — skill без LLM-вызовов вернёт `size_estimate`
+и число планируемых вызовов (`1+N+1`).
+
 ## Scheduled Reminders
 
 Before scheduling reminders, check available skills and follow skill guidance first.

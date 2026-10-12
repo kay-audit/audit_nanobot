@@ -21,18 +21,23 @@ DocumentAnalysis — не перепарсивают документ.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from chunking.chunks import Chunk
+
 from document.identity import (
     DocumentIdentity,
-)
-from document.structure import (
-    DocumentStructure,
 )
 from document.physical import (
     PhysicalDocument,
 )
+from document.structure import (
+    DocumentStructure,
+)
+
+if TYPE_CHECKING:
+    from retrieval.index import RetrievalIndex
+    from retrieval.records import SemanticRecord
 
 
 @dataclass(frozen=True)
@@ -91,7 +96,7 @@ class DocumentAnalysis:
         semantic_records: dict[str, SemanticRecord] | None = None,
         include_retrieval_index: bool = True,
         created_at: str = "",
-    ) -> "DocumentAnalysis":
+    ) -> DocumentAnalysis:
         """Построить DocumentAnalysis из ингредиентов.
 
         Это **canonical** сборка. ``DocumentAnalysis`` —
@@ -153,9 +158,6 @@ class DocumentAnalysis:
         Возвращает список ``RetrievalHit``.
         """
         if self.retrieval_index is None:
-            from retrieval.query import (
-                retrieve_chunks,
-            )
             from retrieval.query import (
                 retrieve_chunks,
             )

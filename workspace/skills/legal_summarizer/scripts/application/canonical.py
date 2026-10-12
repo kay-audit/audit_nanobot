@@ -31,21 +31,22 @@ from chunking.packing import (
     AdjacentPackingConfig,
     pack_chunks_with_adjacent,
 )
-from planning.plan import (
-    ExecutionPlan,
-)
-from application.pipeline_structure import (
-    PipelineResult,
-    run_canonical_pipeline,
-)
 from llm.tokens import (
     TokenEstimator,
     TokenEstimatorConfig,
+)
+from planning.plan import (
+    ExecutionPlan,
 )
 from planning.strategy import (
     ExecutionPolicy,
     build_execution_plan,
     select_strategy,
+)
+
+from application.pipeline_structure import (
+    PipelineResult,
+    run_canonical_pipeline,
 )
 
 
@@ -157,13 +158,6 @@ def inspect_canonical(
         workspace_root=workspace_root,
     )
     strategy = strategy_from_pipeline(pipeline_result)
-
-    estimator = TokenEstimator(
-        TokenEstimatorConfig(chars_per_token=3.5),
-    )
-    total_tokens = estimator.estimate_many(
-        [c.text for c in pipeline_result.chunks],
-    )
 
     if strategy == "direct":
         estimated = 1

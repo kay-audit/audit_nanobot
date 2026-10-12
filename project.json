@@ -30,7 +30,7 @@
   //  channels.* — каналы связи
   // ---------------------------------------------------------------------------
   "project": {
-    "version": "2.5.2"   // Версия проекта (актуальный релизный тег vX.Y.Z без префикса v)
+    "version": "2.5.4"   // Версия проекта (актуальный релизный тег vX.Y.Z без префикса v)
   },
 
   "channels": {
@@ -165,16 +165,6 @@
   //  на уровне gateway.sync.* (общая для всех skills). См. ниже.
   // ---------------------------------------------------------------------------
   "skills": {
-    "appeals_analyzer": {
-      // Метаданные источников; полные текстовые таблицы не включать в generic sync.
-      // gateway.appeals_analyzer использует startup loader пяти structural колонок.
-      "enabled": false,
-      "tables": [
-        {"name": "s_grnplm_ld_audit_da_project_27.40_kaluginvs_anofl_appeal_2026"},
-        {"name": "s_grnplm_ld_audit_da_project_27.40_kaluginvs_anofl_appeal_dialogs_2026"},
-        {"name": "s_grnplm_ld_audit_da_project_27.40_kaluginvs_anofl_appeal_task_2026"}
-      ]
-    },
     "audit_analyzer": {
       "enabled": true,
 
@@ -311,6 +301,50 @@
           "llm_max_tokens": 8192                    // Резерв под output.
         }
       }
+    },
+
+    // -------------------------------------------------------------------------
+    //  audit_formulation_strengthener — анализ формулировки отклонения по ВНД.
+    //  На входе: текст отклонения + один/несколько файлов ВНД (.pdf/.docx/.txt).
+    //  На выходе: человекочитаемый отчёт (.md/.docx/.txt) в строгом
+    //  русском юридическом стиле.
+    //
+    //  Извлечение текста — workspace.utils.office_files.extract_text;
+    //  чанкование — lib.services.text_splitter.split_text (без секций);
+    //  LLM-вызовы — lib.services.llm_client.call_llm через тонкую
+    //  обёртку scripts/llm.py.
+    //
+    //  У skill'а нет PG-таблиц и vector-индексов (ВНД приходят файлами
+    //  каждый раз заново), поэтому tables[] и vector_indexes[] пусты.
+    //
+    //  skill использует только ключи существующей SkillSettings-схемы
+    //  (extra="forbid"). Никаких новых ключей не введено.
+    // -------------------------------------------------------------------------
+    "audit_formulation_strengthener": {
+      "enabled": true,
+
+      "tables": [],
+      "vector_indexes": [],
+
+      "cli": {                                       // audit_formulation_strengthener --mode <analyze|search|synthesize|all>
+        "default_mode": "all",                       // Полный пайплайн по умолчанию.
+        "timeout_sec": 120,
+        "max_retries": 3                             // Retry при невалидном JSON от LLM.
+      },
+
+      "llm": {                                       // Параметры LLM-вызовов для skill'а.
+        "max_tokens": 4096,
+        "temperature": 0.1                           // Низкая температура для юридического стиля.
+      },
+
+      "chunking": {                                  // Размер/перекрытие чанков ВНД (для search-фазы).
+        "chunk_size": 6000,                          // Под LLM-вызов по одному чанку (map).
+        "chunk_overlap": 400
+      },
+
+      "execution": {                                 // Safety net для оценки размера.
+        "max_chunks_for_execution": 50               // chunks_total > этого → явная ошибка too_many_chunks.
+      }
     }
   },
 
@@ -326,7 +360,7 @@
     "show_context_window": true,  // Печатать занятость контекстного окна (M1 UI в console_loop.py)
     "typewriter_speed": 0.01,     // Скорость "печатания" ответа, сек/символ
     "llm_timeout": 300,           // Таймаут LLM-запроса, сек
-    "exec_timeout": 60,           // Таймаут exec-инструмента, сек
+    "exec_timeout": 60,           // МЁРТВЫЙ КЛЮЧ: не читается ни кодом проекта, ни nanobot. Фактический бюджет exec — gateway.exec_timeout ниже (0 = без лимита).
     "max_iterations": 200,        // Макс. итераций агента
     "log_level": "WARNING",       // Уровень логирования. Варианты: DEBUG | INFO | WARNING | ERROR
     "repl_idle_timeout_sec": 1.0  // Таймаут REPL-цикла ожидания outbound (console_loop.py)
@@ -360,6 +394,19 @@
     //   auto     — PGSessionManager при наличии dsn, иначе JSONL-файлы
     //   postgres — только PGSessionManager (без dsn — ошибка)
     //   file     — только JSONL-файлы (SessionManager), dsn игнорируется
+    //  startup.vector_preload.* — порядок старта «DuckDB → векторы → каналы».
+    //  Каналы не поднимаются, пока FAISS-индексы не собраны из DuckDB-кэша,
+    //  поэтому первые вопросы уже обслуживаются с готовыми векторами.
+    //  Намеренно БЕЗ таймаутов: порядок держится на сигнале готовности данных,
+    //  пока сигнала нет — каналы закрыты (см. lib/services/startup_gate.py,
+    //  спека openspec/specs/runtime/startup-vector-preload-gate).
+    "startup": {
+      "vector_preload": {
+        "enabled": true,               // false — не готовить векторы на старте вовсе
+        "await_ready": true,          // false — старое поведение: индексы в фоне, каналы сразу
+        "on_unavailable": "warn"      // warn — старт degraded с предупреждением | fail — exit 2
+      }
+    },
     "persist_threshold": 50000,       // Порог байт для выноса результата в файл
     "persist_max_files": 100,         // Макс. файлов в data_store/cache/sessions/
     "persist_max_age_hours": 0,       // 0 = хранить бессрочно
@@ -395,8 +442,28 @@
       "notify_in_history": true,       // Писать заметку о сжатии в agent_conversation_messages (видно в Streamlit)
       "print_to_terminal": false       // Дублировать заметку в терминал gateway (по образцу print_worker_activity)
     },
-    "appeals_analyzer": {
-      "enable": true
+    //  cache.* — runtime-кеш DuckDB (снапшот cache.duckdb).
+    //  local_path — каталог на ЛОКАЛЬНОЙ ФС для cache.duckdb. На NFS нельзя:
+    //  DuckDB ATTACH падает с "Conflicting lock is held in PID 0".
+    //  Пусто → дефолт ~/.cache/nanobot/duckdb (lib.core.application_context.
+    //  resolve_publish_path — ЕДИНСТВЕННЫЙ расчёт пути).
+    //
+    //  reuse_ttl_hours (float, дефолт 23.0) — время жизни снапшота.
+    //  Считается по mtime файла = момент последней публикации данных.
+    //  Пока снимок моложе TTL, gateway НЕ удаляет его и НЕ запускает
+    //  синхронизацию: берёт готовый снапшот и пропускает фазу загрузки
+    //  данных (StartupGate получает сигнал сразу).
+    //  0 → всегда пересоздавать (прежнее поведение).
+    //
+    //  ЦЕНА РЕШЕНИЯ, читать перед изменением TTL:
+    //   * пока кэш свежий, изменения в PG не видны (новые строки, новые
+    //     predefined-скрипты, УДАЛЁНные строки) — до истечения TTL;
+    //   * full_resync_every не работает в этот период — сверки удалений нет;
+    //   * экономия — доли секунды: замер вычитки всех 6 таблиц из PG дал
+    //     63 мс на холодном соединении и 35 мс на прогретом.
+    //     То есть выигрыш по времени близок к нулю, а платим мы свежестью.
+    "cache": {
+      "reuse_ttl_hours": 23.0
     },
     //  sync.* — параметры фоновой синхронизации PG → DuckDB (PgDuckDbSyncService).
     //  Глобальные runtime-параметры, общие для всех skills. Минимум 4 часа

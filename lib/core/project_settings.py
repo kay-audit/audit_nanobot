@@ -34,6 +34,7 @@ __all__ = [
     "SkillsSettings",
     "StartupSchemaValidationSettings",
     "StartupSettings",
+    "StartupVectorPreloadSettings",
     "SyncSettings",
     "TableEntry",
     "VectorIndexConfig",
@@ -89,13 +90,44 @@ class StartupSchemaValidationSettings(_StrictOptional):
     """
 
     enabled: bool = True
-    timeout_sec: float = Field(default=5.0, gt=0.0, le=60.0)
+    timeout_sec: float = Field(default=5.0, ge=0.1, le=60.0)
+
+
+class StartupVectorPreloadSettings(_StrictOptional):
+    """Упорядоченный прогрев векторов перед стартом каналов.
+
+    Реализация — ``lib/services/startup_gate.py`` (``StartupGate``),
+    вызывающий — ``gateway.py`` (фаза подготовки до ``run_forever``).
+    FAISS-индексы собираются **до** старта каналов, поэтому первые
+    вопросы обслуживаются с готовыми векторами. Спека:
+    ``openspec/specs/runtime/startup-vector-preload-gate``.
+
+    Намеренно **нет таймаутов**: порядок держится на сигнале готовности
+    данных, а не на истечении времени. Пока сигнала нет, gateway не
+    принимает вопросы (каналы закрыты) — вместо тихой работы без
+    векторов.
+
+    Attributes:
+        enabled: ``False`` — векторы на старте не готовятся вовсе
+            (осознанный отказ оператора; дефолт ``True``).
+        await_ready: ``False`` — не ждать готовности, ``load_vectors``
+            уходит в фоновую задачу, каналы стартуют сразу (старое
+            поведение). Дефолт ``True``.
+        on_unavailable: ``"warn"`` — стартовать degraded с предупреждением
+            (дефолт); ``"fail"`` — ``StartupGateError``, gateway не
+            стартует (exit 2).
+    """
+
+    enabled: bool = True
+    await_ready: bool = True
+    on_unavailable: Literal["warn", "fail"] = "warn"
 
 
 class StartupSettings(_StrictOptional):
     """Секция ``gateway.startup.*`` — параметры pre-startup валидации."""
 
     schema_validation: StartupSchemaValidationSettings | None = None
+    vector_preload: StartupVectorPreloadSettings | None = None
 
 
 class ErrorMessagesSettings(_StrictOptional):
@@ -301,6 +333,12 @@ class CacheSettings(_StrictOptional):
         путь к каталогу на **локальной** ФС, где будет лежать
         ``cache.duckdb``. Полезно, когда у ``~/.cache`` нет места или
         нужна отдельная ФС.
+      * ``reuse_ttl_hours`` (float, дефолт ``23.0``) — время жизни
+        снапшота ``cache.duckdb``. Пока снимок моложе TTL, gateway
+        **не удаляет его и не грузит данные заново**: берёт готовый
+        снапшот и пропускает фазу загрузки. Считается по ``mtime``, то
+        есть «сколько прошло с последней публикации». ``0`` — всегда
+        пересоздавать (прежнее поведение, безопасный режим).
 
     Пример для jupyter-инсталляции, где ``~/.cache`` не подходит:
 
@@ -314,6 +352,7 @@ class CacheSettings(_StrictOptional):
     """
 
     local_path: str | None = None
+    reuse_ttl_hours: float = Field(default=23.0, ge=0.0)
 
 
 class CliSettings(_StrictOptional):
@@ -336,7 +375,7 @@ class LoggingDbSettings(_StrictOptional):
     flush_interval_sec: float | None = Field(default=None, ge=0.5, le=60.0)
 
     @model_validator(mode="after")
-    def _default_flush_interval_sec(self) -> "LoggingDbSettings":
+    def _default_flush_interval_sec(self) -> LoggingDbSettings:
         """Подменить ``None`` на канонический дефолт ``5.0``.
 
         Спека change ``improve-history-search-pagination-and-logging``

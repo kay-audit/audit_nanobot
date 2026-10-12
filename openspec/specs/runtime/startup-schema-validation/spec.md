@@ -16,6 +16,9 @@
   из таблиц.
 - Резолв списка ожидаемых таблиц ТОЛЬКО из merged SETTINGS
   (`channels.postgres.*` + `logging.db.*`) — без зашитых в код имён.
+- Резолв схемы каждой таблицы из настроек её секции
+  (`channels.postgres.schema` / `logging.db.schema`), а не фиксированная
+  схема `public` для всех.
 - Уважение опционального gate `gateway.startup.schema_validation.enabled`.
 
 ## Граница
@@ -56,8 +59,11 @@
 ## Публичный контракт
 
 - `SchemaValidationService.expected_table_names(settings) -> list[tuple[str, str]]`
-  — извлекает 6 ожидаемых имён из merged SETTINGS (порядок и схема
-  `public` фиксированы).
+  — извлекает 6 ожидаемых имён из merged SETTINGS. Порядок фиксирован
+  (`_EXPECTED_KEYS`, производная от `_SCHEMA_GROUPS`), схема НЕ
+  фиксирована: каждая группа таблиц резолвится в схеме своей секции
+  (`channels.postgres.schema` для 4 таблиц канала,
+  `logging.db.schema` для 2 таблиц журнала).
 - `SchemaValidationService.check_tables(fetch, expected, *, timeout_sec)`
   — выполняет один SELECT к `information_schema.tables`,
   возвращает `list[MissingTable]` (пустой, если всё на месте).
@@ -114,24 +120,96 @@ patches, preload, hooks). Проверка SHALL выполняться ровн
   `agent_worker_claims_test`, `agent_gateway_logs_test`,
   `agent_question_runs_test`)
 
+### Requirement: Схема таблицы резолвится из настроек
+
+Схема, в которой проверяется каждая runtime-таблица, SHALL браться из
+merged SETTINGS — из секции, которой принадлежит таблица:
+`channels.postgres.schema` для `table_name` / `messages_table` /
+`meta_table` / `claims_table` и `logging.db.schema` для
+`table_name` / `question_runs_table`. Проверка SHALL NOT применять одну
+захардкоженную схему (`public`) ко всем 6 таблицам.
+
+Схема передаётся в SELECT параметром (`table_schema IN (%s, ...)`) и
+SHALL передаваться без нормализации. Если ключ `schema` отсутствует,
+пуст или не является строкой — SHALL использоваться `DEFAULT_SCHEMA`
+(`public`), тот же дефолт, что применяют потребители
+(`PostgresChannel._get("schema", "public")`,
+`DbLoggingService(schema=db_cfg.get("schema", "public"))`).
+
+Отсутствие ключа `schema` SHALL NOT порождать
+`_MissingConfigKeys`: этот ключ не входит в 6 обязательных
+profile-owned ключей (`PROFILE_OWNED_RUNTIME_KEYS`), и его отсутствие
+не означает битую конфигурацию.
+
+#### Scenario: Схемы секций различаются
+- **WHEN** `channels.postgres.schema = "public2"`, а
+  `logging.db.schema = "public"`
+- **THEN** 4 таблицы канала проверяются в `public2`, 2 таблицы
+  журнала — в `public`
+
+#### Scenario: Таблица существует только в другой схеме
+- **WHEN** таблица канала существует в `public`, но в `public2`
+  (объявленной `channels.postgres.schema`) её нет
+- **THEN** старт блокируется, а в сообщении таблица названа
+  `public2.<table>`, а не `public.<table>`
+
+#### Scenario: Ключ `schema` отсутствует
+- **WHEN** в секции нет ключа `schema`
+- **THEN** используется `public` (дефолт runtime), проверка проходит
+  без `_MissingConfigKeys`
+
+#### Scenario: Ключ `schema` не является строкой
+- **WHEN** `schema` — `null`, число или список
+- **THEN** используется `public`, значение не попадает в SQL как
+  есть (параметризация защищает от инъекции)
+
 ### Requirement: Сообщение об ошибке содержит список недостающих таблиц
 
 Сообщение, выводимое при блокировке старта, SHALL включать:
-1. Человекочитаемую причину («не найдены обязательные
-   runtime-таблицы»).
+1. Человекочитаемую причину на русском языке («не найдены
+   обязательные runtime-таблицы» и т.п.); английский — только
+   для имён собственных (имена таблиц, имя профиля, имена
+   config-ключей, имена файлов и CLI-команд).
 2. Полный список недостающих таблиц в формате `schema.table`
-   (по одной на строку).
+   (по одной на строку), отсортированный в порядке `_EXPECTED_KEYS`
+   (детерминированный вывод).
 3. Имя активного профиля.
-4. Подсказку, что для создания таблиц нужно применить миграции
-   (без привязки к конкретным командам — текст нейтральный).
+4. **Actionable-подсказку с конкретной командой**, зависящей
+   от профиля:
+   - профиль `prod` → `python tools/migrate.py --apply`;
+   - профиль `test` → `python tools/apply_test_profile_tables.py`;
+   - любой другой профиль → generic-вариант
+     («примените миграции для выбранного профиля»).
 
 Никакие чувствительные данные (пароли, DSN, секреты) в сообщении
-появляться не должны.
+появляться не должны. Сообщение формируется через `__str__`
+исключения и попадает в `stderr` (`gateway.main()` / `cli_agent.main()`)
+и в loguru-логгер уровня ERROR.
 
 #### Scenario: Вывод в лог при missing
 - **WHEN** старт блокируется из-за отсутствия таблиц
 - **THEN** в `stderr` и в loguru-логгер уровня ERROR выводится
   структурированное сообщение с указанными выше полями
+
+#### Scenario: Вывод в лог при missing (профиль prod)
+- **WHEN** старт блокируется из-за отсутствия таблиц при профиле `prod`
+- **THEN** в `stderr` и в loguru-логгер уровня ERROR выводится
+  сообщение на русском, содержащее имя профиля, список
+  недостающих таблиц и подсказку
+  `python tools/migrate.py --apply`
+
+#### Scenario: Вывод в лог при missing (профиль test)
+- **WHEN** старт блокируется из-за отсутствия таблиц при профиле `test`
+- **THEN** в `stderr` и в loguru-логгер уровня ERROR выводится
+  сообщение на русском, содержащее имя профиля, список
+  недостающих таблиц и подсказку
+  `python tools/apply_test_profile_tables.py`
+
+#### Scenario: Вывод в лог при missing (неизвестный профиль)
+- **WHEN** старт блокируется при профиле, не равном `prod` и не `test`
+- **THEN** подсказка — generic-вариант
+  («примените миграции для выбранного профиля»), без указания
+  конкретной команды
 
 ### Requirement: Проверка выполняется через пул соединений БД
 
@@ -176,9 +254,35 @@ patches, preload, hooks). Проверка SHALL выполняться ровн
 - **THEN** проверка считает её присутствующей и не блокирует
   старт
 
+### Requirement: Сообщение об ошибке для отсутствующих ключей конфига
+
+`_MissingConfigKeys` (наследник `SchemaValidationError`,
+выбрасывается, когда в settings отсутствуют ожидаемые ключи)
+SHALL формировать сообщение на русском, содержащее:
+
+1. Указание причины («не найдены обязательные ключи конфигурации»).
+2. Список недостающих ключей в формате `channels.postgres.*` /
+   `logging.db.*` (по одному на строку).
+3. Имя активного профиля.
+4. Подсказку с указанием конкретной секции `project.json`
+   (`channels.postgres.*` / `logging.db.*`), где ключ должен быть
+   определён.
+
+Никакие чувствительные данные (пароли, DSN, секреты) в сообщении
+появляться не должны. Сообщение формируется через `__str__`
+исключения и попадает в `stderr` и в loguru-логгер уровня ERROR.
+
+#### Scenario: Сообщение при missing config keys
+- **WHEN** в settings отсутствуют ожидаемые ключи
+- **THEN** `_MissingConfigKeys.__str__` возвращает сообщение
+  на русском, содержащее имя профиля, список недостающих ключей
+  и подсказку про секцию `project.json`
+
 ## Запрещённое поведение
 
 - Захардкоженные имена таблиц в коде проверки.
+- Захардкоженная схема `public` для всех 6 таблиц независимо от
+  `channels.postgres.schema` / `logging.db.schema`.
 - Авто-создание недостающих таблиц.
 - Маскировка ошибок БД (`OperationalError`, `InterfaceError`)
   под «отсутствие таблиц».
@@ -257,6 +361,9 @@ patches, preload, hooks). Проверка SHALL выполняться ровн
 - Имена 6 runtime-таблиц ВСЕГДА резолвятся из
   `SETTINGS["channels"]["postgres"]` + `SETTINGS["logging"]["db"]`,
   не из кода проверки.
+- Схема каждой таблицы ВСЕГДА резолвится из своей секции настроек
+  (`channels.postgres.schema` / `logging.db.schema`); дефолт `public` —
+  только при отсутствии/некорректности ключа.
 - `SchemaValidationError.missing: list[MissingTable]` отсортирован
   в порядке `_EXPECTED_KEYS` (детерминированный вывод).
 
@@ -268,6 +375,7 @@ patches, preload, hooks). Проверка SHALL выполняться ровн
 | 1+ таблиц отсутствуют | `SchemaValidationError` → `exit 2` |
 | Ключ `channels.postgres.*` отсутствует в settings | `_MissingConfigKeys` (наследник `SchemaValidationError`) → `exit 2` |
 | Ключ `logging.db.*` отсутствует в settings | `_MissingConfigKeys` → `exit 2` |
+| Ключ `*.schema` отсутствует / пуст / не строка | `DEFAULT_SCHEMA` (`public`) — как и в runtime, без ошибки |
 | `OperationalError` / `RuntimeError` от пула | Поднимается наверх, **не маскируется** |
 | `gateway.startup.schema_validation.enabled = false` | No-op + WARNING в логе |
 
