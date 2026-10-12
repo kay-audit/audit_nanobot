@@ -182,6 +182,13 @@ isolation:
   # config.json, project.json. Изменения конфигурации идут только через
   # overlays.project_json.
   files_added:
+    - tests/test_secrets_env_precedence.py
+    - tests/test_runtime_patcher.py
+    - tests/test_prepare_outbound_suppressed.py
+    - tests/test_max_tool_iterations.py
+    - workspace/skills/audit_analyzer/scripts/pg_provider.py
+    - workspace/skills/audit_analyzer/scripts/cli.py
+    - tools/seed_follow_up_corpus.py
     - docs/D5.md
     - tests/test_follow_up_skill.py
     - tests/test_postgres_fixture.py
