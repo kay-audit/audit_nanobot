@@ -138,6 +138,15 @@ testing:
     postgres:
       dsn_env: DATABASE_URL
       schema_name: public
+      # Сид (scripts/d5_smoke_seed.py) пишет в t_fu_* сразу, поэтому DDL
+      # обязан быть выполнен ДО него. Раньше блок был пустым, схему создавал
+      # ensure_schema() при старте backend'а — но префлит идёт раньше старта,
+      # и сид падал с "relation t_fu_checklist does not exist".
+      schema_setup:
+        - path: sql/migrations/V007__d5_followup_tables.sql
+          idempotent: true
+        - path: sql/migrations/V008__fu_poruch_data.sql
+          idempotent: true
     idempotent: true
     deterministic: false
   runner: null
