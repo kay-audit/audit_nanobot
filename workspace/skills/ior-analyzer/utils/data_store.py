@@ -40,14 +40,25 @@ logger = logging.getLogger(__name__)
 _DEFAULT_CACHE_WAIT_SECONDS = 60.0
 _DEFAULT_CACHE_POLL_INTERVAL = 1.0
 
-GP_SCHEMA = "s_grnplm_ld_audit_da_project_34"
+# Схема, в которой лежат физические таблицы IOR. Значение по умолчанию —
+# пром-Greenplum, поэтому без переменной окружения поведение не меняется.
+# На PostgreSQL таблицы создаёт миграция V006 в схеме public, поэтому там нужно
+# IOR_GP_SCHEMA=public: иначе запросы уйдут в несуществующую
+# s_grnplm_ld_audit_da_project_34 и skill упадёт «relation does not exist».
+# Схему можно и убрать совсем (IOR_GP_SCHEMA="") — тогда имена таблиц
+# подставляются неквалифицированно и сработает search_path.
+GP_SCHEMA = os.environ.get("IOR_GP_SCHEMA", "").strip() or (
+    "s_grnplm_ld_audit_da_project_34"
+)
+# Префикс для конкатенации с именем таблицы: «public.» либо пустая строка.
+GP_SCHEMA_PREFIX = f"{GP_SCHEMA}." if GP_SCHEMA else ""
 
 GREENPLUM_TABLES: dict[str, str] = {
-    "ior": f"{GP_SCHEMA}.t_db_oarb_ior_d6_base_of_knowledge_ior",
-    "status": f"{GP_SCHEMA}.t_db_oarb_ior_d6_base_of_knowledge_incident_stts_chng",
-    "recovery": f"{GP_SCHEMA}.t_db_oarb_ior_d6_base_of_knowledge_incident_recovery",
-    "financial_impact": f"{GP_SCHEMA}.t_db_oarb_ior_d6_base_of_knowledge_incident_fin_impact",
-    "nonfinancial_impact": f"{GP_SCHEMA}.t_db_oarb_ior_d6_base_of_knowledge_incident_nonfin_impact",
+    "ior": f"{GP_SCHEMA_PREFIX}t_db_oarb_ior_d6_base_of_knowledge_ior",
+    "status": f"{GP_SCHEMA_PREFIX}t_db_oarb_ior_d6_base_of_knowledge_incident_stts_chng",
+    "recovery": f"{GP_SCHEMA_PREFIX}t_db_oarb_ior_d6_base_of_knowledge_incident_recovery",
+    "financial_impact": f"{GP_SCHEMA_PREFIX}t_db_oarb_ior_d6_base_of_knowledge_incident_fin_impact",
+    "nonfinancial_impact": f"{GP_SCHEMA_PREFIX}t_db_oarb_ior_d6_base_of_knowledge_incident_nonfin_impact",
 }
 
 DUCKDB_TABLES: dict[str, str] = {
