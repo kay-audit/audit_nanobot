@@ -328,6 +328,22 @@ _PATCH_SPECS: dict[str, PatchSpec] = {
         risk="high",
         required=True,
     ),
+    "prepare_outbound_suppressed": PatchSpec(
+        name="prepare_outbound_suppressed",
+        purpose="достроить финальный outbound с маркером _final_turn для "
+                "оборота, подавленного MessageTool (nanobot_bugfix_stutter)",
+        nanobot_target="nanobot.agent.loop.AgentLoop._prepare_outbound",
+        reason="ранний выход по ctx.suppress_response не доходит до "
+               "_assemble_outbound, поэтому синтетический _final_turn "
+               "(страховка patch_assemble_outbound) недостижим: канал не "
+               "финализирует оборот, строка висит в processing до "
+               "processing_timeout и повторяется",
+        alternatives_checked="перенос страховки в _assemble_outbound не "
+                             "помогает — он туда не заходит; публичного "
+                             "extension point для финала оборота нет",
+        risk="high",
+        required=False,
+    ),
     "async_save": PatchSpec(
         name="async_save",
         purpose="вынести sessions.save из event-loop в executor, чтобы "
@@ -616,6 +632,8 @@ class RuntimePatcher:
         self._record(report, "tool_limits", self.patch_tool_limits(settings))
         self._record(report, "assemble_outbound", self.patch_assemble_outbound(
             agent, tool_audit_hook, recent_files_hook=recent_files_hook))
+        self._record(report, "prepare_outbound_suppressed",
+                     self.patch_prepare_outbound_suppressed(agent))
         self._record(report, "turn_delivery_fail", self.patch_turn_delivery_fail(
             settings, db_logging_service, agent_id=_resolve_agent_id(config, agent)))
         self._record(report, "async_save", self.patch_async_session_saves(agent))
@@ -1578,6 +1596,107 @@ class RuntimePatcher:
 
         agent._assemble_outbound = _wrap
         return True, "agent._assemble_outbound patched"
+
+    # ------------------------------------------------------------------
+    # Патч 2a-bis: AgentLoop._prepare_outbound — синтетический финал
+    # для подавленного оборота (nanobot_bugfix_stutter)
+    # ------------------------------------------------------------------
+
+    def patch_prepare_outbound_suppressed(
+        self, agent: Any,
+    ) -> tuple[bool, str]:
+        """Собрать финальный outbound для оборота с ``ctx.suppress_response``.
+
+        ``MessageTool`` помечает ``ctx.suppress_response``, когда агент уже
+        отдал пользователю свой текст через ``message(...)``. Upstream
+        ``AgentLoop._prepare_outbound`` (nanobot/agent/loop.py:2068) в этом
+        случае выходит с ``ctx.outbound = None`` и **не вызывает**
+        ``_assemble_outbound`` — значит маркер ``_final_turn`` не ставится.
+        ``PostgresChannel.send`` трактует такой outbound как промежуточную
+        публикацию: ассистентская строка навсегда остаётся ``processing``,
+        claim/слот не освобождаются, watchdog отпускает задачу по
+        ``processing_timeout`` и она повторяется — до ``retry_count``.
+
+        Защита есть, но на неправильном уровне: ``patch_assemble_outbound``
+        достраивает синтетический финал, когда ``_assemble_outbound`` вернул
+        ``None``. Ранний выход в ``_prepare_outbound`` обходит эту страховку
+        целиком (``nanobot_bugfix_stutter``).
+
+        Обёртка снимает подавление только для обычных USER-оборотов: строит
+        тот же синтетический ``OutboundMessage`` с ``_final_turn`` и
+        сохраняет ``final_content`` (пустой content канал сам подменяет на
+        накопленный merge'ом, см. ``_finalize_turn``). SYSTEM-обороты и
+        ``ephemeral`` остаются подавленными — доставлять им финал некуда.
+
+        Args:
+            agent: ``AgentLoop``.
+
+        Returns:
+            ``(True, "agent._prepare_outbound patched (suppressed final)")``
+            при успехе; ``(False, <причина>)`` если ``agent is None`` или
+            ``_prepare_outbound`` отсутствует (битый nanobot).
+        """
+        if agent is None:
+            return False, "agent is None"
+        original = getattr(agent, "_prepare_outbound", None)
+        if original is None:
+            return False, "agent._prepare_outbound is missing"
+        if getattr(original, "_suppressed_final_patched", False) is True:
+            return False, "agent._prepare_outbound is already patched"
+
+        async def _wrap(ctx: Any) -> Any:
+            if not getattr(ctx, "suppress_response", False):
+                return await original(ctx)
+
+            kind = getattr(ctx, "kind", None)
+            is_system = getattr(kind, "name", None) == "SYSTEM" or kind == "SYSTEM"
+            if is_system or getattr(ctx, "ephemeral", False):
+                return await original(ctx)
+
+            msg = getattr(getattr(ctx, "delivery", None), "delivery_message", None)
+            if msg is None:
+                return await original(ctx)
+
+            try:
+                from nanobot.bus.events import OutboundMessage
+            except Exception:
+                logger.warning(
+                    "prepare_outbound_suppressed: OutboundMessage unavailable",
+                )
+                return await original(ctx)
+
+            from lib.utils.outbound_meta import FINAL_TURN_KEY as _FINAL_TURN
+
+            # Ранний выход upstream не доходит до этих записей — без них
+            # TurnCompleted/latency-метрики потеряют оборот.
+            ctx.delivery.record_stop_reason(
+                getattr(ctx, "stop_reason", None),
+                failure_error_kind=getattr(ctx, "failure_error_kind", None),
+            )
+            metadata = dict(getattr(msg, "metadata", None) or {})
+            metadata[_FINAL_TURN] = True
+
+            latency_ms = getattr(ctx, "turn_latency_ms", None)
+            if latency_ms is not None:
+                latency_ms = int(latency_ms)
+                metadata["latency_ms"] = latency_ms
+                ctx.delivery.record_latency(latency_ms)
+
+            ctx.outbound = OutboundMessage(
+                channel=getattr(msg, "channel", None),
+                chat_id=getattr(msg, "chat_id", None),
+                content=getattr(ctx, "final_content", "") or "",
+                metadata=metadata,
+            )
+            logger.debug(
+                "prepare_outbound_suppressed: synthetic final turn for {}",
+                getattr(msg, "chat_id", None),
+            )
+            return None
+
+        _wrap._suppressed_final_patched = True
+        agent._prepare_outbound = _wrap
+        return True, "agent._prepare_outbound patched (suppressed final)"
 
     # ------------------------------------------------------------------
     # Патч 2b: TurnDelivery.fail → заготовленный fallback вместо
