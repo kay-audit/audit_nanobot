@@ -198,3 +198,14 @@ isolation:
     - skills.ior_analyzer.enabled
     - skills.ior_analyzer.tables
   config_keys_removed: []
+
+
+# Локальный стенд audit_nanobot ходит за данными в PostgreSQL, а не в
+# Greenplum. IOR_DATA_BACKEND выбирает прямой SQL-путь (GreenplumStore —
+# общий пул workspace.utils.db, он работает с любым DSN из DATABASE_URL),
+# IOR_GP_SCHEMA указывает схему: на PG таблицы лежат в public (их создаёт
+# миграция V006), тогда как дефолт кода — пром-Greenplum.
+# Пишется в .secrets.env только при --env=dev, на ПРОМ блок пропускается.
+dev_env:
+  IOR_DATA_BACKEND: greenplum
+  IOR_GP_SCHEMA: public
