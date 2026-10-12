@@ -47,6 +47,15 @@ def test_skill_directory_resolution_is_deterministic(tmp_path):
 async def test_native_error_does_not_expose_traceback(monkeypatch):
     from workspace.tools.appeals_analyzer import AppealsAnalyzerTool, AppealsAnalyzerToolConfig
 
+    # Тест проверяет ИМЕННО production-ветку execute(): подложенная ошибка в
+    # _load_runner должна быть перехвачена и отдана без traceback. На стенде
+    # appeals-analyzer живёт в testing-рантайме (APPEALS_ANALYZER_RUNTIME=
+    # testing из feature.yaml), и execute() уходит в load_testing_module() —
+    # _load_runner там не вызывается, и ошибка просто не возникает. Рантайм
+    # фиксируем явно, чтобы тест не зависел от окружения машины.
+    monkeypatch.setenv("APPEALS_ANALYZER_RUNTIME", "production")
+    monkeypatch.setenv("NANOBOT_SKILLS_RUNTIME", "production")
+
     def fail():
         raise RuntimeError("SELECT secret FROM internal_table at C:/private/runtime.py")
 
