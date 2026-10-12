@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import os
 import queue
 import subprocess
 import sys
@@ -204,9 +205,24 @@ assert 'osiris' not in sys.modules
         self.profile.prepare_nfs()
         self.profile.lock_path.write_text(json.dumps({"host": lifecycle.socket.gethostname(), "pid": 99999999}))
         self.sdk.create.side_effect = self.create_ready
-        with patch.object(lifecycle.os, "kill", side_effect=ProcessLookupError):
+        # Патчим _process_alive, а не os.kill: проверка живости вынесена в
+        # отдельную функцию (на Windows os.kill(pid, 0) — это рассылка
+        # Ctrl+C, а не probe), и тест должен проверять именно её контракт.
+        with patch.object(lifecycle, "_process_alive", return_value=False):
             lifecycle.ensure_ready(self.profile, self.sdk)
         self.assertFalse(self.profile.lock_path.exists())
+
+    def test_process_alive_never_sends_console_control_event(self):
+        """os.kill(pid, 0) на Windows — это GenerateConsoleCtrlEvent, а не probe."""
+        real_kill = os.kill
+        with patch.object(lifecycle.os, "kill", side_effect=AssertionError(
+                "os.kill нельзя использовать как проверку живости на Windows")):
+            if os.name == "nt":
+                self.assertTrue(lifecycle._process_alive(os.getpid()))
+            else:
+                self.assertTrue(lifecycle._process_alive(os.getpid()))
+        with patch.object(lifecycle.os, "kill", side_effect=real_kill):
+            self.assertFalse(lifecycle._process_alive(99999999))
 
     def test_status_is_read_only_and_terminal_wins_over_fresh_heartbeat(self):
         name = self.existing(state="Finished")

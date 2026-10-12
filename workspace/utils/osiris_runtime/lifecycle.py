@@ -185,15 +185,55 @@ def discover(profile: ServiceProfile, osiris):
     return None, "not_found", listed
 
 
+def _process_alive(pid: int) -> bool:
+    """Жив ли процесс с указанным pid — переносимо для POSIX и Windows.
+
+    На POSIX это классический ``os.kill(pid, 0)``. На Windows та же запись
+    НЕ проверяет живость: ``signal.CTRL_C_EVENT == 0``, поэтому CPython
+    разворачивает ``os.kill(pid, 0)`` в ``GenerateConsoleCtrlEvent(
+    CTRL_C_EVENT, pid)`` — то есть в рассылку Ctrl+C, а не в probe.
+    Побочный эффект был неочевиден и дорог: вызов из фонового потока
+    обрывал KeyboardInterrupt'ом РОДИТЕЛЬСКИЙ процесс (в прогоне pytest это
+    выглядело как «тесты прошли, но процесс упал»). Поэтому на Windows
+    проверяем живость явно, через OpenProcess.
+
+    ``PermissionError`` на POSIX означает «процесс есть, но чужой» — это
+    «жив», а не «умер».
+    """
+    if os.name != "nt":
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            return True
+        return True
+
+    import ctypes
+    from ctypes import wintypes
+
+    # PROCESS_QUERY_LIMITED_INFORMATION — минимальные права, которых хватает
+    # на проверку существования процесса (PROCESS_QUERY_REAL_ACCESS не нужно).
+    PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+    ERROR_INVALID_PARAMETER = 87
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    handle = kernel32.OpenProcess(
+        PROCESS_QUERY_LIMITED_INFORMATION, False, wintypes.DWORD(pid)
+    )
+    if handle:
+        kernel32.CloseHandle(wintypes.HANDLE(handle))
+        return True
+    # ERROR_ACCESS_DENIED (5) — процесс существует, но принадлежит другому
+    # пользователю: для нас это «жив». ERROR_INVALID_PARAMETER — такого pid нет.
+    return ctypes.get_last_error() != ERROR_INVALID_PARAMETER
+
+
 def _owner_gone(path: Path) -> bool:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
         if data.get("host") != socket.gethostname() or not isinstance(data.get("pid"), int):
             return False
-        os.kill(data["pid"], 0)
-        return False
-    except ProcessLookupError:
-        return True
+        return not _process_alive(data["pid"])
     except (OSError, ValueError, TypeError):
         return False
 
