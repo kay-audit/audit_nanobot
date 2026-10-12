@@ -6,12 +6,50 @@ import re
 from pathlib import Path
 from typing import Callable
 
+# Точка входа запускается и как модуль пакета, и как самостоятельный скрипт
+# (``python workspace/skills/appeals-analyzer/testing/runner.py`` — так его
+# вызывает smoke-стадия audit_bridge). Во втором случае sys.path[0] указывает
+# на каталог testing/, корня репозитория там нет, а ``__package__`` пуст, и
+# относительный импорт падает с «attempted relative import with no known
+# parent package». Поэтому при запуске скриптом поднимаем корень репозитория
+# в sys.path и подгружаем соседние модули по файлу.
+if __package__ in (None, ""):  # pragma: no cover - зависит от способа запуска
+    import sys as _sys
+
+    _HERE = Path(__file__).resolve().parent
+    # _HERE = <repo>/workspace/skills/appeals-analyzer/testing, поэтому
+    # parents[3] — корень репозитория (parents[0..2] — appeals-analyzer,
+    # skills, workspace).
+    _REPO_ROOT = _HERE.parents[3]
+    if str(_REPO_ROOT) not in _sys.path:
+        _sys.path.insert(0, str(_REPO_ROOT))
+
 from lib.services.llm_client import call_llm_json
 from workspace.utils.session_key import safe_session_key
 
-from .data_generator import load_records
-from .llm_search import search, shortlist
-from .report import render_report
+if __package__ in (None, ""):  # pragma: no cover - зависит от способа запуска
+    import importlib.util as _util
+    import sys as _sys
+
+    def _load_sibling(name: str):
+        spec = _util.spec_from_file_location(
+            f"_appeals_testing_{name}", _HERE / f"{name}.py"
+        )
+        module = _util.module_from_spec(spec)
+        _sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+        return module
+
+    _data_generator = _load_sibling("data_generator")
+    load_records = _data_generator.load_records
+    TEST_SCHEMA = _data_generator.TEST_SCHEMA
+    _llm_search = _load_sibling("llm_search")
+    search, shortlist = _llm_search.search, _llm_search.shortlist
+    render_report = _load_sibling("report").render_report
+else:
+    from .data_generator import TEST_SCHEMA, load_records
+    from .llm_search import search, shortlist
+    from .report import render_report
 
 SESSION_ROOT = Path(__file__).resolve().parents[3] / "data_store" / "cache" / "testing" / "appeals" / "sessions"
 
@@ -70,3 +108,36 @@ async def run_testing_report(*, session_id: str, user_prompt: str, llm: Callable
     selected = [{**by_id[item["id"]], "relevance_score": item["score"], "reason": item["reason"]} for item in ranked if item["id"] in by_id]
     _write_session(session_id, query, [row["appeal_id"] for row in selected])
     return render_report(query, selected)
+
+
+MIN_RECORDS = 1000
+
+
+def self_check() -> int:
+    """Smoke-проверка стенда: данные читаются из test_d3 и их достаточно.
+
+    Именно это объявлено в feature.yaml (testing.runner.smoke_expected:
+    source_schema=test_d3, min_records=1000). Проверка не зовёт LLM — иначе
+    smoke-stage audit_bridge зависел бы от наличия ключа провайдера.
+    """
+    records = load_records()
+    print(f"source_schema={TEST_SCHEMA}")
+    print(f"records={len(records)}")
+    if not records:
+        print(f"ОШИБКА: схема {TEST_SCHEMA} пуста — прогоните data_generator.py")
+        return 1
+    if len(records) < MIN_RECORDS:
+        print(f"ОШИБКА: записей {len(records)} < требуемых {MIN_RECORDS}")
+        return 1
+    sample = records[0]
+    missing = [key for key in ("appeal_id", "date", "prd", "s_prd", "chnl", "text")
+               if not sample.get(key)]
+    if missing:
+        print(f"ОШИБКА: в первой записи нет полей: {missing}")
+        return 1
+    print(f"ПРОВЕРКА ПРОЙДЕНА: {len(records)} обращений из {TEST_SCHEMA}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(self_check())
