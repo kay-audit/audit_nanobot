@@ -121,6 +121,7 @@ isolation:
   removable: true
   strategy: files_and_config
   files_added:
+  - feature.yaml
   - docs/D3.md
   - docs/OSIRIS_RUNTIME.md
   - openspec/changes/appeals-structural-startup-cache/**
