@@ -463,7 +463,9 @@
       "apiBase": "https://api.minimax.io/v1",
       "apiType": "auto",
       "extraHeaders": null,
-      "extraBody": null,
+      "extraBody": {
+        "reasoning_split": true
+      },
       "extraQuery": null,
       "proxy": null,
       "thinkingStyle": null

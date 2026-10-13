@@ -25,7 +25,7 @@ import json
 import re
 from typing import Any
 
-from lib.services.llm_reasoning import apply_to_payload
+from lib.services.llm_reasoning import apply_to_payload, strip_think_blocks
 from lib.utils.retry import retry_on_exception
 
 
@@ -92,13 +92,21 @@ def call_llm(
     }
 
     # Сквозной переключатель рассуждений — см. lib/services/llm_reasoning.py.
-    # Стоит после сборки payload и до отправки, поэтому действует одинаково для
-    # всех потребителей клиента: audit_analyzer, legal_summarizer,
-    # audit_formulation_strengthener, тесты appeals и бенчмарки.
-    apply_to_payload(payload)
+    # Поле выбирается по провайдеру из cfg: у MiniMax это reasoning_split, у
+    # vLLM — chat_template_kwargs.enable_thinking. Стоит после сборки payload и
+    # до отправки, поэтому действует одинаково для всех потребителей клиента:
+    # audit_analyzer, legal_summarizer, audit_formulation_strengthener,
+    # тесты appeals и бенчмарки.
+    apply_to_payload(payload, resolved.get("provider"))
 
     data = _post_json(url, payload, headers, timeout, max_retries)
-    content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+    message = data.get("choices", [{}])[0].get("message", {}) or {}
+    content = strip_think_blocks(message.get("content") or "")
+    if not content:
+        # Сервер не разделил рассуждение и обрезал его по max_tokens: в content
+        # остался только черновик. Тогда отдаём рассуждение — лучше черновик,
+        # чем RuntimeError.
+        content = strip_think_blocks(message.get("reasoning_content") or "")
     if not content:
         raise RuntimeError("LLM вернул пустой ответ")
     return content.strip()
