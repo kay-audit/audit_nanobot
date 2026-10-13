@@ -379,7 +379,11 @@
       "apiBase": null,
       "apiType": "auto",
       "extraHeaders": null,
-      "extraBody": null,
+      "extraBody": {
+        "chat_template_kwargs": {
+          "enable_thinking": true
+        }
+      },
       "extraQuery": null,
       "proxy": null,
       "thinkingStyle": null

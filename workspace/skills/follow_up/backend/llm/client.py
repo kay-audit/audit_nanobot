@@ -23,6 +23,17 @@ from backend.config import get_settings
 logger = logging.getLogger(__name__)
 
 
+def _reasoning_extra_body(cfg) -> Dict:
+    """Сквозной переключатель рассуждений для OpenAI-совместимого SDK.
+
+    SDK не пропускает неизвестные поля верхнего уровня, поэтому
+    ``chat_template_kwargs`` едет именно в ``extra_body``. Настройка —
+    ``cfg.vllm_enable_thinking``, она же переменная окружения
+    VLLM_ENABLE_THINKING, общая со всеми остальными навыками.
+    """
+    return {"chat_template_kwargs": {"enable_thinking": bool(cfg.vllm_enable_thinking)}}
+
+
 # ──────────────────────────────────────────────────────────────────
 # OpenAI-compatible clients (mode = local | api)
 # ──────────────────────────────────────────────────────────────────
@@ -252,6 +263,7 @@ def generate_sync(
             max_tokens=mt,
             temperature=temp,
             stream=False,
+            extra_body=_reasoning_extra_body(cfg),
         )
         return _content_of(response.choices[0].message)
 
@@ -318,7 +330,8 @@ async def generate_async(
                 try:
                     response = client.chat.completions.create(
                         model=model_id, messages=messages, max_tokens=mt,
-                        temperature=temp, stream=False)
+                        temperature=temp, stream=False,
+                        extra_body=_reasoning_extra_body(cfg))
                     return _content_of(response.choices[0].message)
                 except Exception as e:
                     last = e
@@ -359,6 +372,7 @@ async def generate_stream(
         max_tokens=max_tokens or cfg.llm_max_tokens,
         temperature=temperature if temperature is not None else cfg.llm_temperature,
         stream=True,
+        extra_body=_reasoning_extra_body(cfg),
     )
     async for chunk in stream:
         delta = chunk.choices[0].delta.content
