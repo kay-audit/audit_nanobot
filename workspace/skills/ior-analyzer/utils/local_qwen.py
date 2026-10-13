@@ -161,7 +161,8 @@ def call_qwen_http(messages: List[Dict[str, str]], max_tokens: int = 16384, temp
     }
     # Сквозной переключатель рассуждений (lib/services/llm_reasoning.py):
     # раньше этот навык вообще ничего не сообщал vLLM о рассуждениях.
-    apply_to_payload(payload)
+    # Этот навык ходит именно в vLLM, поэтому поле — chat_template_kwargs.
+    apply_to_payload(payload, "vllm")
     
     prompt_len = sum(len(m.get("content", "")) for m in messages)
     logger.info(f"[local_qwen] 🚀 Sending POST to vLLM ({VLLM_API_URL}) | model='{model_name}' | prompt_len={prompt_len} chars | max_tokens={max_tokens}")
