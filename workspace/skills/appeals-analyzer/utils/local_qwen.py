@@ -28,7 +28,7 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[4]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 try:
-    from lib.services.llm_reasoning import apply_to_payload
+    from lib.services.llm_reasoning import apply_to_payload, strip_think_blocks
 except ImportError:  # закрытый контур: читаем ту же переменную напрямую
     def _thinking_enabled() -> bool:
         raw = (os.getenv("VLLM_ENABLE_THINKING") or "").strip().lower()
@@ -40,8 +40,22 @@ except ImportError:  # закрытый контур: читаем ту же п�
 
     def apply_to_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         if isinstance(payload, dict):
-            payload["chat_template_kwargs"] = {"enable_thinking": _thinking_enabled()}
+            payload["reasoning_split"] = _thinking_enabled()
         return payload
+
+    import re as _re
+
+    _THINK_BLOCKS = _re.compile(
+        r"<think>.*?</think>"
+        r"|\A\s*</think>.*?(?=\n\s*\n|\Z)"
+        r"|```xml-think\s*\n.*?```",
+        _re.DOTALL | _re.IGNORECASE,
+    )
+
+    def strip_think_blocks(text: str) -> str:
+        if not text:
+            return ""
+        return _THINK_BLOCKS.sub("", text).strip()
 
 logger = logging.getLogger(__name__)
 
@@ -129,12 +143,14 @@ def call_gigachat_sber_api(messages: List[Dict[str, str]], temperature: float = 
                 choices = res_json.get("choices", [])
                 if choices and "message" in choices[0]:
                     msg = choices[0]["message"]
-                    content = (msg.get("content") or "").strip()
+                    content = strip_think_blocks(msg.get("content"))
+                    if not content:
+                        content = strip_think_blocks(msg.get("reasoning_content"))
                     if content:
                         logger.info("GigaChat HTTP response received: model=%s chars=%s", model, len(content))
                         return content
                 elif "result" in res_json:
-                    content = str(res_json["result"]).strip()
+                    content = strip_think_blocks(str(res_json["result"]))
                     logger.info("GigaChat HTTP response received: model=%s chars=%s", model, len(content))
                     return content
             elif status == 403:
@@ -180,12 +196,15 @@ def call_vllm_http(messages: List[Dict[str, str]]) -> str:
         }
         # Сквозной переключатель рассуждений: раньше vLLM-запасной путь
         # appeals вообще не получал указаний о рассуждениях.
-        apply_to_payload(payload)
+        apply_to_payload(payload, "vllm")
         status, response_json, _ = _post_json(VLLM_API_URL, {"Content-Type": "application/json"}, payload, timeout=10)
         if 200 <= status < 300:
             choices = response_json.get("choices", [])
             if choices and "message" in choices[0]:
-                return (choices[0]["message"].get("content") or "").strip()
+                msg = choices[0]["message"]
+                # Рассуждение может прийти и в content — отдаём только ответ.
+                return (strip_think_blocks(msg.get("content"))
+                        or strip_think_blocks(msg.get("reasoning_content")))
     except Exception as exc:
         logger.debug("Local vLLM fallback unavailable: %s", exc)
     return ""
