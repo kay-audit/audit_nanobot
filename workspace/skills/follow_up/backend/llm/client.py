@@ -19,6 +19,7 @@ from typing import AsyncGenerator, Dict, List, Optional
 from openai import AsyncOpenAI, OpenAI
 
 from backend.config import get_settings
+from backend.llm.reasoning import sdk_extra_body, strip_think_blocks
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,7 @@ def _reasoning_extra_body(cfg) -> Dict:
     ``cfg.vllm_enable_thinking``, она же переменная окружения
     VLLM_ENABLE_THINKING, общая со всеми остальными навыками.
     """
-    return {"chat_template_kwargs": {"enable_thinking": bool(cfg.vllm_enable_thinking)}}
+    return sdk_extra_body(getattr(cfg, "llm_provider", None))
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -193,11 +194,11 @@ def list_available_models() -> List[Dict]:
 def _content_of(message) -> str:
     """Текст ответа модели. content бывает None (reasoning-модели, обрыв по
     длине, пустой ответ) — .strip() по нему ронял агента с AttributeError."""
-    text = getattr(message, "content", None)
+    text = strip_think_blocks(getattr(message, "content", None) or "")
     if not text:
         # у reasoning-моделей полезный текст иногда в отдельном поле
-        text = getattr(message, "reasoning_content", None) or ""
-    return (text or "").strip()
+        text = strip_think_blocks(getattr(message, "reasoning_content", None) or "")
+    return text.strip()
 
 
 _RETRY_DELAYS = (2, 6)          # две повторные попытки

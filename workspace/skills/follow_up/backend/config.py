@@ -58,6 +58,7 @@ class Settings(BaseSettings):
     # дать 400. Если навык переключили на такой endpoint — выставьте
     # VLLM_ENABLE_THINKING=false.
     vllm_enable_thinking: bool = True
+    llm_provider: Optional[str] = None
 
     # На чём считать bge-m3 и реранкер: "auto" | "cpu" | "cuda".
     # "auto" берёт GPU, если она видна, — и это опасный дефолт там, где
