@@ -4,6 +4,7 @@ local_qwen.py — Модуль взаимодействия с GigaChat в ко�
 from __future__ import annotations
 
 import os
+import sys
 import json
 import logging
 import time
@@ -16,6 +17,31 @@ from urllib import request as urllib_request
 from urllib.error import HTTPError
 from pathlib import Path
 from typing import List, Dict, Any, Optional
+
+# Сквозной переключатель рассуждений. Канонический источник —
+# lib/services/llm_reasoning.py; переменная окружения одна и та же.
+# Импорт защищённый: закрытый контур этого навыка по контракту умеет только
+# stdlib (см. ветку ImportError у requests выше), и падать из-за отсутствия
+# модуля ему нельзя. Запасной вариант читает ту же переменную с тем же
+# значением по умолчанию.
+_PROJECT_ROOT = Path(__file__).resolve().parents[4]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+try:
+    from lib.services.llm_reasoning import apply_to_payload
+except ImportError:  # закрытый контур: читаем ту же переменную напрямую
+    def _thinking_enabled() -> bool:
+        raw = (os.getenv("VLLM_ENABLE_THINKING") or "").strip().lower()
+        if raw in {"1", "true", "yes", "on", "y", "t", "да", "истина"}:
+            return True
+        if raw in {"0", "false", "no", "off", "n", "f", "нет", "ложь"}:
+            return False
+        return True  # DEFAULT_ENABLE_THINKING из llm_reasoning.py
+
+    def apply_to_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+        if isinstance(payload, dict):
+            payload["chat_template_kwargs"] = {"enable_thinking": _thinking_enabled()}
+        return payload
 
 logger = logging.getLogger(__name__)
 
@@ -152,6 +178,9 @@ def call_vllm_http(messages: List[Dict[str, str]]) -> str:
             "max_tokens": 2048,
             "temperature": 0.6,
         }
+        # Сквозной переключатель рассуждений: раньше vLLM-запасной путь
+        # appeals вообще не получал указаний о рассуждениях.
+        apply_to_payload(payload)
         status, response_json, _ = _post_json(VLLM_API_URL, {"Content-Type": "application/json"}, payload, timeout=10)
         if 200 <= status < 300:
             choices = response_json.get("choices", [])
