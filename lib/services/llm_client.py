@@ -25,6 +25,7 @@ import json
 import re
 from typing import Any
 
+from lib.services.llm_reasoning import apply_to_payload
 from lib.utils.retry import retry_on_exception
 
 
@@ -89,6 +90,12 @@ def call_llm(
             else resolved.get("temperature", 0.1)
         ),
     }
+
+    # Сквозной переключатель рассуждений — см. lib/services/llm_reasoning.py.
+    # Стоит после сборки payload и до отправки, поэтому действует одинаково для
+    # всех потребителей клиента: audit_analyzer, legal_summarizer,
+    # audit_formulation_strengthener, тесты appeals и бенчмарки.
+    apply_to_payload(payload)
 
     data = _post_json(url, payload, headers, timeout, max_retries)
     content = data.get("choices", [{}])[0].get("message", {}).get("content", "")

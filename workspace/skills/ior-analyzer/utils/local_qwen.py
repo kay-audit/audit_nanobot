@@ -21,6 +21,12 @@ for _dir in (_SKILL_DIR, _SCRIPTS_DIR, _UTILS_DIR):
     if _sdir not in sys.path:
         sys.path.insert(0, _sdir)
 
+# Корень нанобота — ради сквозного переключателя рассуждений из
+# lib/services. Тот же приём, что в utils/skill_config.py:9-13.
+_PROJECT_ROOT = _SKILL_DIR.parents[2]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
 
 import os
 import sys
@@ -33,6 +39,7 @@ import threading
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
+from lib.services.llm_reasoning import apply_to_payload
 from utils.qwen_response import QwenResponse, extract_openai_response, response_from_generate, strip_think_blocks
 
 logger = logging.getLogger(__name__)
@@ -152,6 +159,9 @@ def call_qwen_http(messages: List[Dict[str, str]], max_tokens: int = 16384, temp
         "max_tokens": max_tokens,
         "temperature": temperature,
     }
+    # Сквозной переключатель рассуждений (lib/services/llm_reasoning.py):
+    # раньше этот навык вообще ничего не сообщал vLLM о рассуждениях.
+    apply_to_payload(payload)
     
     prompt_len = sum(len(m.get("content", "")) for m in messages)
     logger.info(f"[local_qwen] 🚀 Sending POST to vLLM ({VLLM_API_URL}) | model='{model_name}' | prompt_len={prompt_len} chars | max_tokens={max_tokens}")
@@ -212,6 +222,11 @@ def call_qwen_http(messages: List[Dict[str, str]], max_tokens: int = 16384, temp
         logger.warning(f"[local_qwen] ⚠️ Primary vLLM endpoint ({VLLM_API_URL}) failed in {elapsed:.2f}s: {e}")
 
     # Fallback на кастомный HTTP endpoint http://localhost:8001/generate если доступен
+    #
+    # Переключатель рассуждений здесь НЕ отправляется намеренно: это не
+    # OpenAI-совместимый эндпоинт, а самодельный /generate с неизвестным нам
+    # контрактом — лишнее поле может вернуть 422 и убить единственный
+    # работающий запасной путь. Путь деградации, рассуждения тут не при чём.
     logger.info(f"[local_qwen] Trying fallback generate endpoint ({VLLM_GENERATE_URL})...")
     try:
         sys_prompt = ""
