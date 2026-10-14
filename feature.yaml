@@ -138,6 +138,17 @@ overlays:
 # Модификации runtime-инфраструктуры (Nanobot gateway, lib/) не требуются —
 # runtime-aware выбор backend'а делается внутри skill'а.
 
+# Формат — объекты TestSpec (schema.TestSpec: path + marker), а не голые
+# строки: у каждого теста есть marker ('required' → apply падает на красном,
+# 'optional' → показывает с предупреждением). Список не проходит pydantic,
+# и apply останавливается на стадии 1 с MANIFEST_INVALID.
+# Здесь всё optional (дефолт): контрактные тесты фичи могут требовать
+# стенда, которого на машине применения ещё нет.
+tests:
+  - path: tests/test_follow_up_llm_centralization.py
+  - path: tests/test_follow_up_skill.py
+  - path: tests/test_prepare_outbound_suppressed.py
+
 testing:
   runtime_env: NANOBOT_SKILLS_RUNTIME
   runtime_value: testing
@@ -207,10 +218,9 @@ isolation:
   # config.json, project.json. Изменения конфигурации идут только через
   # overlays.project_json.
   files_added:
-    - tests/test_secrets_env_precedence.py
     - tests/test_runtime_patcher.py
     - tests/test_prepare_outbound_suppressed.py
-    - tests/test_max_tool_iterations.py
+    - tests/test_follow_up_llm_centralization.py
     - workspace/skills/audit_analyzer/scripts/pg_provider.py
     - workspace/skills/audit_analyzer/scripts/cli.py
     - tools/seed_follow_up_corpus.py
