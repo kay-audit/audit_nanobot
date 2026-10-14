@@ -324,6 +324,13 @@ def adopt_agent_llm(cfg) -> Dict[str, Any]:
     cfg.llm_model_name = llm["model"]
     applied["model"] = llm["model"]
     applied["provider"] = llm.get("provider") or "?"
+    # Имя провайдера едет в настройки отдельным полем не для красоты: по нему
+    # `llm/reasoning.py` выбирает форму управления рассуждениями
+    # (minimax → reasoning_split, vllm → chat_template_kwargs.enable_thinking).
+    # Без него навык слал рассуждение не тем полем, каким его понимает
+    # сервер, — то есть на ПРОМе с vLLM черновик модели уезжал бы в ответ
+    # пользователю. Молчание оборачивалось утечкой черновика.
+    cfg.llm_provider = llm.get("provider") or None
     key = llm.get("api_key")
     if key and "${" in key:
         # Нерешённая заглушка — не ключ. Оставляем свой: он хотя бы наш.

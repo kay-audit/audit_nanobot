@@ -278,6 +278,29 @@ async def _serve() -> None:
         await server.run(read, write, server.create_initialization_options())
 
 
+def _require_model_configured() -> None:
+    """Отказаться подниматься, если идти в модель некуда.
+
+    Сервер без адреса модели отвечает на каждый вопрос «Follow Up
+    недоступен», и виновника ищут в базе и в корпусе, хотя дело в одной
+    строке конфигурации агента. Отказ на старте называет причину сразу и
+    стоит ровно одного перезапуска после правки.
+
+    Импорты локальные: `selfcheck` должен уметь перечислить недостающие
+    пакеты, а не упасть на ImportError раньше, чем дошёл до отчёта.
+    """
+    from backend.config import get_settings
+    from backend.llm.client import LLMNotConfigured, require_configured_endpoint
+
+    if get_settings().llm_mode == "gigachat":       # у GigaChat свой адрес
+        return
+    try:
+        require_configured_endpoint()
+    except LLMNotConfigured as e:
+        logger.error(f"[mcp] Не стартую: {e}")
+        raise SystemExit(2)
+
+
 def _boot() -> None:
     """Поднять корпус: база, индексы, фоновое пополнение.
 
@@ -317,6 +340,7 @@ def _boot() -> None:
     # Модель, Greenplum и модели поиска — у агента, как у соседних навыков.
     # До первого вопроса и до запуска фонового пополнения корпуса.
     boot.adopt_agent_llm()
+    _require_model_configured()
     boot.adopt_agent_gp()
     boot.adopt_agent_models()
     boot.load_indexes()

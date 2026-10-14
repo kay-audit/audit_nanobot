@@ -28,12 +28,24 @@ class Settings(BaseSettings):
     # ──────────────────────────────────────────────────────────────
     llm_mode: Literal["local", "api", "gigachat"] = "api"
     """
-    'api'      — внешний OpenAI-compatible endpoint (Fireworks, OpenAI и т.д.) — DEFAULT
+    'api'      — внешний OpenAI-compatible endpoint (vLLM, minimax, OpenAI и т.д.) — DEFAULT
     'gigachat' — GigaChat через внутренний API (прод банка)
     'local'    — vLLM на GPU-машине (опция, если есть инфраструктура)
     """
-    llm_base_url: str = "https://api.fireworks.ai/inference/v1"
-    llm_api_key: str = "EMPTY"
+    # Адрес и ключ по умолчанию ПУСТЫЕ, и это не опечатка. У навыка нет своей
+    # модели: её адрес, ключ и имя живут в конфиге агента (`agents.defaults`
+    # плюс `providers.<имя>`) и приезжают через
+    # `core/nanobot_config.adopt_agent_llm` на старте. Бывший дефолт уводил
+    # навык на api.fireworks.ai с ключом "EMPTY" — то есть 401 от чужого
+    # сервиса в тот момент, когда администратор всё настроил правильно.
+    #
+    # Пустой адрес означает «не настроено», и это проверяется громко:
+    # `llm/client.require_configured_endpoint` отказывается идти в модель
+    # вместо того, чтобы разойтись 401 по каждому вопросу. Настройка своего
+    # адреса через site_defaults.env/.env по-прежнему работает — она просто
+    # перестаёт быть забытым значением по умолчанию.
+    llm_base_url: str = ""
+    llm_api_key: str = ""
     llm_model_name: Optional[str] = None   # None → автоопределение с /models
     llm_max_tokens: int = 2000
     llm_temperature: float = 0.1

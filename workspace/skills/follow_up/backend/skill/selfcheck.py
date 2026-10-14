@@ -75,8 +75,17 @@ def report() -> Dict[str, Any]:
     cfg = get_settings()
 
     out["llm"] = {"model": cfg.llm_model_name or "(автоопределение)",
-                  "api_host": urlsplit(cfg.llm_base_url).hostname,
+                  "api_host": urlsplit(cfg.llm_base_url).hostname or None,
+                  "provider": cfg.llm_provider,
                   "from_agent": bool(llm)}
+    if cfg.llm_mode != "gigachat" and not (cfg.llm_base_url or "").strip():
+        # Раньше дефолтом стоял адрес Fireworks, и этот отчёт был зелёным при
+        # навыке, который физически не мог ответить. Теперь пустой адрес —
+        # это ровно то, что нужно чинить, и selfcheck обязан об этом сказать.
+        problems.append(
+            "модель не настроена: адрес пуст — задайте agents.defaults.model и "
+            "providers.<имя>.apiBase/apiKey в конфиге агента либо LLM_BASE_URL "
+            "в site_defaults.env/.env навыка")
     out["gp"] = {"enabled": bool(cfg.gp_enabled), "host": cfg.gp_host or None,
                  "db": cfg.gp_db or None, "user": cfg.gp_user or None,
                  "schema": cfg.gp_write_schema or None,

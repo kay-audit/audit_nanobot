@@ -27,10 +27,13 @@ logger = logging.getLogger(__name__)
 def _reasoning_extra_body(cfg) -> Dict:
     """Сквозной переключатель рассуждений для OpenAI-совместимого SDK.
 
-    SDK не пропускает неизвестные поля верхнего уровня, поэтому
-    ``chat_template_kwargs`` едет именно в ``extra_body``. Настройка —
-    ``cfg.vllm_enable_thinking``, она же переменная окружения
-    VLLM_ENABLE_THINKING, общая со всеми остальными навыками.
+    SDK не пропускает неизвестные поля верхнего уровня, поэтому управляющее
+    поле едет именно в ``extra_body``. Поле выбирается по провайдеру
+    ``cfg.llm_provider`` (None = обычный OpenAI-совместимый эндпоинт →
+    ``reasoning_split``; ``vllm`` → ``chat_template_kwargs.enable_thinking``).
+    Сама включённость — переменная окружения VLLM_ENABLE_THINKING, общая со
+    всеми остальными навыками; правила выбора поля — в
+    ``backend/llm/reasoning.py``.
     """
     return sdk_extra_body(getattr(cfg, "llm_provider", None))
 
@@ -39,16 +42,47 @@ def _reasoning_extra_body(cfg) -> Dict:
 # OpenAI-compatible clients (mode = local | api)
 # ──────────────────────────────────────────────────────────────────
 
+class LLMNotConfigured(RuntimeError):
+    """Идти в модель некуда: адрес не задан ни навыку, ни агенту."""
+
+
+def require_configured_endpoint() -> str:
+    """Проверить, что адрес модели есть, и вернуть его.
+
+    Отдельная функция, а не проверка внутри конструктора клиента, потому что
+    ею пользуется и старт сервера (`skill/mcp_server.py`), которому нужно
+    отказать сразу и с внятным текстом, а не упасть позже на первом вопросе.
+
+    Пустой адрес — это не «возьми дефолт». Раньше дефолтом был
+    api.fireworks.ai, и навык, запущенный наноботом с правильно настроенным
+    minimax, всё равно уходил туда и получал 401. Теперь отсутствие адреса
+    означает отсутствие модели: сказать об этом один раз на старте дешевле,
+    чем собирать отчёт о том, что «Follow Up не отвечает».
+    """
+    cfg = get_settings()
+    base = (cfg.llm_base_url or "").strip()
+    if base:
+        return base
+    raise LLMNotConfigured(
+        "Follow Up не знает, в какую модель идти: адрес пуст. Настройте её в "
+        "config.json агента (agents.defaults.model + providers.<имя>.apiBase и "
+        "apiKey) — навык берёт модель оттуда при старте. Если модель должна "
+        "быть своей, задайте LLM_BASE_URL и LLM_API_KEY в site_defaults.env "
+        "или .env навыка."
+    )
+
+
 def get_sync_client() -> OpenAI:
     cfg = get_settings()
-    return OpenAI(api_key=cfg.llm_api_key, base_url=cfg.llm_base_url,
+    return OpenAI(api_key=cfg.llm_api_key, base_url=require_configured_endpoint(),
                   timeout=cfg.llm_request_timeout)
 
 
 @lru_cache(maxsize=1)
 def get_async_client() -> AsyncOpenAI:
     cfg = get_settings()
-    return AsyncOpenAI(api_key=cfg.llm_api_key, base_url=cfg.llm_base_url,
+    return AsyncOpenAI(api_key=cfg.llm_api_key,
+                       base_url=require_configured_endpoint(),
                        timeout=cfg.llm_request_timeout)
 
 
@@ -154,9 +188,17 @@ def resolve_model_sync(preferred: Optional[str] = None) -> str:
     except Exception as e:
         logger.warning(f"[LLM] Не удалось получить список моделей: {e}")
 
-    fallback = "accounts/fireworks/models/llama-v3p3-70b-instruct"
-    logger.warning(f"[LLM] Fallback модель: {fallback}")
-    return fallback
+    # Модели нет — и подставлять её отсюда нечего. Раньше здесь стояла
+    # константа accounts/fireworks/models/llama-v3p3-70b-instruct: запрос
+    # уходил, падал на 404 у чужого сервиса, и диагностика уводила в
+    # Fireworks вместо «не настроена модель агента». Теперь это правдивое
+    # сообщение о том, что чинить.
+    raise LLMNotConfigured(
+        "Не удалось определить модель: в настройках LLM_MODEL_NAME пусто, "
+        "а адрес не отдал список моделей. Задайте модель явно — "
+        "LLM_MODEL_NAME в site_defaults.env/.env либо agents.defaults.model "
+        "в конфиге агента."
+    )
 
 
 def list_available_models() -> List[Dict]:
