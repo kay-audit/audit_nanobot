@@ -167,7 +167,7 @@ tests:
   - path: tests/test_ior_bge_followup_contract.py
   - path: tests/test_tools_ior_analyzer.py
   - path: workspace/skills/ior-analyzer/scripts/test_analysis_mode.py
-  - path: workspace/skills/ior-analyzer/scripts/test_business_contract.py
+  - path: workspace/skills/ior-analyzer/tests/test_business_contract.py
   - path: workspace/skills/ior-analyzer/scripts/test_osiris_contract.py
   - path: workspace/skills/ior-analyzer/scripts/test_preset_analysis.py
   - path: workspace/skills/ior-analyzer/utils/resolve/test_resolve.py
