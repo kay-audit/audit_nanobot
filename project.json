@@ -596,6 +596,19 @@
   // ---------------------------------------------------------------------------
   //  logging.* — структурированный журнал событий агента (DbLoggingService)
   // ---------------------------------------------------------------------------
+  "tools": {
+    "osiris": {
+      "enable": true,
+      "allowed_services": ["appeals"],
+      "allowed_operations": {"appeals": ["retrieve", "rerank", "embed"]},
+      "profile_files": ["skills/appeals-analyzer/utils/osiris_config.py"],
+      "allow_stop": false,
+      "admin_session_keys": [],
+      "request_timeout_sec": 1800,
+      "max_result_chars": 16000
+    }
+  },
+
   "logging": {
     "db": {
       "enabled": true,                 // Варианты: true | false
