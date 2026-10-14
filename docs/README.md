@@ -36,6 +36,7 @@ reference** по своей подсистеме; README в корне — эт�
 
 | Документ | Назначение |
 |---|---|
+| [OSIRIS_RUNTIME.md](OSIRIS_RUNTIME.md) | Registry, shared/dedicated GPU workers, JSON/NFS protocol, native Tool, idle 8 часов и smoke закрытого контура |
 | [architecture/nanobot-inventory.md](architecture/nanobot-inventory.md) | Инвентарь всех зависимостей от `nanobot-ai` (GREEN/YELLOW/ORANGE/RED) |
 | [architecture/runtime-patcher-inventory.md](architecture/runtime-patcher-inventory.md) | Каталог monkey-patch'ей с target/risk/тестами |
 | [architecture/storage-layers.md](architecture/storage-layers.md) | Гибридная модель хранения сессий (upstream JSONL + cold-storage PG mirror); правила использования пула |

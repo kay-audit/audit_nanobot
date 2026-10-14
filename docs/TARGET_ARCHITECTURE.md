@@ -1245,6 +1245,16 @@ rewrite everything into target structure
 
 # 38. Final decision rule
 
+OSIRIS lifecycle и NFS transport принадлежат общему runtime и MUST NOT
+зависеть от навыков или конкретных моделей. Навыки владеют предметными
+handlers; native Tool и Python-потребители используют один backend.
+LLM SHALL NOT выбирать image, worker path, SDK kwargs, imports или shell-код.
+Native Tool использует реальную session context, service/operation allowlists
+и конфигурационную авторизацию административного stop. JSON Tool interface
+SHALL NOT десериализовать pickle; legacy pickle разрешён только доверенному
+внутреннему потребителю. Независимые сервисы имеют непересекающиеся namespace;
+shared service использует один профиль, одну lifecycle lock и корреляцию ответов.
+
 При конфликте между «проще написать сейчас» и target architecture предпочтение отдаётся target architecture, если цена изменения разумна.
 
 Если для сохранения target architecture требуется большой rewrite, не делать его автоматически. Сначала зафиксировать gap, добавить тест/constraint и выбрать постепенный путь миграции.

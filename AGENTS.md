@@ -69,6 +69,12 @@
 
 ## File Storage Policy
 
+- `workspace/utils/osiris_runtime/` — общий OSIRIS backend: `ServiceRegistry`,
+  `OsirisRuntime`, lifecycle/NFS transport, JSON/artifacts и явный worker dispatcher.
+  Не зависит от Appeals или ML. Native Tool — `workspace/tools/osiris.py`;
+  пример worker — `tools/osiris_echo_worker.py`. Контракт и smoke — `docs/OSIRIS_RUNTIME.md`.
+  Idle timeout по умолчанию 28800 секунд, передаётся worker через metadata.
+
 - Новые файлы, создаваемые в рамках сессии, сохраняй под `workspace/data_store/cache/sessions/<session_key>/`
   (политика `workspace/AGENTS.md`). Не пиши напрямую в корень проекта.
 - Кэш документов legal_summarizer: `workspace/data_store/cache/sessions/<safe_session_key>/documents/<document_id>/`
@@ -78,6 +84,13 @@
 - **Не используй `>`, `>>` в `exec` для создания файлов** — `session_file_redirect_hook` их не перехватывает.
 
 ## Configuration
+
+- `tools.osiris.*` — native OSIRIS Tool: `enable`, `allowed_services`,
+  `allowed_operations`, доверенные `profile_files`, `allow_stop` (дефолт false),
+  `admin_session_keys`, `request_timeout_sec`, `max_result_chars`.
+  Настройки читаются через `ctx._settings_ref.tools.osiris`.
+  SDK не импортируется при загрузке Tool; image/job/worker paths не являются
+  LLM-аргументами. Stop требует реальную административную session_key.
 
 - Настройки нано-агента (`channels.*`, `skills.*`, `cli`, `benchmark`, `streamlit`, `gateway`, `logging.db`) — в `project.json` (JSONC, с комментариями).
 - Очистка журнала событий `agent_gateway_logs` / `agent_question_runs`: подсекция `logging.db` (`logging.db.enabled` — вкл/выкл записи):
