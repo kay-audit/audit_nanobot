@@ -168,7 +168,8 @@ async def run_appeals_report(session_id: str, user_prompt: str = "", filters: Op
     if not session_id:
         raise ValueError("Appeals requires an explicit session key")
     session = get_session_extract(session_id)
-    if session and route_intent(user_prompt, True) != Intent.NEW_SEARCH:
+    has_selection = bool(session and session.get("final_ids"))
+    if has_selection and route_intent(user_prompt, has_selection) != Intent.NEW_SEARCH:
         try:
             return await _run_follow_up(session_id, user_prompt, session)
         except OsirisUnavailableError:

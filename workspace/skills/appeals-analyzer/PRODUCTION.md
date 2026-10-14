@@ -89,6 +89,40 @@ XLSX is written under `workspace/data_store/cache/sessions/<safe_session_key>/re
 
 ## Verification
 
+### NEW_SEARCH / FOLLOWUP regression (2026-10-14)
+
+`scripts/appeals_reports.py:171` considers a selection active only when its
+`final_ids` are nonempty. `_empty()` and `session_extract_manager` keep their
+existing technical-record/clear-on-new-search behavior: a truthy record is not
+evidence of a successful report. No parallel session-state flag was introduced.
+
+`utils/intent_router.py:16` recognizes a first-line canonical title, root JSON
+request_type=appeals_analysis (including a malformed JSON envelope with that
+marker), or a complete four-quoted-field CSV envelope before follow-up rules.
+This recognition is not validation and does not repair input. The unchanged
+strict parser receives the complete original prompt and returns its format
+diagnostic. Ordinary text with no envelope marker remains subject to the existing
+follow-up rules only when real final IDs exist.
+
+Offline regression command (no DB/SDK/model calls):
+
+```bash
+python -X utf8 -B -m unittest tests.test_appeals_routing -v
+```
+
+The 21 tests cover repeated invalid canonical in one session, corrected canonical/
+JSON/CSV, previous successful selection, empty technical records, actual ID and
+search follow-ups, session isolation, authoritative filters/dates, marker-only
+routing, and native Tool prompt/session continuity. Native MessageTool/XLSX
+delivery remains covered by existing production contracts and was not changed.
+
+On the external machine, 77 selected offline tests passed (21 new + 56 existing).
+Three existing production tests fail on baseline c6f18b3 as well: two package
+installation expectations and `test_old_worker_heartbeat_not_ready`. They are
+outside this Appeals routing fix and excluded only from the selected run, not
+removed or marked skipped in source. Full pytest requires deployment dependencies;
+actual channel/GPU/Greenplum acceptance remains a closed-contour check.
+
 Offline suite (numpy, pandas, openpyxl and pydantic; no Nanobot/ML/DB installation needed):
 
 ```bash
