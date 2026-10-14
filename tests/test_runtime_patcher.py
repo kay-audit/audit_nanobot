@@ -1157,20 +1157,22 @@ class TestPatchSpecs:
             f"only in canonical={canonical_names - patch_specs_names}",
         )
 
-    def test_inventory_size_is_12(self):
-        """Sanity check для этой change: ровно 12 patches во всех трёх множествах.
+    def test_inventory_size_is_13(self):
+        """Sanity check для этой change: ровно 13 patches во всех трёх множествах.
 
         Этот тест не защищает архитектурный контракт (его защищает
         ``test_inventory_is_exact``); он фиксирует текущее количество
         patches и обновляется отдельно при добавлении legitimate patch'а.
+        (``prepare_outbound_suppressed`` добавлен в nanobot_bugfix_stutter:
+        12 → 13.)
         """
         from lib.services.runtime_patcher import RuntimePatcher
         from lib.services.runtime_inventory import canonical_runtime_patches
 
         apply_all_names = self._extract_apply_all_names()
-        assert len(apply_all_names) == 12
-        assert len(RuntimePatcher.patch_specs()) == 12
-        assert len(canonical_runtime_patches()) == 12
+        assert len(apply_all_names) == 13
+        assert len(RuntimePatcher.patch_specs()) == 13
+        assert len(canonical_runtime_patches()) == 13
 
     def test_specs_have_required_fields(self):
         from lib.services.runtime_patcher import RuntimePatcher
@@ -1194,7 +1196,12 @@ class TestPatchSpecs:
                 target = spec.nanobot_target
                 assert any(
                     token in target
-                    for token in ("_save_turn", "_assemble_outbound", "_SubagentHook")
+                    for token in (
+                        "_save_turn",
+                        "_assemble_outbound",
+                        "_prepare_outbound",
+                        "_SubagentHook",
+                    )
                 ), (
                     f"{name}: marked high risk but target '{target}' is not "
                     "a known private method"
