@@ -39,7 +39,6 @@ import threading
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
-from lib.services.llm_reasoning import apply_to_payload
 from utils.qwen_response import QwenResponse, extract_openai_response, response_from_generate, strip_think_blocks
 
 logger = logging.getLogger(__name__)
@@ -88,22 +87,69 @@ def setup_ior_logging() -> None:
 
 setup_ior_logging()
 
-# По умолчанию vLLM OpenAI-compatible API на локальном порту 8000 или 8001
-VLLM_API_URL = os.getenv("VLLM_API_URL", "http://localhost:8000/v1/chat/completions")
-VLLM_MODELS_URL = os.getenv("VLLM_MODELS_URL", "http://localhost:8000/v1/models")
-VLLM_GENERATE_URL = os.getenv("VLLM_GENERATE_URL", "http://localhost:8001/generate")
+# ──────────────────────────────────────────────────────────────────
+# Эндпоинт модели
+# ──────────────────────────────────────────────────────────────────
+# Навык НЕ зашит на vLLM: адрес, ключ, модель и поле управления рассуждениями
+# берутся из agents.defaults + providers.* (config.json поверх .secrets.env).
+# Переключение MiniMax -> локальный vLLM делается правкой одного файла
+# конфигурации, код навыка не меняется.
+#
+# Переменные окружения остались аварийным выходом (ручной прогон одного
+# навыка мимо конфига). Пустая — значит решение принимает конфиг.
+_ENV_API_URL = os.getenv("VLLM_API_URL", "").strip()
+_ENV_MODELS_URL = os.getenv("VLLM_MODELS_URL", "").strip()
+_ENV_API_KEY = os.getenv("VLLM_API_KEY", "").strip()
+_ENV_MODEL_NAME = os.getenv("VLLM_MODEL_NAME", "").strip()
 
-VLLM_API_KEY = os.getenv("VLLM_API_KEY", "").strip()
+# Самодельный /generate существует только у локального vLLM; на других
+# провайдерах запасного пути нет.
+_ENV_GENERATE_URL = os.getenv("VLLM_GENERATE_URL", "").strip()
+
+_CACHED_ENDPOINT: Optional[Dict[str, Any]] = None
+
+
+def _endpoint() -> Dict[str, Any]:
+    """Модель агента из конфигурации: provider/api_base/api_key/model/extra_body."""
+    global _CACHED_ENDPOINT
+    if _CACHED_ENDPOINT is not None:
+        return _CACHED_ENDPOINT
+
+    from lib.services.llm_config import agent_endpoint
+
+    ep = agent_endpoint()
+    api_base = _ENV_API_URL.rsplit("/chat/completions", 1)[0].rstrip("/") or ep["api_base"]
+    endpoint = {
+        "provider": ep["provider"],
+        "api_base": api_base,
+        "chat_url": f"{api_base}/chat/completions",
+        "models_url": _ENV_MODELS_URL or f"{api_base}/models",
+        "api_key": _ENV_API_KEY or (ep.get("api_key") or "").strip(),
+        "model": _ENV_MODEL_NAME or ep["model"],
+        "extra_body": dict(ep["extra_body"]),
+        "is_vllm": ep["provider"].strip().lower() in {"vllm", "sglang"},
+    }
+    if _ENV_GENERATE_URL:
+        endpoint["generate_url"] = _ENV_GENERATE_URL
+    elif endpoint["is_vllm"]:
+        endpoint["generate_url"] = "http://localhost:8001/generate"
+
+    _CACHED_ENDPOINT = endpoint
+    logger.info(
+        "[local_qwen] Эндпоинт: provider=%s url=%s model=%s extra_body=%s",
+        endpoint["provider"], endpoint["chat_url"], endpoint["model"],
+        json.dumps(endpoint["extra_body"], ensure_ascii=False),
+    )
+    return endpoint
+
 
 def _get_api_headers() -> Dict[str, str]:
-    headers = {
-        "Content-Type": "application/json",
-    }
-
-    if VLLM_API_KEY:
-        headers["Authorization"] = f"Bearer {VLLM_API_KEY}"
-
+    headers = {"Content-Type": "application/json"}
+    api_key = _endpoint()["api_key"]
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
     return headers
+
 
 _CACHED_MODEL_NAME: Optional[str] = None
 
@@ -123,17 +169,25 @@ def get_last_qwen_response() -> QwenResponse:
     return getattr(_QWEN_CALL_STATE, "response", QwenResponse())
 
 def get_served_model_name() -> str:
-    """Динамически запрашивает имя обслуживаемой модели из vLLM /v1/models."""
+    """Имя модели: из конфигурации, и только если его там нет — из /v1/models.
+
+    Раньше шёл обратный порядок (сначала опрос сервера), из-за чего навык
+    зависел от наличия vLLM и не работал с облачным провайдером, у которого
+    может не быть ``/v1/models``.
+    """
     global _CACHED_MODEL_NAME
-    env_model = os.getenv("VLLM_MODEL_NAME")
-    if env_model:
-        return env_model
+
+    configured = _endpoint()["model"]
+    if configured:
+        return configured
+
     if _CACHED_MODEL_NAME:
         return _CACHED_MODEL_NAME
 
+    endpoint = _endpoint()
     try:
         resp = requests.get(
-            VLLM_MODELS_URL,
+            endpoint["models_url"],
             headers=_get_api_headers(),
             timeout=5,
         )
@@ -142,16 +196,21 @@ def get_served_model_name() -> str:
             models = data.get("data", [])
             if models and isinstance(models, list) and "id" in models[0]:
                 _CACHED_MODEL_NAME = models[0]["id"]
-                logger.info(f"[local_qwen] Auto-detected vLLM served model name: '{_CACHED_MODEL_NAME}'")
+                logger.info(f"[local_qwen] Auto-detected served model name: '{_CACHED_MODEL_NAME}'")
                 return _CACHED_MODEL_NAME
     except Exception as e:
-        logger.info(f"[local_qwen] Could not auto-detect vLLM model from {VLLM_MODELS_URL}: {e}")
+        logger.info(f"[local_qwen] Could not auto-detect model from {endpoint['models_url']}: {e}")
 
-    return "Qwen3.6-27B"
+    raise RuntimeError(
+        "get_served_model_name: имя модели не задано ни в agents.defaults.model, "
+        "ни в VLLM_MODEL_NAME, и /v1/models недоступен"
+    )
 
 
 def call_qwen_http(messages: List[Dict[str, str]], max_tokens: int = 16384, temperature: float = 0.6) -> str:
-    """Отправляет запрос в vLLM OpenAI-compatible endpoint с подробным логированием."""
+    """Запрос к модели агента (OpenAI-совместимый эндпоинт) с подробным логированием."""
+    endpoint = _endpoint()
+    chat_url = endpoint["chat_url"]
     model_name = get_served_model_name()
     payload = {
         "model": model_name,
@@ -159,36 +218,43 @@ def call_qwen_http(messages: List[Dict[str, str]], max_tokens: int = 16384, temp
         "max_tokens": max_tokens,
         "temperature": temperature,
     }
-    # Сквозной переключатель рассуждений (lib/services/llm_reasoning.py):
-    # раньше этот навык вообще ничего не сообщал vLLM о рассуждениях.
-    # Этот навык ходит именно в vLLM, поэтому поле — chat_template_kwargs.
-    apply_to_payload(payload, "vllm")
-    
+    # Поле управления рассуждениями пришло из конфигурации провайдера
+    # (lib/services/llm_config.agent_endpoint): у minimax это reasoning_split,
+    # у vLLM — chat_template_kwargs.enable_thinking.
+    for field, value in endpoint["extra_body"].items():
+        payload[field] = value
+
     prompt_len = sum(len(m.get("content", "")) for m in messages)
-    logger.info(f"[local_qwen] 🚀 Sending POST to vLLM ({VLLM_API_URL}) | model='{model_name}' | prompt_len={prompt_len} chars | max_tokens={max_tokens}")
+    logger.info(f"[local_qwen] 🚀 Sending POST ({endpoint['provider']}) {chat_url} | model='{model_name}' | prompt_len={prompt_len} chars | max_tokens={max_tokens}")
     start_time = time.time()
     _remember_response(QwenResponse())
-    
+
     try:
         resp = requests.post(
-            VLLM_API_URL,
+            chat_url,
             headers=_get_api_headers(),
             json=payload,
             timeout=180,
         )
         elapsed = time.time() - start_time
-        
-        # Если статус 404 — попробуем повторно сбросить кэш и переопределить модель из /v1/models
+
+        # 404 почти всегда означает «модель не найдена» у провайдера.
+        # У локального vLLM имя можно уточнить опросом /v1/models; у облака
+        # имя приходит из конфига, и переспрашивать нечего.
         if resp.status_code == 404:
-            logger.warning(f"[local_qwen] HTTP 404 from vLLM model '{model_name}'. Refreshing model list...")
+            logger.warning(f"[local_qwen] HTTP 404 from {endpoint['provider']} for model '{model_name}'")
             global _CACHED_MODEL_NAME
             _CACHED_MODEL_NAME = None
-            fresh_model = get_served_model_name()
+            try:
+                fresh_model = get_served_model_name()
+            except Exception as probe_error:
+                fresh_model = model_name
+                logger.warning(f"[local_qwen] Не удалось уточнить имя модели: {probe_error}")
             if fresh_model != model_name:
                 payload["model"] = fresh_model
                 logger.info(f"[local_qwen] Retrying request with fresh model name '{fresh_model}'...")
                 resp = requests.post(
-                    VLLM_API_URL,
+                    chat_url,
                     headers=_get_api_headers(),
                     json=payload,
                     timeout=180,
@@ -201,34 +267,41 @@ def call_qwen_http(messages: List[Dict[str, str]], max_tokens: int = 16384, temp
             _remember_response(parsed)
             if parsed.final_text:
                 logger.info(
-                    "[local_qwen] ✅ vLLM HTTP 200 in %.2fs | content_len=%s chars | selected_final_field=%s",
+                    "[local_qwen] ✅ HTTP 200 in %.2fs | content_len=%s chars | selected_final_field=%s",
                     elapsed, len(parsed.content), parsed.selected_final_field,
                 )
                 return parsed.final_text
             if parsed.reasoning_content:
                 # Preserve legacy preset behavior. Structured analysis uses
                 # ask_local_qwen_detailed() and never treats this as final JSON.
-                logger.info(f"[local_qwen] ✅ vLLM HTTP 200 in {elapsed:.2f}s | reasoning_len={len(parsed.reasoning_content)} chars")
+                logger.info(f"[local_qwen] ✅ HTTP 200 in {elapsed:.2f}s | reasoning_len={len(parsed.reasoning_content)} chars")
                 return parsed.reasoning_content
             choices = res_json.get("choices", [])
             finish_reason = choices[0].get("finish_reason", "unknown") if choices else "no_choices"
-            logger.warning("[local_qwen] ⚠️ vLLM HTTP 200, но финальный текст пустой; finish_reason=%s", finish_reason)
+            logger.warning("[local_qwen] ⚠️ HTTP 200, но финальный текст пустой; finish_reason=%s", finish_reason)
             return ""
 
 
         else:
-            logger.warning(f"[local_qwen] ⚠️ vLLM HTTP status {resp.status_code} in {elapsed:.2f}s: {resp.text[:300]}")
+            logger.warning(f"[local_qwen] ⚠️ HTTP status {resp.status_code} in {elapsed:.2f}s: {resp.text[:300]}")
     except Exception as e:
         elapsed = time.time() - start_time
-        logger.warning(f"[local_qwen] ⚠️ Primary vLLM endpoint ({VLLM_API_URL}) failed in {elapsed:.2f}s: {e}")
+        logger.warning(f"[local_qwen] ⚠️ Основной эндпоинт ({endpoint['provider']} {chat_url}) не ответил за {elapsed:.2f}s: {e}")
 
-    # Fallback на кастомный HTTP endpoint http://localhost:8001/generate если доступен
+    # Запасной самодельный /generate есть только у локального vLLM. У облачного
+    # провайдера его нет — возвращаем пустую строку, вызывающий поднимет это
+    # как ошибку, а не подставит шаблон.
     #
-    # Переключатель рассуждений здесь НЕ отправляется намеренно: это не
+    # Переключатель рассуждений сюда НЕ отправляется намеренно: это не
     # OpenAI-совместимый эндпоинт, а самодельный /generate с неизвестным нам
     # контрактом — лишнее поле может вернуть 422 и убить единственный
     # работающий запасной путь. Путь деградации, рассуждения тут не при чём.
-    logger.info(f"[local_qwen] Trying fallback generate endpoint ({VLLM_GENERATE_URL})...")
+    generate_url = endpoint.get("generate_url")
+    if not generate_url:
+        logger.info("[local_qwen] Запасной /generate у провайдера %s не предусмотрен", endpoint["provider"])
+        return ""
+
+    logger.info(f"[local_qwen] Trying fallback generate endpoint ({generate_url})...")
     try:
         sys_prompt = ""
         user_msg = ""
@@ -240,7 +313,7 @@ def call_qwen_http(messages: List[Dict[str, str]], max_tokens: int = 16384, temp
 
         fb_start = time.time()
         resp = requests.post(
-            VLLM_GENERATE_URL,
+            generate_url,
             json={
                 "system_prompt": sys_prompt,
                 "user_message": user_msg.strip(),
