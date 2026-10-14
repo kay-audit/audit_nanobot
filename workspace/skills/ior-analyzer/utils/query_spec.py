@@ -12,7 +12,7 @@ COLUMN_HUMAN = {
     "process_lvl_4_name": "процессам",
     "process_lvl_3_name": "процессам",
     "org_struct_lvl_3_name": "территориальным банкам",
-    "org_struct_lvl_4_name": "подразделениям",
+    "org_struct_lvl_3_name": "подразделениям",
     "funct_block_lvl_3_name": "функциональным блокам",
     "incdnt_type_lvl_1_name": "типам событий",
     "risk_profile_name": "профилям риска",
@@ -420,8 +420,8 @@ def normalize_spec(spec: dict) -> dict:
                 continue
             f = dict(f)
             if exact_drp_in_intent and f.get("column") in {
-                "org_struct_lvl_3_name", "org_struct_lvl_4_name",
-                "funct_block_lvl_3_name", "funct_block_lvl_4_name",
+                "org_struct_lvl_3_name",
+                "funct_block_lvl_3_name",
                 "process_lvl_3_name", "process_lvl_4_name",
                 "incdnt_summary_descr_txt", "incdnt_full_descr_txt",
             }:
@@ -474,9 +474,10 @@ def normalize_spec(spec: dict) -> dict:
                 val = str(f.get("value") or "")
                 is_p_code = bool(re.search(r"\b[Пп]\d{2,}\b", val))
                 is_drp_code = bool(re.search(r"\bDRP[_\s-]?\d+\b", val, re.I))
-                is_sbr_code = bool(re.search(r"\bSBR[_\s-]?[\d\.]+", val, re.I))
+                if re.search(r"\bSBR[_\s-]?[\d\.]+", val, re.I):
+                    raise ValueError("Фильтрация по SBR-кодам не поддерживается")
 
-                if is_p_code or is_drp_code or is_sbr_code or col in ("process_lvl_4_name", "risk_profile_id", "funct_block_id"):
+                if is_p_code or is_drp_code or col in ("process_lvl_4_name", "risk_profile_id"):
                     f["op"] = "like"
                     f["grounded"] = True
                     if is_p_code:
@@ -484,12 +485,6 @@ def normalize_spec(spec: dict) -> dict:
                         if p_m:
                             f["column"] = "process_lvl_4_name"
                             f["value"] = f"%{p_m.group(1).upper()}%"
-                    elif is_sbr_code:
-                        sbr_m = re.search(r"(SBR[_\s-]?[\d\.]+)", val, re.I)
-                        if sbr_m:
-                            sbr_pat = re.sub(r"[_\s-]+", "%", sbr_m.group(1).upper())
-                            f["column"] = "funct_block_id"
-                            f["value"] = f"%{sbr_pat}%"
                     elif is_drp_code:
                         drp_m = re.search(r"(DRP[_\s-]?\d+)", val, re.I)
                         if drp_m:
@@ -1113,7 +1108,13 @@ async def compile_query_spec(cctx: CompileContext, spec: dict,
         # детальная выгрузка -> все столбцы main. incdnt_id и описание (FAISS-хвост
         # §5.2) входят автоматически; join-алиасы (суммы/recovery) и derive/window
         # добавятся дальше по конвейеру (§2с/§3/§6). order_by/sort не страдают.
-        main_columns = None
+        main_columns = [c for c in (
+            "incdnt_id", "incdnt_sid", "incdnt_status_name", "incdnt_entry_dt",
+            "org_struct_lvl_3_name", "funct_block_lvl_3_name", "risk_profile_id",
+            "risk_profile_name", "incdnt_sum", "recovery_rub_amt_aggr",
+            "process_lvl_3_name", "process_lvl_4_name", "incdnt_type_lvl_1_name",
+            "incdnt_type_lvl_2_name", "incdnt_full_descr_txt", "incdnt_summary_descr_txt"
+        ) if c in _main_columns(schema, table)]
     else:
         # агрегация ИЛИ явный select -> минимально достаточный набор:
         # join-key + pre_aggregate/aggregate group_by + источники derive + select.
@@ -1141,8 +1142,8 @@ async def compile_query_spec(cctx: CompileContext, spec: dict,
             "incdnt_detection_dt", "incdnt_start_dt", "incdnt_entry_dt",
             "incdnt_sum", "recovery_rub_amt_aggr",
             "risk_profile_id", "risk_profile_name",
-            "org_struct_lvl_3_name", "org_struct_lvl_4_name",
-            "funct_block_lvl_3_name", "funct_block_lvl_4_name",
+            "org_struct_lvl_3_name",
+            "funct_block_lvl_3_name",
             "process_lvl_3_name", "process_lvl_4_name",
             "incdnt_summary_descr_txt", "incdnt_full_descr_txt",
         ]
@@ -1154,16 +1155,14 @@ async def compile_query_spec(cctx: CompileContext, spec: dict,
 
     # --- 2b. SOURCE query ---
     await _activity("data:source", "Загружаю инциденты", status="active")
-    spec_limit = spec.get("limit")
-    if spec_limit is not None:
+    spec_limit_val = spec.get("limit")
+    if spec_limit_val is not None:
         try:
-            spec_limit_val = int(spec_limit)
-            if spec_limit_val <= 0:
-                spec_limit_val = 100_000
-        except (ValueError, TypeError):
-            spec_limit_val = 100_000
-    else:
-        spec_limit_val = 100_000
+            if isinstance(spec_limit_val, bool) or int(spec_limit_val) != float(spec_limit_val) or int(spec_limit_val) <= 0:
+                raise ValueError()
+            spec_limit_val = int(spec_limit_val)
+        except (ValueError, TypeError, OverflowError):
+            return CompileResult(ok=False, error="limit должен быть положительным целым числом либо null")
 
     res = await registry.execute(
         "query",
@@ -1390,7 +1389,7 @@ async def compile_query_spec(cctx: CompileContext, spec: dict,
                 "incdnt_detection_person_name", "incdnt_source_name", "src_type_lvl_1_name",
                 "src_type_lvl_2_name", "incdnt_type_lvl_1_name", "incdnt_type_lvl_2_name",
                 "incdnt_detection_dt", "incdnt_start_dt", "incdnt_entry_dt",
-                "org_struct_lvl_3_name", "org_struct_lvl_4_name", "process_lvl_4_name",
+                "org_struct_lvl_3_name", "process_lvl_4_name",
                 "fin_impact_rub_amt", "direct_loss", "recovery_rub_amt", "recovery", "net_loss",
                 "incdnt_summary_descr_txt", "incdnt_full_descr_txt", "incdnt_id"
             ]
@@ -1453,7 +1452,7 @@ async def compile_query_spec(cctx: CompileContext, spec: dict,
         analysis_df_id=analysis_df_id,
     )
 
-_MAX_REL_ROWS = 2_000_000
+_MAX_REL_ROWS = None
 
 
 # ----- приватные pandas-хелперы для compile (ленивый pandas) -----

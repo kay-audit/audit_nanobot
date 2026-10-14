@@ -8,7 +8,7 @@ from collections import Counter
 from .common import (
     AnalysisBundle, STANDARD_DIMENSIONS, collapse_detail_to_incidents, dimension_breakdown,
     find_column, format_count, render_dimensions,
-    format_amount, to_numeric_clean,
+    format_amount, to_numeric_clean, known_sum,
 )
 
 PRESET = "deleted_ior"
@@ -48,15 +48,22 @@ def prepare(df: pd.DataFrame) -> AnalysisBundle:
     incident_all = collapse_detail_to_incidents(raw, (), (comment,))
     incident_loss_col = find_column(incident_all, ("incdnt_sum", "общая сумма всех последствий (руб.)"))
     incident_recovery_col = find_column(incident_all, ("recovery_rub_amt_aggr", "возмещение – итого по инциденту (руб.)", "возмещение - итого по инциденту (руб.)"))
-    deleted_loss = float(to_numeric_clean(incident_all[incident_loss_col]).sum()) if incident_loss_col else 0.0
-    deleted_recovery = float(to_numeric_clean(incident_all[incident_recovery_col]).sum()) if incident_recovery_col else 0.0
+    deleted_loss = known_sum(incident_all[incident_loss_col]) if incident_loss_col else None
+    deleted_recovery = known_sum(incident_all[incident_recovery_col]) if incident_recovery_col else None
     incident_col = find_column(raw, ("incdnt_sid", "идентификатор события", "incdnt_id"))
     unique_count = int(raw[incident_col].nunique()) if incident_col else len(incident_all)
+    action_mask = pd.Series(False, index=raw.index)
+    journal_columns={c for c in (comment,action_date,status_at_action) if c}
+    journal_columns.update(c for c in raw.columns if str(c).lower().startswith('stts_chng_'))
+    for column in journal_columns:
+        values=raw[column]
+        action_mask |= values.notna() & values.astype(str).str.strip().ne('')
+    action_count = int(action_mask.sum())
     empty_comments = 0
     comments: list[str] = []
     if comment:
-        empty_comments = int(raw[comment].fillna("").astype(str).str.strip().str.lower().isin(("", "nan", "none")).sum())
-        comments = [v for v in raw[comment].fillna("").astype(str).str.strip().tolist() if v.lower() not in ("", "nan", "none")]
+        empty_comments = int(raw.loc[action_mask, comment].fillna("").astype(str).str.strip().str.lower().isin(("", "nan", "none")).sum())
+        comments = [v for v in raw.loc[action_mask, comment].fillna("").astype(str).str.strip().tolist() if v.lower() not in ("", "nan", "none")]
     period = "не определён"
     if action_date:
         dates = pd.to_datetime(raw[action_date], errors="coerce").dropna()
@@ -64,12 +71,12 @@ def prepare(df: pd.DataFrame) -> AnalysisBundle:
             period = f"{dates.min():%d.%m.%Y} — {dates.max():%d.%m.%Y}"
     approved_at_deletion = 0
     if status_at_action:
-        approved_at_deletion = int(raw[status_at_action].astype(str).str.strip().str.lower().isin(("утвержден", "утверждён", "утверждение")).sum())
+        approved_at_deletion = int(raw.loc[action_mask, status_at_action].astype(str).str.strip().str.lower().isin(("утвержден", "утверждён", "утверждение")).sum())
     dimensions = dimension_breakdown(incident_all, None, STANDARD_DIMENSIONS)
-    full = {"journal_rows": len(raw), "unique_incidents": unique_count, "period": period}
+    full = {"journal_rows": action_count, "unique_incidents": unique_count, "period": period}
     header = (
         "### Общая информация по журналу удалений:\n"
-        f"- **Количество записей журнала удаления**: {format_count(len(raw))}\n"
+        f"- **Количество записей журнала удаления**: {format_count(action_count)}\n"
         f"- **Количество уникальных удалённых ИОР**: {format_count(unique_count)}\n"
         f"- **Период действий удаления**: {period}\n"
     )
@@ -78,7 +85,7 @@ def prepare(df: pd.DataFrame) -> AnalysisBundle:
         f"- **Уникальных удалённых ИОР**: {format_count(unique_count)}\n"
         f"- **Сумма последствий по удалённым ИОР**: {format_amount(deleted_loss)}\n"
         f"- **Сумма возмещений по удалённым ИОР**: {format_amount(deleted_recovery)}\n"
-        f"- **Действий удаления**: {format_count(len(raw))}\n"
+        f"- **Действий удаления**: {format_count(action_count)}\n"
         f"- **Действий над ранее утверждёнными ИОР**: {format_count(approved_at_deletion)}",
         "### 2. Причины и паттерны удаления\n"
         f"- **Действий без заполненного комментария**: {format_count(empty_comments)}\n"

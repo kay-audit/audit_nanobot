@@ -145,7 +145,7 @@ async def run_preset(ctx, skill_id: str, params: dict | None = None, emit=None) 
             tb_val = params.pop(k)
             
     block_val = None
-    for k in ["funct_block_lvl_2_name", "funct_block_lvl_3_name", "block_filter", "block", "block_name"]:
+    for k in ["funct_block_lvl_3_name", "block_filter", "block", "block_name"]:
         if k in params:
             block_val = params.pop(k)
             
@@ -183,7 +183,7 @@ async def run_preset(ctx, skill_id: str, params: dict | None = None, emit=None) 
                 tb_val = hits_any[0].value
 
     if block_val:
-        hits = search_values(str(block_val), columns=["funct_block_lvl_2_name", "funct_block_lvl_3_name", "funct_block_lvl_4_name"], min_score=0.6)
+        hits = search_values(str(block_val), columns=["funct_block_lvl_3_name"], min_score=0.6)
         if hits:
             block_val = hits[0].value
         else:

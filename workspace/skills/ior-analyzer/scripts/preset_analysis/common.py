@@ -144,11 +144,24 @@ def deduplicate_detail_entities(
     return pd.concat([dedup_keyed, work.loc[~valid]], axis=0).sort_index().copy()
 
 
+def numeric_nullable(series):
+    if isinstance(series, pd.DataFrame):
+        series = series.iloc[:, 0]
+    if pd.api.types.is_numeric_dtype(series):
+        return pd.to_numeric(series, errors="coerce")
+    return pd.to_numeric(series.astype("string").str.replace(r"\s+", "", regex=True).str.replace(",", ".", regex=False), errors="coerce")
+
+def known_sum(series):
+    value = numeric_nullable(series).sum(min_count=1)
+    return None if pd.isna(value) else float(value)
+
 def format_amount(value: Any) -> str:
+    if value is None or pd.isna(value):
+        return ""
     try:
-        number = float(value or 0)
+        number = float(value)
     except (TypeError, ValueError):
-        number = 0.0
+        return ""
     return f"{number:,.2f} ₽".replace(",", " ")
 
 
@@ -176,7 +189,7 @@ def collapse_detail_to_incidents(
     amounts = {column for column in amount_columns if column and column in raw.columns}
     joins = {column for column in join_columns if column and column in raw.columns}
     for column in amounts:
-        raw[column] = to_numeric_clean(raw[column])
+        raw[column] = numeric_nullable(raw[column])
 
     grouping_col = "__analysis_incident_key"
     raw[grouping_col] = raw[incident_col].astype("object")
@@ -188,7 +201,7 @@ def collapse_detail_to_incidents(
         if column == grouping_col:
             continue
         if column in amounts:
-            aggregations[column] = "sum"
+            aggregations[column] = lambda values: values.sum(min_count=1)
         elif column in joins:
             aggregations[column] = join_unique
         else:
@@ -245,19 +258,19 @@ def categorical_breakdown(
     if detail_df is None or detail_df.empty or not category_col or category_col not in detail_df.columns:
         return []
     incident_col = get_incident_id_column(detail_df)
-    total_amount = float(to_numeric_clean(detail_df[amount_col]).sum()) if amount_col and amount_col in detail_df.columns else 0.0
+    total_amount = known_sum(detail_df[amount_col]) if amount_col and amount_col in detail_df.columns else 0.0
     rows: list[dict[str, Any]] = []
     for value, group in detail_df.groupby(category_col, dropna=False):
         label = "NULL" if value is None or str(value).strip().lower() in ("", "nan", "none") else str(value)
-        amount = float(to_numeric_clean(group[amount_col]).sum()) if amount_col and amount_col in group.columns else 0.0
+        amount = known_sum(group[amount_col]) if amount_col and amount_col in group.columns else 0.0
         rows.append({
             "label": label,
             "unique_incidents": int(group[incident_col].nunique(dropna=True)) if incident_col else len(group),
             "detail_count": len(group),
             "amount": amount,
-            "amount_pct": amount / total_amount * 100.0 if total_amount else 0.0,
+            "amount_pct": amount / total_amount * 100.0 if total_amount and amount is not None else 0.0,
         })
-    rows.sort(key=lambda row: (row["amount"], row["detail_count"]), reverse=True)
+    rows.sort(key=lambda row: (row["amount"] if row["amount"] is not None else float("-inf"), row["detail_count"]), reverse=True)
     return rows
 
 
@@ -316,7 +329,7 @@ def dimension_breakdown(
     candidates: Iterable[tuple[Iterable[str], str]] = (),
 ) -> list[dict[str, Any]]:
     result: list[dict[str, Any]] = []
-    total_amount = float(to_numeric_clean(incident_df[amount_col]).sum()) if amount_col and amount_col in incident_df.columns else 0.0
+    total_amount = known_sum(incident_df[amount_col]) if amount_col and amount_col in incident_df.columns else 0.0
     incident_col = get_incident_id_column(incident_df)
     for column_candidates, title in candidates:
         column = find_column(incident_df, column_candidates)
@@ -327,14 +340,14 @@ def dimension_breakdown(
             label = str(value).strip()
             if not label or label.lower() in ("nan", "none") or label.startswith("SBR_"):
                 continue
-            amount = float(to_numeric_clean(group[amount_col]).sum()) if amount_col and amount_col in group.columns else 0.0
+            amount = known_sum(group[amount_col]) if amount_col and amount_col in group.columns else 0.0
             values.append({
                 "label": label,
                 "unique_incidents": int(group[incident_col].nunique()) if incident_col else len(group),
                 "amount": amount,
-                "amount_pct": amount / total_amount * 100.0 if total_amount else 0.0,
+                "amount_pct": amount / total_amount * 100.0 if total_amount and amount is not None else 0.0,
             })
-        values.sort(key=lambda row: (row["amount"], row["unique_incidents"]), reverse=True)
+        values.sort(key=lambda row: (row["amount"] if row["amount"] is not None else float("-inf"), row["unique_incidents"]), reverse=True)
         if values:
             result.append({"title": title, "rows": values[:5]})
     return result
@@ -359,11 +372,11 @@ def dual_amount_dimension_breakdown(
             if not label or label.lower() in ("nan", "none") or label.startswith("SBR_"):
                 continue
             consequences = (
-                float(to_numeric_clean(group[consequence_col]).sum())
+                known_sum(group[consequence_col])
                 if consequence_col and consequence_col in group.columns else 0.0
             )
             recoveries = (
-                float(to_numeric_clean(group[recovery_col]).sum())
+                known_sum(group[recovery_col])
                 if recovery_col and recovery_col in group.columns else 0.0
             )
             values.append({
@@ -373,7 +386,7 @@ def dual_amount_dimension_breakdown(
                 "recoveries": recoveries,
             })
         values.sort(
-            key=lambda row: (row["consequences"], row["recoveries"], row["unique_incidents"]),
+            key=lambda row: (row["consequences"] if row["consequences"] is not None else float("-inf"), row["recoveries"] if row["recoveries"] is not None else float("-inf"), row["unique_incidents"]),
             reverse=True,
         )
         if values:
@@ -386,10 +399,11 @@ def concentration_metrics(incident_df: pd.DataFrame, amount_col: Optional[str]) 
     if incident_df is None or incident_df.empty or not incident_col or not amount_col or amount_col not in incident_df.columns:
         return {"top": [], "top10_amount": 0.0, "top10_pct": 0.0, "sigma_count": 0}
     ranked = incident_df[[incident_col, amount_col]].copy()
-    ranked[amount_col] = to_numeric_clean(ranked[amount_col])
+    ranked[amount_col] = numeric_nullable(ranked[amount_col])
+    ranked = ranked.dropna(subset=[amount_col])
     ranked = ranked.sort_values(amount_col, ascending=False)
-    total = float(ranked[amount_col].sum())
-    top10 = float(ranked.head(10)[amount_col].sum())
+    total = known_sum(ranked[amount_col])
+    top10 = known_sum(ranked.head(10)[amount_col])
     threshold = float(ranked[amount_col].mean() + 3 * ranked[amount_col].std(ddof=0))
     return {
         "top": [{"id": str(row[incident_col]), "amount": float(row[amount_col])} for _, row in ranked.head(3).iterrows()],
@@ -454,14 +468,14 @@ class AnalysisBundle:
             )
         detail_note = f" Предметные показатели рассчитаны по {self.detail_granularity} только этих ИОР." if self.detail_granularity else ""
         return (
-            f"Дальнейший анализ и аналитические гипотезы сформированы только по "
+            f"Дальнейшие предметные показатели рассчитаны только по "
             f"{format_count(self.approved_count)} уникальным ИОР со статусом «Утверждён/Утверждение». "
             "Инциденты других статусов учитываются только в общей информации по выгрузке "
             f"и распределении по статусам.{detail_note}"
         )
 
     def deterministic_hypotheses(self) -> str:
-        if not self.can_analyze or self.hypothesis_count <= 0:
+        if not self.can_analyze or self.approved_count < 50 or self.preset == "report_period_specific_ior" or self.hypothesis_count <= 0:
             return ""
         topics = list(self.hypothesis_topics) or ["структуры данных", "процессной концентрации", "текстовых факторов"]
         lines = ["### 4. Аналитические гипотезы для аудиторской проверки"]
@@ -483,7 +497,8 @@ class AnalysisBundle:
             parts.extend([self.status_summary().rstrip(), self.scope_note()])
         if self.can_analyze:
             parts.append(self.profile.replace("{{DELETION_QWEN_SUMMARY}}", "").rstrip())
-            parts.append("Гипотезы не были сформированы из-за недоступности аналитического LLM-этапа.")
+            if self.preset != "report_period_specific_ior":
+                parts.append("Для формирования гипотез требуется не менее 50 уникальных ИОР." if self.approved_count < 50 else "Гипотезы не были сформированы из-за недоступности аналитического LLM-этапа.")
         return "\n\n".join(part for part in parts if part and part.strip())
 
     def chart_policy(self) -> dict[str, Any]:

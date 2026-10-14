@@ -1511,8 +1511,8 @@ async def analyze_incident_descriptions(df: pd.DataFrame, running_skill: str = N
     sum_desc_col = next((c for c in df.columns if str(c).lower() in ("incdnt_summary_descr_txt", "краткое описание", "аннотация")), None)
 
     tb_col = next((c for c in df.columns if str(c).lower() in ("org_struct_lvl_3_name", "орг. структура – уровень 3 (блок / тб / пцп)")), None)
-    div_col = next((c for c in df.columns if str(c).lower() in ("org_struct_lvl_4_name", "орг. структура – уровень 4 (дивизион / департамент)")), None)
-    fb_col = next((c for c in df.columns if str(c).lower() in ("funct_block_lvl_3_name", "funct_block_lvl_4_name", "функциональный блок – уровень 3")), None)
+    div_col = next((c for c in df.columns if str(c).lower() in ( "орг. структура – уровень 4 (дивизион / департамент)")), None)
+    fb_col = next((c for c in df.columns if str(c).lower() in ("funct_block_lvl_3_name", "функциональный блок – уровень 3")), None)
     proc_col = next((c for c in df.columns if str(c).lower() in ("process_lvl_4_name", "process_lvl_3_name", "процесс – уровень 4")), None)
     rp_col = next((c for c in df.columns if str(c).lower() in ("risk_profile_name", "risk_profile_id", "наименование профиля риска")), None)
     autoreg_col = next((c for c in df.columns if "autoreg" in str(c).lower() or "авторег" in str(c).lower()), None)
@@ -2235,6 +2235,11 @@ def build_deterministic_full_report(
 
 def build_analysis_context_text(user_msg: str, analysis_context: Optional[dict | str] = None) -> str:
     """Описывает пользовательские ограничения, чтобы не выдавать их за anomaly."""
+    if isinstance(analysis_context, dict) and "constraints" in analysis_context:
+        import json
+        return ("Фактически применённые ограничения выборки:\n" +
+                json.dumps(analysis_context, ensure_ascii=False, default=str) +
+                "\nВсе эти признаки заданы пользователем. Их доли не являются обнаруженными аномалиями или концентрацией.")
     if isinstance(analysis_context, str) and analysis_context.strip():
         return analysis_context.strip()
     context = analysis_context if isinstance(analysis_context, dict) else {}
@@ -2298,6 +2303,12 @@ async def _generate_registered_preset_narrative(
         parts.append(bundle.scope_note())
     if not bundle.can_analyze:
         return "\n\n".join(part for part in parts if part and part.strip()).strip()
+    unique_count = df["incdnt_sid"].nunique() if "incdnt_sid" in df else bundle.approved_count
+    if normalized_skill == "report_period_specific_ior" or unique_count < 50:
+        parts.append(bundle.profile.replace("{{DELETION_QWEN_SUMMARY}}", ""))
+        if normalized_skill != "report_period_specific_ior":
+            parts.append("Данных недостаточно для формирования аналитических гипотез: выборка содержит менее 50 ИОР.")
+        return "\n\n".join(part for part in parts if part and part.strip())
     evidence = ""
     try:
         if normalized_skill == "deleted_ior":
@@ -2481,6 +2492,10 @@ async def generate_hypothesis_narrative(
             analysis_context=analysis_context,
         )
 
+    unique_count = df["incdnt_sid"].nunique() if "incdnt_sid" in df else 0
+    if unique_count < 50:
+        return profile_dataframe(df, running_skill=running_skill) + "\n\nДанных недостаточно для формирования аналитических гипотез: выборка содержит менее 50 ИОР."
+
     # Protective check for pre-filtered dimensions: if the user's own request already
     # asked for a specific ТБ/блок (e.g. "... по ЮЗБ"), the SQL builder upstream filters
     # the upload down to that value before it ever reaches this function. Any resulting
@@ -2547,12 +2562,12 @@ async def generate_hypothesis_narrative(
                 )
 
         _check_prefiltered_dim(
-            ("тб", "орг. структура", "org_struct_lvl_3_name", "org_struct_lvl_4_name"),
+            ("тб", "орг. структура", "org_struct_lvl_3_name"),
             tb_alias_groups, "территориальный банк / оргструктура"
         )
         _check_prefiltered_dim(
             ("funct_block_lvl_3_name", "функциональный блок – уровень 3", "функциональный блок - уровень 3",
-             "funct_block_lvl_4_name", "функциональный блок – уровень 4", "функциональный блок - уровень 4"),
+              "функциональный блок – уровень 4", "функциональный блок - уровень 4"),
             block_alias_groups, "функциональный блок"
         )
         entity_terms_in_prompt = re.findall(r'\b(?:эквайринг[а-я]*|домклик[а-я]*|сервис[а-я]*|забота\s+о\s+клиентах|управление\s+сетью\s+ус|риски|страховани[ея]|залог[а-я]*)\b', user_msg, re.IGNORECASE)
@@ -2991,7 +3006,7 @@ async def generate_hypothesis_narrative(
 11. ВАЖНО ПО ОРГСТРУКТУРЕ И БЛОКАМ: Игнорируй Уровень 2 оргструктуры ("ПАО Сбербанк") и Уровень 2 функционального блока — они неинформативны. Весь анализ проводи строго начиная с Уровня 3 (ТБ / Блок / ПЦП) и Уровня 4 (Дивизион / Департамент).
 13. ВАЖНО ПО ОТФИЛЬТРОВАННЫМ ИЗМЕРЕНИЯМ И СУЩНОСТЯМ (ТБ, Дивизион, Процесс, Категория, Тема):
    - Если пользователь сам запросил выборку по конкретной сущности, теме или ТБ (например, "по ЮЗБ", "по эквайрингу", "по Домклик", "по DRP-10121"): СТРОГО ЗАПРЕЩЕНО писать гипотезы вида "90%/100% инцидентов зарегистрированы в {запрошенная_сущность}, что указывает на проблемы в {запрошенная_сущность}". Это результат фильтра пользователя!
-   - В этой ситуации Гипотеза 2 по оргструктуре ОБЯЗАНА анализировать внутреннюю структуру и сравнивать подразделения/блоки ВНУТРИ этого среза (например, сравнивать внутренние Дивизионы Уровня 4, Департаменты или сопоставлять функциональные блоки, к которым привязаны инциденты, такие как SBR_10315800 vs SBR_03.12).
+   - В этой ситуации Гипотеза 2 по оргструктуре ОБЯЗАНА анализировать внутреннюю структуру и сравнивать подразделения/блоки ВНУТРИ этого среза (сопоставлять выбранные места происхождения и зоны ответственности по полям уровня 3).
    - СТРОГО ЗАПРЕЩЕНО дублировать тему или вывод Гипотезы 1 в Гипотезе 2! Каждая гипотеза должна предлагать свой уникальный ракурс для аудита.
 14. ВАЖНО ПО ДИНАМИКЕ (РАЗДЕЛ 2): Если выгрузка представлена за один месяц или один период, констатируй это в разделе 2 как фактологический срез за этот период. СТРОГО ЗАПРЕЩЕНО домысливать причины произошедшего/удалений в этом месяце и писать о вымышленных "всплесках", "сезонности" или миграциях.
 """

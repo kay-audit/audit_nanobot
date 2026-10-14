@@ -1,5 +1,6 @@
 """Предметная аналитика операций возмещения."""
 from __future__ import annotations
+from .common import known_sum
 
 import pandas as pd
 
@@ -7,7 +8,7 @@ from vozmeshenie_analysis import prepare_vozmeshenie_views
 from .common import (
     AnalysisBundle, STANDARD_DIMENSIONS, categorical_breakdown, concentration_metrics,
     deduplicate_detail_entities, dimension_breakdown, find_column, format_amount, format_count,
-    prepare_standard_views, render_breakdown_table, render_dimensions, to_numeric_clean,
+    prepare_standard_views, render_breakdown_table, render_dimensions, to_numeric_clean, collapse_detail_to_incidents,
 )
 
 
@@ -21,11 +22,14 @@ def prepare(df: pd.DataFrame) -> AnalysisBundle:
     source_amount = find_column(source, ("recovery_rub_amt", "сумма возмещения (руб.)", "сумма возмещения в рублях"))
     raw = deduplicate_detail_entities(source, incident_col, sid_col, source_amount)
     incident_all, raw_metrics = prepare_vozmeshenie_views(raw)
+    if source_amount:
+        incident_all = collapse_detail_to_incidents(raw, amount_columns=(source_amount,))
+        raw_metrics['total_recovery'] = known_sum(raw[source_amount])
     statuses, approved_detail, approved_incident = prepare_standard_views(raw, incident_all)
     amount_col = find_column(raw, ("recovery_rub_amt", "сумма возмещения (руб.)", "сумма возмещения в рублях"))
     type_col = find_column(raw, ("recovery_type_name", "тип возмещения"))
     approved_amount_col = find_column(approved_incident, ("recovery_rub_amt", "сумма возмещения (руб.)", "сумма возмещения в рублях"))
-    approved_total = float(to_numeric_clean(approved_detail[amount_col]).sum()) if amount_col and not approved_detail.empty else 0.0
+    approved_total = known_sum(approved_detail[amount_col]) if amount_col and not approved_detail.empty else None
     type_rows = categorical_breakdown(approved_detail, type_col, amount_col)
     dimensions = dimension_breakdown(approved_incident, approved_amount_col, STANDARD_DIMENSIONS)
     concentration = concentration_metrics(approved_incident, approved_amount_col)

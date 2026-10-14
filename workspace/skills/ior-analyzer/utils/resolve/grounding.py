@@ -197,183 +197,7 @@ def _is_code(phrase: str) -> bool:
     return bool(_CODE_RE.fullmatch(phrase.strip()))
 
 
-def ground_query(user_query: str, max_hits: int = 10) -> list[dict]:
-    """
-    Заземление пользовательского запроса: разворачивание ТБ, кодов DRP/SBR/П/EVE,
-    и привязка сущностей.
-    """
-    if not user_query or not user_query.strip():
-        return []
-
-    tb_map = {
-        r"\bсзб\b": "Северо-Западный банк",
-        r"\bмб\b": "Московский банк",
-        r"\bввб\b": "Волго-Вятский банк",
-        r"\bюзб\b": "Юго-Западный банк",
-        r"\bсрб\b": "Среднерусский банк",
-        r"\bсиб\b": "Сибирский банк",
-        r"\bурб\b": "Уральский банк",
-        r"\bпвб\b": "Поволжский банк",
-        r"\bдвб\b": "Дальневосточный банк",
-        r"\bбб\b": "Байкальский банк"
-    }
-    cleaned_query = user_query
-    for pattern, replacement in tb_map.items():
-        cleaned_query = re.sub(pattern, replacement, cleaned_query, flags=re.IGNORECASE)
-
-    hits: list[dict] = []
-    seen: set = set()
-    exact_drp_present = bool(re.search(r"\bDRP[_\s-]?\d+\b", cleaned_query, re.IGNORECASE))
-
-    # 0. Прямой детерминированный маппинг кодов разрезов (ПXXXX, DRP-XXXX, SBR-XXXX, EVE-XXXX)
-    code_matches = re.findall(r"\b(?:DRP[_\s-]?\d+|[Dd][Rr][Pp][_\s-]?\d+|SBR[_\s-]?[\d\.]+|[ПпPp]\d{2,}|EVE[_\s-]?\d+)\b", cleaned_query)
-    for code_p in code_matches:
-        cp_clean = code_p.strip()
-        cp_upper = cp_clean.upper()
-        target_col = None
-        val_pat = cp_clean
-        if cp_upper.startswith("DRP"):
-            target_col = "risk_profile_id"
-            digits = re.sub(r"\D", "", cp_upper)
-            val_pat = f"DRP-{digits}"
-        elif cp_upper.startswith("SBR"):
-            target_col = "funct_block_id"
-            val_pat = "%" + re.sub(r"[_\s-]+", "%", cp_upper) + "%"
-        elif cp_upper.startswith("П") or cp_upper.startswith("P"):
-            target_col = "process_lvl_4_name"
-            val_pat = "%" + cp_upper + "%"
-        elif cp_upper.startswith("EVE"):
-            target_col = "incdnt_sid"
-            val_pat = cp_upper
-
-        if target_col:
-            key = (cp_clean.lower(), target_col, cp_clean)
-            if key not in seen:
-                seen.add(key)
-                hits.append({
-                    "phrase": cp_clean,
-                    "column": target_col,
-                    "value": val_pat,
-                    "count": 1,
-                    "score": 1.0,
-                    "op": "like" if "%" in val_pat else "eq"
-                })
-
-    # 1. Заземление названий Территориальных банков и Функциональных Блоков (начиная с Уровня 3)
-    tb_stems = [
-        ("московск", "Московский банк"),
-        ("северо-западн", "Северо-Западный банк"),
-        ("волго-вятск", "Волго-Вятский банк"),
-        ("юго-западн", "Юго-Западный банк"),
-        ("среднерусск", "Среднерусский банк"),
-        ("сибирск", "Сибирский банк"),
-        ("уральск", "Уральский банк"),
-        ("поволжск", "Поволжский банк"),
-        ("дальневосточн", "Дальневосточный банк"),
-        ("байкальск", "Байкальский банк"),
-    ]
-    query_low = cleaned_query.lower()
-    for stem, full_tb in tb_stems:
-        if stem in query_low or full_tb.lower() in query_low:
-            for col in ("org_struct_lvl_3_name", "org_struct_lvl_4_name"):
-                key = (stem, col, full_tb)
-                if key not in seen:
-                    seen.add(key)
-                    hits.append({
-                        "phrase": stem,
-                        "column": col,
-                        "value": full_tb,
-                        "count": 1,
-                        "score": 1.0,
-                        "op": "like"
-                    })
-
-    # 1.5. Заземление функциональных блоков и блоков оргструктуры (начиная с Уровня 3)
-    block_map = [
-        (r"\bриск[а-я]*\b", "РИСК"),
-        (r"\bрозниц[а-я]*\b|\bрозничн[а-я]*\b", "РОЗНИЧН"),
-        (r"\bкорпоративн[а-я]*\b|\bкорп[а-я]*\b", "КОРПОРАТИВН"),
-        (r"\bтехнолог[а-я]*\b|\bi[-_]?t\b", "ТЕХНОЛОГ"),
-        (r"\bфинанс[а-я]*\b", "ФИНАНС"),
-        (r"\bсет[иь]\s+продаж\b", "СЕТЬ ПРОДАЖ"),
-    ]
-    for pat, blk_val in block_map:
-        if re.search(pat, query_low):
-            if exact_drp_present and blk_val == "РИСК":
-                continue
-            if blk_val == "ФИНАНС" and re.search(r"финанс\w*\s+(?:последств|потер|убыт|ущерб)", query_low):
-                continue
-            for col in ("funct_block_lvl_3_name", "funct_block_lvl_4_name", "org_struct_lvl_3_name"):
-                key = (blk_val.lower(), col, blk_val)
-                if key not in seen:
-                    seen.add(key)
-                    hits.append({
-                        "phrase": blk_val.lower(),
-                        "column": col,
-                        "value": f"%{blk_val}%",
-                        "count": 1,
-                        "score": 0.95,
-                        "op": "like"
-                    })
-
-    # 2. Подключение kb_value_catalog.json / kb_value_index.json при наличии для умного поиска по всем 42 колонкам
-    try:
-        from pathlib import Path
-        import json
-        catalog_paths = [
-            _SKILL_DIR / "utils/schema/kb_value_catalog.json",
-            _SKILL_DIR / "data_store/schema/kb_value_catalog.json",
-            Path("workspace/data_store/schema/kb_value_catalog.json"),
-            Path("workspace/skills/ior-analyzer/utils/schema/kb_value_catalog.json"),
-            Path("ior_assistant/ior_assistant/backend/agent/schema/kb_value_catalog.json")
-        ]
-        cat_file = next((p for p in catalog_paths if p.exists()), None)
-        if cat_file:
-            with open(cat_file, "r", encoding="utf-8") as f:
-                cat_data = json.load(f)
-            cols_dict = cat_data.get("columns", {})
-
-            # Ищем 1..4 словные фразы и отдельные токены из запроса в значениях каталога
-            context_words = {"риск", "риска", "риски", "профиль", "профилю", "цифровому", "иор", "инцидент", "событие"}
-            query_words = [
-                w for w in re.findall(r'[a-zA-Zа-яА-Я0-9_-]{3,}', query_low)
-                if w not in _STOP and not (exact_drp_present and w in context_words)
-            ]
-            n_words = len(query_words)
-
-            # Проверяем как подстроки запроса, так и токены
-            candidate_phrases = set(query_words)
-            for i in range(n_words):
-                for j in range(i + 2, min(i + 5, n_words + 1)):
-                    candidate_phrases.add(" ".join(query_words[i:j]))
-
-            for phrase in candidate_phrases:
-                p_low = phrase.lower()
-                for full_col, col_info in cols_dict.items():
-                    col_name = full_col.split(".")[-1]
-                    val_list = col_info.get("values", [])
-                    for cat_val in val_list:
-                        str_v = str(cat_val)
-                        v_low = str_v.lower()
-                        if p_low == v_low or (len(p_low) >= 4 and p_low in v_low):
-                            key = (p_low, col_name, str_v)
-                            if key not in seen:
-                                seen.add(key)
-                                counts_map = col_info.get("counts", {})
-                                c_val = counts_map.get(cat_val, 1)
-                                hits.append({
-                                    "phrase": phrase,
-                                    "column": col_name,
-                                    "value": f"%{str_v}%" if len(p_low) < len(v_low) else str_v,
-                                    "count": c_val,
-                                    "score": 0.98,
-                                    "op": "like"
-                                })
-    except Exception as e:
-        logger.debug(f"[grounding] kb_value_catalog lookup skipped: {e}")
-
-    hits.sort(key=lambda h: (h["score"], h["count"]), reverse=True)
-    return hits[:max_hits]
+from utils.resolve.semantic_grounding import ground_query
 
 
 def resolve_filter_column(df: Any, term: str, category_hint: str = None) -> Optional[str]:
@@ -381,19 +205,18 @@ def resolve_filter_column(df: Any, term: str, category_hint: str = None) -> Opti
     if df is None or getattr(df, "empty", True) or not term:
         return None
     term_clean = term.strip().lower()
-    for col in df.columns:
-        col_str = str(col).lower()
-        if category_hint and category_hint.lower() in ("тб", "орг", "структур"):
-            if "org_struct" in col_str or "tb" in col_str:
-                if df[col].astype(str).str.lower().str.contains(term_clean, regex=False, na=False).any():
-                    return col
-        else:
-            if df[col].astype(str).str.lower().str.contains(term_clean, regex=False, na=False).any():
-                return col
-    for col in df.columns:
-        if df[col].astype(str).str.lower().str.contains(term_clean, regex=False, na=False).any():
-            return col
-    return None
+    hint=(category_hint or "").lower()
+    if hint in ("тб", "орг", "структур", "origin"):
+        permitted=[c for c in df.columns if str(c).lower()=="org_struct_lvl_3_name"]
+    elif hint in ("блок", "ответственность", "responsibility"):
+        permitted=[c for c in df.columns if str(c).lower()=="funct_block_lvl_3_name"]
+    else:
+        permitted=[c for c in df.columns if not str(c).lower().startswith(("org_struct_lvl_", "funct_block_lvl_")) or str(c).lower() in ("org_struct_lvl_3_name", "funct_block_lvl_3_name")]
+    matches=[c for c in permitted if df[c].astype(str).str.lower().str.contains(term_clean,regex=False,na=False).any()]
+    if len(matches)>1 and not hint:
+        from utils.resolve.request_outcome import ClarificationRequired
+        raise ClarificationRequired("Уточните, нужны ИОР по месту происхождения или по зоне ответственности?")
+    return matches[0] if matches else None
 
 
 def apply_smart_filter(df: Any, term_or_prompt: str, category_hint: str = None) -> tuple[Any, Any]:
@@ -450,6 +273,19 @@ class ValueCandidate:
 
 
 def search_values(query: str, top_k: int = 8, columns: Optional[list] = None, min_score: float = 0.0) -> list[ValueCandidate]:
+    if columns:
+        from utils.resolve.semantic_grounding import load_catalog
+        catalogue=load_catalog()
+        needle=query.strip().strip("%").casefold()
+        candidates=[]
+        for col in columns:
+            for raw in catalogue.get(col,[]):
+                value=str(raw)
+                if needle and needle in value.casefold():
+                    score=1.0 if needle==value.casefold() else .8
+                    if score>=min_score:
+                        candidates.append(ValueCandidate(col,value,score=score,phrase=query))
+        return sorted(candidates,key=lambda c:c.score,reverse=True)[:top_k]
     hits = ground_query(query, max_hits=top_k)
     cands = []
     for h in hits:
@@ -468,3 +304,6 @@ def search_values(query: str, top_k: int = 8, columns: Optional[list] = None, mi
         ))
     return cands[:top_k]
 
+
+import logging
+logger = logging.getLogger(__name__)

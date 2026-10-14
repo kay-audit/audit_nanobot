@@ -37,8 +37,7 @@ requires:
       description: "Режим работы skill'ов (production/testing). testing → cache (DuckDB), иначе → greenplum."
     - name: IOR_RAG_CACHE_DIR
       required: false
-      default: cache_final
-      description: "Имя директории кеша BGE-M3 retrieval (относительно PIPELINES_CACHE_DIR)"
+      description: "Путь к глобальному кешу BGE-M3 retrieval; по умолчанию workspace/data_store/cache/caches_pipelines/cache_final."
     - name: PIPELINES_CACHE_DIR
       required: false
       default: ""
@@ -58,6 +57,29 @@ requires:
       required: false
       default: ""
       description: "DSN для тестовой БД фичи; пусто → fallback в channels.postgres.dsn (production-БД)."
+    - name: IOR_OSIRIS_NFS_ROOT
+      required: false
+      description: "Общий для gateway и OSIRIS worker путь NFS; по умолчанию workspace/data_store/osiris/ior."
+    - name: IOR_OSIRIS_WORKER_SCRIPT
+      required: false
+      description: "Путь к rerank_osiris_worker.py, доступный внутри CUDA image; по умолчанию скрипт навыка."
+    - name: IOR_OSIRIS_JOB_NAME
+      required: false
+      default: srbd6
+      description: "Имя отдельного OSIRIS job для IOR."
+    - name: IOR_OSIRIS_IMAGE
+      required: false
+      description: "CUDA image с OSIRIS SDK и зависимостями BGE/reranker; дефолт задан в utils/osiris_config.py."
+    - name: IOR_OSIRIS_POOL
+      required: false
+      default: common
+      description: "Пул OSIRIS для IOR worker."
+    - name: IOR_BGE_MODEL_PATH
+      required: false
+      description: "Локальный путь к BGE-M3, доступный worker."
+    - name: IOR_RERANKER_MODEL_PATH
+      required: false
+      description: "Локальный путь к reranker, доступный worker."
   secrets:
     - name: DATABASE_URL
       source: existing
@@ -135,9 +157,16 @@ overlays:
 # env_files. Существующий master-файл lib/services/skill_runtime_mode.py
 # НЕ модифицируется (навык не должен трогать инфраструктуру Nanobot).
 
-# В этой ветке IOR-тестов нет: они живут в feature/d6-nanobot-with-manifest.
-# Объявлять несуществующие пути нельзя — префлит падает на pytest с rc=4.
-tests: []
+tests:
+  - tests/test_ior_bge_followup_contract.py
+  - tests/test_tools_ior_analyzer.py
+  - workspace/skills/ior-analyzer/scripts/test_analysis_mode.py
+  - workspace/skills/ior-analyzer/scripts/test_business_contract.py
+  - workspace/skills/ior-analyzer/scripts/test_osiris_contract.py
+  - workspace/skills/ior-analyzer/scripts/test_preset_analysis.py
+  - workspace/skills/ior-analyzer/utils/resolve/test_resolve.py
+  - workspace/skills/ior-analyzer/utils/test_data_store_cache.py
+  - workspace/skills/ior-analyzer/tests/test_source_planner.py
 
 testing:
   runtime_env: NANOBOT_SKILLS_RUNTIME
@@ -168,9 +197,6 @@ testing:
     command: "python workspace/skills/ior-analyzer/testing/seed_test_data.py --json workspace/data_store/cache/testing/ior/ior.json"
     requires_migration: V006__d6_ior_tables_real
     idempotent: true
-  # pytest-блока нет: в ветке нет IOR-тестов (см. tests: [] выше), а зашитый
-  # в манифест абсолютный путь к venv делал бы ветку непереносимой.
-  # Функциональная проверка навыка делается отдельно.
 
 isolation:
   removable: true
@@ -185,8 +211,13 @@ isolation:
     - .gitignore
     - workspace/skills/ior-analyzer/**
     - workspace/tools/ior_analyzer.py
+    - workspace/utils/osiris_runtime/**
+    - tests/test_ior_bge_followup_contract.py
+    - tests/test_tools_ior_analyzer.py
     - sql/migrations/V006__d6_ior_tables_real.sql
   files_modified:
+    - AGENTS.md
+    - docs/D6.md
     - project.json        # + skills.ior-analyzer (таблицы IOR для sync) — overlay only
     - feature.yaml        # манифест ветки
   config_keys_added:

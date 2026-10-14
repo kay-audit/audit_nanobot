@@ -109,13 +109,11 @@ def _inspect_pandas(xlsx_path: Path, *, sheet_name: str = "Отчет_ОпРис
     col_date = _find_col(cols, "Дата ввода") or _find_col(cols, "incdnt_entry_dt")
     col_tb = _find_col(cols, "орг. структура", "уровень 3") \
         or _find_col(cols, "org_struct_lvl_3") \
-        or _find_col(cols, "орг. структура", "уровень 2") \
-        or _find_col(cols, "org_struct_lvl_2") \
-        or _find_col(cols, "терр", "структура")
+        or _find_col(cols, "место происхождения")
     col_type = _find_col(cols, "Тип события", "уровень 1") \
         or _find_col(cols, "тип", "уровень 1") \
         or _find_col(cols, "incdnt_type_lvl_1")
-    col_status = _find_col(cols, "Статус события") or _find_col(cols, "Статус")
+    col_status = _first_existing(cols, "incdnt_status_name") or _find_col(cols, "Статус события") or _find_col(cols, "Статус")
     col_process = _find_col(cols, "Процесс", "уровень 4") \
         or _find_col(cols, "process_lvl_4")
     col_fin_impact = _find_col(cols, "Сумма финансового последствия") \
@@ -126,10 +124,10 @@ def _inspect_pandas(xlsx_path: Path, *, sheet_name: str = "Отчет_ОпРис
         or _find_col(cols, "Сумма последствий") \
         or _find_col(cols, "сумма последствия") \
         or _find_col(cols, "сумма последств") \
-        or _find_col(cols, "incdnt_sum") \
+        or _first_existing(cols, "incdnt_sum") \
         or _find_col(cols, "Сумма возмещения") \
-        or _find_col(cols, "recovery")
-    col_recovery = _find_col(cols, "Возмещение") or _find_col(cols, "recovery_rub_amt_aggr")
+        or _first_existing(cols, "recovery_rub_amt", "recovery_rub_amt_aggr")
+    col_recovery = _first_existing(cols, "recovery_rub_amt", "recovery_rub_amt_aggr") or _find_col(cols, "Возмещение")
     col_autoreg = _find_col(cols, "авторегистр")
 
     # --- Stats – top values + breakdowns ---
@@ -162,11 +160,12 @@ def _inspect_pandas(xlsx_path: Path, *, sheet_name: str = "Отчет_ОпРис
 
     def _sum(col: Optional[str]) -> float:
         if not col or rows == 0:
-            return 0.0
+            return None
         try:
-            return float(df[col].fillna(0).sum())
+            value = pd.to_numeric(df[col], errors="coerce").sum(min_count=1)
+            return None if pd.isna(value) else float(value)
         except Exception:
-            return 0.0
+            return None
 
     sum_total = _sum(col_amount)
     sum_recovery = _sum(col_recovery)
@@ -192,11 +191,11 @@ def _inspect_pandas(xlsx_path: Path, *, sheet_name: str = "Отчет_ОпРис
     stats: dict[str, Any] = {
         "rows": rows,
         "n_unique_incdnt_sid": int(df[col_sid].nunique()) if col_sid else rows,
-        "sum_total_loss": round(sum_total, 2),
+        "sum_total_loss": round(sum_total, 2) if sum_total is not None else None,
         "loss_filled_count": loss_filled_count,
         "loss_coverage_pct": round(loss_filled_count / rows * 100.0, 1) if rows else 0.0,
-        "financial_impact": round(_sum(col_fin_impact), 2),
-        "recovery": round(sum_recovery, 2),
+        "financial_impact": round(_sum(col_fin_impact), 2) if _sum(col_fin_impact) is not None else None,
+        "recovery": round(sum_recovery, 2) if sum_recovery is not None else None,
         "top_tb": _top(col_tb),
         "top_type": _top(col_type),
         "top_process": _top(col_process),
@@ -244,7 +243,7 @@ def _build_sample(df, *, max_sample: int, col_sid, col_date, col_tb,
             for c in head_cols:
                 v = r[c]
                 if pd.isna(v):
-                    row.append("-")
+                    row.append("")
                 elif isinstance(v, (int, float)) and not isinstance(v, bool):
                     if isinstance(v, float):
                         row.append(f"{v:,.2f}".replace(",", " "))
@@ -274,7 +273,7 @@ def _build_sample(df, *, max_sample: int, col_sid, col_date, col_tb,
         amt = r[col_amount] if col_amount and not pd.isna(r[col_amount]) else None
         amt_str = (
             f"{float(amt):,.0f} ₽".replace(",", " ")
-            if amt is not None else "-"
+            if amt is not None else ""
         )
         st = str(r[col_status]) if col_status and not pd.isna(r[col_status]) else "-"
         sample.append([sid, date_str, tb_str, type_str, amt_str, st])
@@ -290,7 +289,7 @@ def _inspect_openpyxl(xlsx_path: Path, *, max_sample: int = 5) -> dict:
         cols = ws.max_column or 0
         sample: list[list] = []
         for i, row in enumerate(ws.iter_rows(min_row=2, max_row=1 + max_sample, values_only=True)):
-            sample.append([str(c) if c is not None else "-" for c in row[:6]])
+            sample.append([str(c) if c is not None else "" for c in row[:6]])
             if i >= max_sample - 1:
                 break
         return {
@@ -320,7 +319,7 @@ def _inspect_csv(csv_path: Path, xlsx_name: Optional[str] = None, max_sample: in
         for c in head_cols:
             v = r[c]
             if pd.isna(v):
-                row.append("-")
+                row.append("")
             elif isinstance(v, (int, float)) and not isinstance(v, bool):
                 if isinstance(v, float):
                     row.append(f"{v:,.2f}".replace(",", " "))
