@@ -28,21 +28,8 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[4]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 try:
-    from lib.services.llm_reasoning import apply_to_payload, strip_think_blocks
-except ImportError:  # закрытый контур: читаем ту же переменную напрямую
-    def _thinking_enabled() -> bool:
-        raw = (os.getenv("VLLM_ENABLE_THINKING") or "").strip().lower()
-        if raw in {"1", "true", "yes", "on", "y", "t", "да", "истина"}:
-            return True
-        if raw in {"0", "false", "no", "off", "n", "f", "нет", "ложь"}:
-            return False
-        return True  # DEFAULT_ENABLE_THINKING из llm_reasoning.py
-
-    def apply_to_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
-        if isinstance(payload, dict):
-            payload["reasoning_split"] = _thinking_enabled()
-        return payload
-
+    from lib.services.llm_reasoning import strip_think_blocks
+except ImportError:  # закрытый контур: правила повторяем локально
     import re as _re
 
     _THINK_BLOCKS = _re.compile(
@@ -64,8 +51,8 @@ GIGACHAT_API_URL = os.getenv("GIGACHAT_API_URL", "http://liveaccess/v1/gc/chat/c
 JPY_API_TOKEN = os.getenv("JPY_API_TOKEN") or os.getenv("GIGACHAT_CREDENTIALS") or os.getenv("GIGACHAT_TOKEN") or ""
 GIGACHAT_MODEL_NAME = os.getenv("GIGACHAT_MODEL_NAME", "GigaChat-3-Ultra")
 
-VLLM_API_URL = os.getenv("VLLM_API_URL", "http://localhost:8000/v1/chat/completions")
-VLLM_GENERATE_URL = os.getenv("VLLM_GENERATE_URL", "http://localhost:8001/generate")
+# Адрес основной модели НЕ зашит: см. _agent_endpoint() — он читается из
+# agents.defaults + providers.* (config.json поверх .secrets.env).
 
 _last_call_time = 0.0
 _delay_sec = 1.0
@@ -181,44 +168,102 @@ def call_gigachat_sdk(messages: List[Dict[str, str]]) -> str:
     return ""
 
 
-def call_vllm_http(messages: List[Dict[str, str]]) -> str:
-    """Fallback на локальный vLLM если поднят."""
-    if os.getenv("APPEALS_DISABLE_VLLM", "").strip().casefold() in {"1", "true", "yes", "on"}:
-        logger.info("vLLM fallback is disabled by APPEALS_DISABLE_VLLM")
+_AGENT_ENDPOINT: Optional[Dict[str, Any]] = None
+
+
+def _agent_endpoint() -> Dict[str, Any]:
+    """Модель агента из конфигурации: provider/api_base/api_key/model/extra_body.
+
+    Навык НЕ зашит ни на GigaChat, ни на vLLM, ни на localhost: адрес, ключ,
+    модель и поле управления рассуждениями берутся из ``agents.defaults`` и
+    ``providers.*`` (config.json поверх .secrets.env). Переключение
+    MiniMax -> локальный vLLM делается правкой одного файла конфигурации.
+    """
+    global _AGENT_ENDPOINT
+    if _AGENT_ENDPOINT is not None:
+        return _AGENT_ENDPOINT
+
+    from lib.services.llm_config import agent_endpoint
+
+    ep = agent_endpoint()
+    api_base = ep["api_base"]
+    _AGENT_ENDPOINT = {
+        "provider": ep["provider"],
+        "chat_url": f"{api_base}/chat/completions",
+        "api_key": ep.get("api_key") or "",
+        "model": ep["model"],
+        "extra_body": dict(ep["extra_body"]),
+    }
+    logger.info("Эндпоинт: provider=%s url=%s model=%s extra_body=%s",
+                _AGENT_ENDPOINT["provider"], _AGENT_ENDPOINT["chat_url"],
+                _AGENT_ENDPOINT["model"],
+                json.dumps(_AGENT_ENDPOINT["extra_body"], ensure_ascii=False))
+    return _AGENT_ENDPOINT
+
+
+def call_agent_llm(messages: List[Dict[str, str]],
+                   max_tokens: int = 8192,
+                   temperature: float = 0.6) -> str:
+    """Основной путь: модель агента через OpenAI-совместимый эндпоинт."""
+    endpoint = _agent_endpoint()
+    payload = {
+        "model": endpoint["model"],
+        "messages": messages,
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+    }
+    # Поле рассуждения выведено из имени провайдера: у minimax это
+    # reasoning_split, у vLLM — chat_template_kwargs.enable_thinking.
+    for field, value in endpoint["extra_body"].items():
+        payload[field] = value
+
+    headers = {"Content-Type": "application/json"}
+    if endpoint["api_key"]:
+        headers["Authorization"] = "Bearer %s" % endpoint["api_key"]
+
+    logger.info("Calling %s: %s model=%s", endpoint["provider"],
+                endpoint["chat_url"], endpoint["model"])
+    status, response_json, body = _post_json(
+        endpoint["chat_url"], headers, payload, timeout=120)
+    if not (200 <= status < 300):
+        logger.warning("[%s] HTTP %s: %s", endpoint["provider"], status, body[:300])
         return ""
-    try:
-        logger.info("Calling local vLLM fallback: %s", VLLM_API_URL)
-        payload = {
-            "model": "Qwen3.6-27B",
-            "messages": messages,
-            "max_tokens": 2048,
-            "temperature": 0.6,
-        }
-        # Сквозной переключатель рассуждений: раньше vLLM-запасной путь
-        # appeals вообще не получал указаний о рассуждениях.
-        apply_to_payload(payload, "vllm")
-        status, response_json, _ = _post_json(VLLM_API_URL, {"Content-Type": "application/json"}, payload, timeout=10)
-        if 200 <= status < 300:
-            choices = response_json.get("choices", [])
-            if choices and "message" in choices[0]:
-                msg = choices[0]["message"]
-                # Рассуждение может прийти и в content — отдаём только ответ.
-                return (strip_think_blocks(msg.get("content"))
-                        or strip_think_blocks(msg.get("reasoning_content")))
-    except Exception as exc:
-        logger.debug("Local vLLM fallback unavailable: %s", exc)
-    return ""
+    choices = response_json.get("choices", [])
+    if not choices or "message" not in choices[0]:
+        logger.warning("[%s] пустой choices: %s", endpoint["provider"], body[:300])
+        return ""
+    msg = choices[0]["message"]
+    # Рассуждение может прийти и в content — отдаём только ответ.
+    return (strip_think_blocks(msg.get("content"))
+            or strip_think_blocks(msg.get("reasoning_content")))
+
+
+def call_vllm_http(messages: List[Dict[str, str]]) -> str:
+    """Историческая точка входа. Оставлена как алиас на общий путь."""
+    return call_agent_llm(messages)
 
 
 def def_ask_gigachat(messages: List[Dict[str, str]]) -> str:
-    """
-    Главная универсальная точка вызова GigaChat.
+    """Главная точка вызова LLM.
+
     Приоритет:
-    1. Прямой HTTP API GigaChat Сбера с ротацией моделей при 403 RBAC
-    2. GigaChat SDK (gigachat)
-    3. vLLM (localhost:8000)
+    1. Модель агента из конфигурации (MiniMax на этом ПК, vLLM на ПРОМе).
+    2. Корпоративный GigaChat — только если явно разрешён
+       ``APPEALS_USE_GIGACHAT=1`` (корпоративный контур, недоступен локально).
     """
-    # 1. Запрос к GigaChat Сбера (с автоподбором RBAC-моделей)
+    res_agent = call_agent_llm(messages)
+    if res_agent:
+        return res_agent
+
+    if os.getenv("APPEALS_USE_GIGACHAT", "").strip().casefold() not in {"1", "true", "yes", "on"}:
+        logger.warning(
+            "Модель агента не ответила; GigaChat пропущен (включается "
+            "APPEALS_USE_GIGACHAT=1 в корпоративном контуре)")
+        return ""
+
+    logger.info("Основной эндпоинт не ответил, пробуем GigaChat")
+
+    # Запрос к GigaChat Сбера (с автоподбором RBAC-моделей)
     res_sber = call_gigachat_sber_api(messages)
     if res_sber:
         return res_sber
@@ -228,10 +273,5 @@ def def_ask_gigachat(messages: List[Dict[str, str]]) -> str:
     if res_sdk:
         return res_sdk
 
-    # 3. Запрос к vLLM
-    res_vllm = call_vllm_http(messages)
-    if res_vllm:
-        return res_vllm
-
-    logger.warning("All configured LLM backends returned an empty response")
+    logger.warning("Ни один из настроенных LLM-бэкендов не вернул ответ")
     return ""
