@@ -14,7 +14,12 @@ from pathlib import Path
 from typing import Any
 
 from .config import ServiceProfile
-from .errors import OsirisStartupTimeoutError, OsirisUnavailableError
+from .errors import (
+    OsirisBusyError,
+    OsirisResourcesUnavailableError,
+    OsirisStartupTimeoutError,
+    OsirisUnavailableError,
+)
 
 TERMINAL = {"not_found", "finished", "failed", "stopped"}
 POLL_SEC = 1.0
@@ -254,13 +259,22 @@ def lifecycle_lock(profile: ServiceProfile, deadline: float):
                     pass
                 continue
             if time.monotonic() >= deadline:
-                raise OsirisStartupTimeoutError("Osiris lifecycle lock remained occupied")
-            time.sleep(min(POLL_SEC, max(0, deadline - time.monotonic())))
+                raise OsirisStartupTimeoutError("Osiris lifecycle lock remained occupied") from None
+            time.sleep(min(POLL_SEC, .05, max(0, deadline - time.monotonic())))
     token = uuid.uuid4().hex
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             json.dump({"pid": os.getpid(), "host": socket.gethostname(),
                        "created_at": time.time(), "token": token}, handle)
+        try:
+            owner = json.loads(profile.metadata_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            owner = {}
+        if isinstance(owner, dict) and (
+            owner.get("service_name") not in (None, profile.service_name)
+            or owner.get("requested_name") not in (None, profile.job_name)
+        ):
+            raise OsirisUnavailableError("NFS namespace belongs to another Osiris service")
         yield
     finally:
         try:
@@ -299,6 +313,9 @@ def _start_under_lock(profile: ServiceProfile, osiris):
                                script=profile.worker_script, restart=False, num_nodes=1,
                                num_gpus=profile.num_gpus, type="pytorchjob")
     except Exception as exc:
+        if any(term in str(exc).lower() for term in ("insufficient gpu", "no gpu resources", "insufficient resources")):
+            _write_meta(profile, create_pending=False, failure="gpu_resources_unavailable")
+            raise OsirisResourcesUnavailableError("Osiris GPU resources are unavailable") from exc
         raise OsirisUnavailableError("Osiris create outcome is unconfirmed; inspect SDK status") from exc
     name = _create_name(result)
     _write_meta(profile, job_name=name, create_pending=True, generation=generation,
@@ -408,6 +425,12 @@ def stop_service(profile: ServiceProfile, osiris=None, *, timeout: float = 120.0
         if state == "unknown":
             raise OsirisUnavailableError(f"Cannot confirm job state; metadata retained: {details}")
         if state not in TERMINAL:
+            heartbeat = profile.read_heartbeat() or {}
+            if (any((profile.nfs_root / "inbox").glob("*.json"))
+                    or any((profile.nfs_root / "processing").glob("*.json"))
+                    or (profile.heartbeat_live(heartbeat) and (
+                        heartbeat.get("active_requests", 0) or heartbeat.get("queue_size", 0)))):
+                raise OsirisBusyError("Osiris has accepted requests; retry stop after completion")
             osiris.delete(name)
             while True:
                 state, details = query_state(osiris, name)

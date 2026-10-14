@@ -209,8 +209,57 @@ def _paths(manifest):
     return paths
 
 
+def dispatch_operation(kind, query, payload, search, reranker):
+    if kind == "retrieve":
+        result = search.retrieve_hybrid_adaptive(query, payload["allowed_ids"])
+        result = list(map(str, result))
+    elif kind == "embed":
+        if payload.get("model") != "BAAI/bge-m3":
+            raise ValueError("Unsupported embedding model")
+        result = embed_items(search.embed, payload["items"])
+    elif kind == "rerank":
+        items = payload["items"]
+        ids = [item["id"] for item in items]
+        if len(ids) != len(set(ids)):
+            raise ValueError("Duplicate reranker IDs")
+        raw = predict_with_retry(reranker, [(query, item["text"]) for item in items])
+        if len(raw) != len(ids) or not np.isfinite(raw).all():
+            raise ValueError("Reranker returned invalid logits")
+        if payload.get("response_format") == "records":
+            if payload.get("model") != "BAAI/bge-reranker-v2-m3":
+                raise ValueError("Unsupported reranker model")
+            result = {"model": "BAAI/bge-reranker-v2-m3", "scores": [
+                {"id": identity, "score": float(score)} for identity, score in zip(ids, sigmoid(raw))
+            ]}
+        else:
+            import pandas as pd
+            result = pd.DataFrame({"id": ids, "score": sigmoid(raw)})
+    else:
+        raise ValueError("Unsupported Appeals request_type")
+    return result
+
+
+def build_handlers(search, reranker):
+    from workspace.utils.osiris_runtime.dispatcher import HandlerRegistry
+    handlers = HandlerRegistry()
+    for name in PROFILE.capabilities:
+        def handle(payload, context, operation=name):
+            if not isinstance(payload, dict):
+                raise ValueError("Appeals payload must be an object")
+            data = dict(payload)
+            if operation == "rerank":
+                data["response_format"] = "records"
+                data.setdefault("model", "BAAI/bge-reranker-v2-m3")
+            return dispatch_operation(operation, context.query, data, search, reranker)
+        handlers.register(name, handle)
+    return handlers
+
+
 def process_request(manifest_path, search, reranker):
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if manifest.get("serialization") == "json":
+        from workspace.utils.osiris_runtime.dispatcher import process_json_request
+        return process_json_request(PROFILE, manifest_path, build_handlers(search, reranker))
     input_path, output_path, error_path = _paths(manifest)
     expires_at = float(manifest["expires_at"])
     try:
@@ -223,32 +272,7 @@ def process_request(manifest_path, search, reranker):
         with input_path.open("rb") as handle:
             payload = pickle.load(handle)
         kind = manifest["request_type"]
-        if kind == "retrieve":
-            result = search.retrieve_hybrid_adaptive(manifest["query"], payload["allowed_ids"])
-            result = list(map(str, result))
-        elif kind == "embed":
-            if payload.get("model") != "BAAI/bge-m3":
-                raise ValueError("Unsupported embedding model")
-            result = embed_items(search.embed, payload["items"])
-        elif kind == "rerank":
-            items = payload["items"]
-            ids = [item["id"] for item in items]
-            if len(ids) != len(set(ids)):
-                raise ValueError("Duplicate reranker IDs")
-            raw = predict_with_retry(reranker, [(manifest["query"], item["text"]) for item in items])
-            if len(raw) != len(ids) or not np.isfinite(raw).all():
-                raise ValueError("Reranker returned invalid logits")
-            if payload.get("response_format") == "records":
-                if payload.get("model") != "BAAI/bge-reranker-v2-m3":
-                    raise ValueError("Unsupported reranker model")
-                result = {"model": "BAAI/bge-reranker-v2-m3", "scores": [
-                    {"id": identity, "score": float(score)} for identity, score in zip(ids, sigmoid(raw))
-                ]}
-            else:
-                import pandas as pd
-                result = pd.DataFrame({"id": ids, "score": sigmoid(raw)})
-        else:
-            raise ValueError("Unsupported Appeals request_type")
+        result = dispatch_operation(kind, manifest["query"], payload, search, reranker)
         if time.time() < expires_at:
             atomic_pickle({"request_id": manifest["request_id"], "request_type": kind,
                            "result": result}, output_path)

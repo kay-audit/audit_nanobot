@@ -27,16 +27,35 @@ class ServiceProfile:
     capabilities: tuple[str, ...]
     protocol_version: int = 2
     heartbeat_max_age_sec: float = 12.0
-    idle_timeout_sec: float = 3600.0
+    idle_timeout_sec: float = 28800.0
     startup_wait_timeout_sec: float = 300.0
     retry_after_sec: float = 900.0
     allow_legacy_heartbeat_without_service_name: bool = False
+    max_payload_bytes: int = 1048576
+    max_result_bytes: int = 16777216
+    max_artifact_bytes: int = 536870912
 
     def __post_init__(self):
-        if not self.service_name or not self.job_name or not self.worker_script:
+        if any(not isinstance(value, str) or not value.strip() for value in (
+            self.service_name, self.job_name, self.worker_script, self.image, self.pool
+        )):
             raise ValueError("Osiris service, job and worker script names are required")
-        if self.num_gpus <= 0 or not self.capabilities:
+        if isinstance(self.num_gpus, bool) or not isinstance(self.num_gpus, int) or self.num_gpus <= 0 or not self.capabilities:
             raise ValueError("Osiris GPU count and capabilities must be positive")
+        import re
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", self.service_name):
+            raise ValueError("Invalid Osiris service name")
+        if len(set(self.capabilities)) != len(self.capabilities) or any(
+            not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", name)
+            for name in self.capabilities
+        ):
+            raise ValueError("Invalid Osiris capabilities")
+        if self.protocol_version != 2:
+            raise ValueError("Unsupported Osiris protocol version")
+        object.__setattr__(self, "nfs_root", Path(self.nfs_root))
+        for name in ("max_payload_bytes", "max_result_bytes", "max_artifact_bytes"):
+            if isinstance(getattr(self, name), bool) or not isinstance(getattr(self, name), int) or getattr(self, name) <= 0:
+                raise ValueError(f"{name} must be a positive integer")
         for name in ("heartbeat_max_age_sec", "idle_timeout_sec", "startup_wait_timeout_sec", "retry_after_sec"):
             value = getattr(self, name)
             if not math.isfinite(value) or value <= 0:
@@ -103,7 +122,7 @@ class ServiceProfile:
 
 def common_timeout_settings():
     return {
-        "idle_timeout_sec": _positive_env("OSIRIS_IDLE_TIMEOUT_SEC", 3600),
+        "idle_timeout_sec": _positive_env("OSIRIS_IDLE_TIMEOUT_SEC", 28800),
         "startup_wait_timeout_sec": _positive_env("OSIRIS_START_WAIT_TIMEOUT_SEC", 300),
         "retry_after_sec": _positive_env("OSIRIS_RETRY_AFTER_SEC", 900),
     }

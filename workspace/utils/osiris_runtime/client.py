@@ -14,7 +14,7 @@ from typing import Any
 
 from .config import ServiceProfile
 from .errors import OsirisRequestError, OsirisRequestTimeoutError
-from .lifecycle import ensure_ready
+from .lifecycle import ensure_ready, lifecycle_lock
 
 logger = logging.getLogger(__name__)
 POLL_SEC = 0.5
@@ -83,7 +83,8 @@ def submit_request(profile: ServiceProfile, session_id, request_type, query, pay
     input_path = Path(manifest["input_path"])
     _atomic_pickle(payload, input_path)
     try:
-        _atomic_json(manifest, profile.nfs_root / "inbox" / f"{request_id}.json")
+        with lifecycle_lock(profile, time.monotonic() + profile.startup_wait_timeout_sec):
+            _atomic_json(manifest, profile.nfs_root / "inbox" / f"{request_id}.json")
     except Exception:
         input_path.unlink(missing_ok=True)
         raise
@@ -118,7 +119,8 @@ def wait_result(profile: ServiceProfile, session_id, request_id, request_type,
                 if not profile.heartbeat_live(heartbeat) or heartbeat.get("status") in {"stopped", "idle_stopping"}:
                     recovered = True
                     logger.warning("Osiris worker lost during request %s; one restart attempt", request_id)
-                    ensure_ready(profile)
+                    ensure_ready(profile, timeout=min(profile.startup_wait_timeout_sec,
+                                                       max(.001, deadline - time.monotonic())))
             time.sleep(min(POLL_SEC, max(0, deadline - time.monotonic())))
     finally:
         for path in (output, error, dirs["input"] / f"{request_id}.pkl",

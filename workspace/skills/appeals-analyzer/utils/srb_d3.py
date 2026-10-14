@@ -6,6 +6,8 @@ import pandas as pd
 from workspace.utils.osiris_runtime import OsirisRequestError, OsirisUnavailableError
 from workspace.utils.osiris_runtime import client as transport
 from workspace.utils.osiris_runtime.lifecycle import ensure_ready
+from workspace.utils.osiris_runtime.api import OsirisRuntime
+from workspace.utils.osiris_runtime.registry import ServiceRegistry
 
 from .appeal_text import canonical_appeal_text, normalize_text
 from .osiris_config import SERVICE
@@ -15,7 +17,9 @@ DEFAULT_TIMEOUT_SEC = transport.DEFAULT_REQUEST_TIMEOUT_SEC
 
 def ensure_srb_d3_ready():
     """Auto-start once when absent and wait up to the profile startup deadline."""
-    return ensure_ready(SERVICE)
+    registry = ServiceRegistry()
+    registry.register(SERVICE)
+    return OsirisRuntime(registry).start(SERVICE.service_name)
 
 
 def submit_request(session_id, request_type, query, payload, timeout_sec=DEFAULT_TIMEOUT_SEC):

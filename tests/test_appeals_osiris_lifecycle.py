@@ -349,14 +349,17 @@ class TransportRecoveryTests(unittest.TestCase):
     def test_worker_death_after_submit_gets_one_recovery_attempt(self):
         request_id = client.submit_request(self.profile, "session", "retrieve", "query", {})
         _, dirs = client.session_dirs(self.profile, "session")
-        def recover(profile):
+        def recover(profile, *, timeout):
+            self.assertLessEqual(timeout, .2)
             client._atomic_pickle({"request_id": request_id, "request_type": "retrieve", "result": ["ok"]},
                                   dirs["output"] / f"{request_id}.pkl")
         with patch.object(ServiceProfile, "read_heartbeat", return_value={"status": "stopped"}), \
                 patch.object(client, "ensure_ready", side_effect=recover) as start:
             result = client.wait_result(self.profile, "session", request_id, "retrieve", .2, auto_recover=True)
         self.assertEqual(result, ["ok"])
-        start.assert_called_once_with(self.profile)
+        start.assert_called_once()
+        self.assertEqual(start.call_args.args, (self.profile,))
+        self.assertLessEqual(start.call_args.kwargs["timeout"], .2)
 
     def test_request_timeout_is_distinct_and_cleans_manifest(self):
         request_id = client.submit_request(self.profile, "session", "retrieve", "query", {})
