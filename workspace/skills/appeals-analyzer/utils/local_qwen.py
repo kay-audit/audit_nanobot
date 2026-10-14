@@ -95,59 +95,55 @@ def call_gigachat_sber_api(messages: List[Dict[str, str]], temperature: float = 
     Вызов GigaChat через http://liveaccess/v1/gc/chat/completions с поддержкой автоматического
     перебора доступных моделей при возникновении 403 RBAC Access Denied.
     """
-    token = os.getenv("JPY_API_TOKEN") or os.getenv("GIGACHAT_CREDENTIALS") or os.getenv("GIGACHAT_TOKEN") or JPY_API_TOKEN
-    api_url = os.getenv("GIGACHAT_API_URL") or GIGACHAT_API_URL
-
-    headers = {
-        "Content-Type": "application/json",
-        "Accept": "application/json"
+    GIGACHAT_API_URL = "http://liveaccess/v1/gc/chat/completions"
+    HEADERS = {
+        "Authorization": f"Bearer {os.environ.get('JPY_API_TOKEN')}",
+        "Content-Type": "application/json"
     }
-    if token:
-        clean_token = token.replace("Bearer ", "").strip()
-        headers["Authorization"] = f"Bearer {clean_token}"
 
-    models_to_try = [
-        os.getenv("GIGACHAT_MODEL_NAME", "GigaChat-3-Ultra"),
-        "GigaChat-Pro",
-        "GigaChat",
-        "GigaChat-Plus",
-        "GigaChat-Lite"
-    ]
-    models_to_try = list(dict.fromkeys(models_to_try))
+    payload = {
+        "model": "GigaChat-3-Ultra",
+        "messages": messages,
+        "n": 1,
+        "temperature": temperature
+    }
 
-    for model in models_to_try:
-        payload = {
-            "model": model,
-            "messages": messages,
-            "n": 1,
-            "temperature": temperature
-        }
+    try:
         _wait_rate_limit()
-        try:
-            logger.info("Calling corporate GigaChat HTTP API with model=%s", model)
-            status, res_json, response_text = _post_json(api_url, headers, payload, timeout=120)
-            if 200 <= status < 300:
-                choices = res_json.get("choices", [])
-                if choices and "message" in choices[0]:
-                    msg = choices[0]["message"]
-                    content = strip_think_blocks(msg.get("content"))
-                    if not content:
-                        content = strip_think_blocks(msg.get("reasoning_content"))
-                    if content:
-                        logger.info("GigaChat HTTP response received: model=%s chars=%s", model, len(content))
-                        return content
-                elif "result" in res_json:
-                    content = strip_think_blocks(str(res_json["result"]))
-                    logger.info("GigaChat HTTP response received: model=%s chars=%s", model, len(content))
-                    return content
-            elif status == 403:
-                logger.warning(f"[GigaChat Sber API] Model '{model}' returned 403 RBAC Access Denied. Trying next model...")
-                continue
-            else:
-                logger.warning(f"[GigaChat Sber API] Model '{model}' HTTP {status}: {response_text[:200]}")
-        except Exception as e:
-            logger.warning(f"[GigaChat Sber API] Error with model '{model}': {e}")
 
+        response = requests.post(
+            GIGACHAT_API_URL,
+            headers=HEADERS,
+            json=payload,
+        )
+
+        if response.ok:
+            res_json = response.json()
+            choices = res_json.get("choices", [])
+            if choices:
+                return strip_think_blocks(choices[0].get("message", {}).get("content", ""))
+
+            logger.error(
+                "Gigachat HTTP %s: %s",
+                res_json,
+            )
+            return ""
+
+        logger.error(
+            "Gigachat HTTP %s: %s",
+            response.status_code,
+            response.text,
+        )
+    except requests.RequestException as e:
+        logger.exception(
+            "Gigachat request failed: %s",
+            e,
+        )
+    except ValueError as e:
+        logger.exception(
+            "Gigachat returned invalid JSON: %s",
+            e,
+        )
     return ""
 
 
