@@ -157,16 +157,22 @@ overlays:
 # env_files. Существующий master-файл lib/services/skill_runtime_mode.py
 # НЕ модифицируется (навык не должен трогать инфраструктуру Nanobot).
 
+# Формат — объекты TestSpec (schema.TestSpec: path + marker), а не голые
+# строки: у каждого теста есть marker ('required' — apply падает на красном,
+# 'optional' — продолжает с предупреждением). Список строк не проходит
+# pydantic, и apply останавливается на стадии 1 с MANIFEST_INVALID.
+# Здесь все optional (дефолт): контрактные тесты фичи могут требовать
+# стенда, которого на машине применения ещё нет.
 tests:
-  - tests/test_ior_bge_followup_contract.py
-  - tests/test_tools_ior_analyzer.py
-  - workspace/skills/ior-analyzer/scripts/test_analysis_mode.py
-  - workspace/skills/ior-analyzer/scripts/test_business_contract.py
-  - workspace/skills/ior-analyzer/scripts/test_osiris_contract.py
-  - workspace/skills/ior-analyzer/scripts/test_preset_analysis.py
-  - workspace/skills/ior-analyzer/utils/resolve/test_resolve.py
-  - workspace/skills/ior-analyzer/utils/test_data_store_cache.py
-  - workspace/skills/ior-analyzer/tests/test_source_planner.py
+  - path: tests/test_ior_bge_followup_contract.py
+  - path: tests/test_tools_ior_analyzer.py
+  - path: workspace/skills/ior-analyzer/scripts/test_analysis_mode.py
+  - path: workspace/skills/ior-analyzer/scripts/test_business_contract.py
+  - path: workspace/skills/ior-analyzer/scripts/test_osiris_contract.py
+  - path: workspace/skills/ior-analyzer/scripts/test_preset_analysis.py
+  - path: workspace/skills/ior-analyzer/utils/resolve/test_resolve.py
+  - path: workspace/skills/ior-analyzer/utils/test_data_store_cache.py
+  - path: workspace/skills/ior-analyzer/tests/test_source_planner.py
 
 testing:
   runtime_env: NANOBOT_SKILLS_RUNTIME
