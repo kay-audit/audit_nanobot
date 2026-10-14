@@ -138,6 +138,14 @@ def canonical_project_tools() -> list[ToolSpec]:
     запущенный через ``exec``) этот файл не откроет — DuckDB отдаёт
     ``File is already open in ... PID ...`` даже в ``read_only``-режиме.
     Подробности — ``docs/ARCHITECTURE.md``.
+
+    Тулы фич объявляются здесь, а не в ветке фичи: ``apply-feature`` копирует
+    только ``isolation.files_added``, и ``lib/`` туда не входит — он в
+    FORBIDDEN_ZONES валидатора audit_bridge. Правило проверяется автоматически:
+    ``feature_bridge.validator`` (стадия 4) сверяет ``tools[].name`` и
+    ``tools[].registered_names`` манифеста с этим списком и ругается, если
+    тула здесь нет. Новый фичевый tool без записи здесь даст ложный
+    UNEXPECTED в баннере старта и DRIFT в ``tools/diagnose_startup.py``.
     """
     return [
         ToolSpec(
@@ -186,6 +194,85 @@ def canonical_project_tools() -> list[ToolSpec]:
             module="example",
             required=False,
             description="шаблон с правильным паттерном (disabled by config — служебный)",
+            config_key=None,
+        ),
+        # ── Тулы фич (d3_crm / d5_followup / d6_ior) ──────────────────
+        # Фича ставится через audit_bridge apply-feature и приносит свой
+        # `workspace/tools/<name>.py`. Канон живёт в проекте, а не в ветке
+        # фичи: apply копирует только `isolation.files_added`, поэтому
+        # объявлять тулы здесь — единственный способ, чтобы
+        # `diff_project_tools()` их увидел.
+        #
+        # required=False по двум причинам:
+        #   * фичи может не быть на машине (инвентарь проверяет текущий
+        #     старт, а не «какие фичи вообще бывают»);
+        #   * без неё установленная фича даёт UNEXPECTED в баннере
+        #     старта и diagnose_startup.py рисует ложный DRIFT.
+        ToolSpec(
+            name="appeals_analyzer",
+            module="appeals_analyzer",
+            required=False,
+            description="анализ жалоб (фича d3_crm): витрины appeals, гипотезы",
+            config_key=None,
+        ),
+        ToolSpec(
+            name="ior_analyzer",
+            module="ior_analyzer",
+            required=False,
+            description="анализ ИОР (фича d6_ior): выгрузки, отчёты, гипотезы",
+            config_key=None,
+        ),
+        # follow_up — MCP-агрегатор: один модуль регистрирует семь
+        # инструментов через TOOL_PREFIX="mcp_follow_up_" (tools.json).
+        # Канонические имена совпадают с `tools[].registered_names`
+        # в feature.yaml фичи — их и сверяет валидатор audit_bridge.
+        ToolSpec(
+            name="mcp_follow_up_ask",
+            module="follow_up",
+            required=False,
+            description="Follow Up: вопрос по акту (фича d5_followup)",
+            config_key=None,
+        ),
+        ToolSpec(
+            name="mcp_follow_up_hypotheses",
+            module="follow_up",
+            required=False,
+            description="Follow Up: гипотезы отклонений",
+            config_key=None,
+        ),
+        ToolSpec(
+            name="mcp_follow_up_deviations",
+            module="follow_up",
+            required=False,
+            description="Follow Up: реестр отклонений",
+            config_key=None,
+        ),
+        ToolSpec(
+            name="mcp_follow_up_status",
+            module="follow_up",
+            required=False,
+            description="Follow Up: статус хода",
+            config_key=None,
+        ),
+        ToolSpec(
+            name="mcp_follow_up_card_start",
+            module="follow_up",
+            required=False,
+            description="Follow Up: запуск карточки исполнения",
+            config_key=None,
+        ),
+        ToolSpec(
+            name="mcp_follow_up_card_status",
+            module="follow_up",
+            required=False,
+            description="Follow Up: опрос карточки исполнения",
+            config_key=None,
+        ),
+        ToolSpec(
+            name="mcp_follow_up_forget",
+            module="follow_up",
+            required=False,
+            description="Follow Up: забыть ход",
             config_key=None,
         ),
     ]

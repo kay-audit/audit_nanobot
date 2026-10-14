@@ -51,6 +51,65 @@ class TestCanonical:
         ex = [t for t in canonical_project_tools() if t.name == "ExampleTool"]
         assert ex and not ex[0].required
 
+    def test_feature_tools_are_optional(self) -> None:
+        """Тулы фич в каноне обязаны быть optional.
+
+        Инвентарь описывает ТЕКУЩИЙ старт на конкретной машине, а не «какие
+        фичи бывают вообще». Фича d5_followup на машине без неё отсутствует —
+        required=True превратил бы это в missing_required и красный баннер.
+        """
+        from lib.services.runtime_inventory import canonical_project_tools
+
+        feature_tools = [t for t in canonical_project_tools()
+                         if t.name.startswith("mcp_follow_up_")
+                         or t.name in ("appeals_analyzer", "ior_analyzer")]
+        assert feature_tools, "тулы фич должны быть в каноне"
+        assert not any(t.required for t in feature_tools), (
+            f"required у фичевых тулов: {[t.name for t in feature_tools if t.required]}"
+        )
+
+    def test_canonical_names_are_unique(self) -> None:
+        """Два ToolSpec с одинаковым name ломают diff_project_tools: dict
+        из spec'ов схлопнет один из них молча, и один tool' уйдёт в
+        unexpected с той же причиной, что и сейчас — но уже без вины."""
+        from lib.services.runtime_inventory import canonical_project_tools
+
+        names = [t.name for t in canonical_project_tools()]
+        dupes = {n for n in names if names.count(n) > 1}
+        assert not dupes, f"дубли в каноне: {sorted(dupes)}"
+
+    def test_feature_modules_resolve_to_real_files(self) -> None:
+        """``module`` из канона обязан соответствовать файлу в
+        ``workspace/tools/``.
+
+        Тулы приезжают вместе с фичей, поэтому проверка мягкая: отсутствие
+        файла — это «фича не установлена», а не брак канона. Но если файл
+        ЕСТЬ, а в каноне его нет — это ровно тот случай, из-за которого
+        startup рисует UNEXPECTED.
+        """
+        from pathlib import Path
+
+        from lib.services.runtime_inventory import canonical_project_tools
+
+        repo_root = Path(__file__).resolve().parent.parent
+        tools_dir = repo_root / "workspace" / "tools"
+        by_module = {t.module: t.name for t in canonical_project_tools()}
+
+        on_disk = {p.stem for p in tools_dir.glob("*.py")
+                   if not p.stem.startswith("_")}
+        # Модуль может отсутствовать (фича не установлена) — тогда пропускаем.
+        for stem in sorted(on_disk):
+            if stem in by_module:
+                continue
+            # Неизвестный модуль: либо это шаблон/служебное, либо канон протух.
+            if stem == "example":      # служебный шаблон, в каноне как ExampleTool
+                continue
+            pytest.fail(
+                f"workspace/tools/{stem}.py есть, но его модуля нет в "
+                f"canonical_project_tools(). Добавь ToolSpec(module='{stem}') "
+                f"— иначе tool уйдёт в UNEXPECTED при старте."
+            )
+
     def test_runtime_patches_covers_known(self) -> None:
         from lib.services.runtime_inventory import canonical_runtime_patches
 
