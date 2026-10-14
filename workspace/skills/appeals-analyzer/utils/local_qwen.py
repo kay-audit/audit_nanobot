@@ -205,6 +205,13 @@ def call_agent_llm(messages: List[Dict[str, str]],
                    max_tokens: int = 8192,
                    temperature: float = 0.6) -> str:
     """Основной путь: модель агента через OpenAI-совместимый эндпоинт."""
+    # Выключатель стоит здесь, а не на точке входа: сетевых входов два, и
+    # пока он жил только на историческом имени, основной путь уходил в сеть
+    # при APPEALS_DISABLE_VLLM=1. Навык запускают standalone, где сеть может
+    # не быть вовсе, и пайплайн должен уметь завершиться тихо.
+    if os.getenv("APPEALS_DISABLE_VLLM", "").strip().casefold() in {"1", "true", "yes", "on"}:
+        logger.info("Запрос к модели выключен APPEALS_DISABLE_VLLM")
+        return ""
     endpoint = _agent_endpoint()
     payload = {
         "model": endpoint["model"],
@@ -239,7 +246,13 @@ def call_agent_llm(messages: List[Dict[str, str]],
 
 
 def call_vllm_http(messages: List[Dict[str, str]]) -> str:
-    """Историческая точка входа. Оставлена как алиас на общий путь."""
+    """Историческая точка входа. Оставлена как алиас на общий путь.
+
+    Имя выключателя прежнее — ``APPEALS_DISABLE_VLLM``: навык запускают
+    standalone (вне нанобота), где готовые команды и скрипты задают его
+    именно так. Сам выключатель проверяется в ``call_agent_llm``, поэтому
+    оба входа ведут себя одинаково.
+    """
     return call_agent_llm(messages)
 
 

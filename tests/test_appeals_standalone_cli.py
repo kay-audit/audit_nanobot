@@ -79,6 +79,25 @@ def test_vllm_is_not_called_when_standalone_disables_it(monkeypatch):
     assert local_qwen.call_vllm_http([{"role": "user", "content": "x"}]) == ""
 
 
+def test_agent_llm_path_also_honours_the_kill_switch(monkeypatch):
+    """Выключатель стоит не на имени функции, а на пути к модели.
+
+    При переносе вызовов на модель агента ``call_vllm_http`` стал алиасом, и
+    однажды тумблер остался только на нём: основной путь ``call_agent_llm``
+    уходил в сеть при ``APPEALS_DISABLE_VLLM=1``. Навык запускают standalone,
+    где сеть может не быть вовсе, — и пайплайн падал вместо тихого отказа.
+    """
+    cli = _load_cli()
+    _drop_runtime()
+    cli.load_standalone_runner()
+    local_qwen = sys.modules["appeals_analyzer_standalone.utils.local_qwen"]
+    monkeypatch.setenv("APPEALS_DISABLE_VLLM", "1")
+    monkeypatch.setattr(
+        local_qwen, "_post_json",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("HTTP called")))
+    assert local_qwen.call_agent_llm([{"role": "user", "content": "x"}]) == ""
+
+
 def test_standalone_db_runtime_uses_central_config_and_pool(monkeypatch):
     cli = _load_cli()
     calls = []
