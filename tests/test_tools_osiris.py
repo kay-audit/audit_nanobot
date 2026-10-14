@@ -114,6 +114,18 @@ async def test_operation_allowlist(tool):
     tool.runtime.invoke.assert_not_called()
 
 
+@pytest.mark.parametrize('mask', [None, [], ['1', '3']])
+@pytest.mark.asyncio
+async def test_native_tool_does_not_require_retrieve_filters(tool, mask):
+    from dataclasses import replace
+    tool.runtime.profile.return_value = replace(tool.runtime.profile('test'), capabilities=('retrieve',))
+    with context():
+        result = await tool.execute(action='invoke', service='test', operation='retrieve',
+                                    payload={'allowed_ids': mask}, query='q')
+    assert json.loads(result)['status'] == 'ok'
+    assert tool.runtime.invoke.call_args.args[2] == {'allowed_ids': mask}
+
+
 @pytest.mark.asyncio
 async def test_status_and_start_delegate_to_common_backend(tool):
     assert json.loads(await tool.execute(action='status',service='test'))['Osiris state']=='running'
@@ -182,6 +194,40 @@ def test_real_project_tool_loader_registers_native_tool(tmp_path,monkeypatch):
     registered=agent.tools.register.call_args.args[0]
     assert registered.name=='osiris'
     assert registered.runtime.profile('test').capabilities==('echo',)
+
+
+@pytest.mark.parametrize('failure', [None, 'copy', 'delivery'])
+@pytest.mark.asyncio
+async def test_result_artifact_cleanup_only_after_successful_delivery(tool, tmp_path, monkeypatch, failure):
+    from workspace.utils.osiris_runtime import client, json_transport
+    profile = tool.runtime.profile('test')
+    rid = 'a' * 32
+    _, dirs = client.session_dirs(profile, 'postgres:real')
+    source = dirs['output'] / f'{rid}.files' / 'result.bin'
+    source.parent.mkdir(parents=True)
+    source.write_bytes(b'fixture')
+    tool.runtime.invoke.return_value = InvocationResult(rid, {'ok': True}, {'result.bin': source})
+    tool.runtime.cleanup.side_effect = lambda service, **kwargs: json_transport.cleanup(profile, kwargs['session_id'], kwargs['request_id'])
+    async def deliver(**kwargs):
+        assert source.exists()
+        assert Path(kwargs['media'][0]).read_bytes() == b'fixture'
+        if failure == 'delivery':
+            raise RuntimeError('delivery failed')
+        return 'sent'
+    tool.message_tool = SimpleNamespace(execute=AsyncMock(side_effect=deliver))
+    if failure == 'copy':
+        monkeypatch.setattr(shutil, 'copyfile', Mock(side_effect=OSError('copy failed')))
+    with context():
+        result = await tool.execute(action='invoke', service='test', operation='echo', payload={})
+    if failure:
+        assert result.is_error
+        assert json.loads(str(result))['request_id'] == rid
+        assert source.exists()
+        tool.runtime.cleanup.assert_not_called()
+    else:
+        assert json.loads(result)['status'] == 'ok'
+        assert not source.exists()
+        assert Path(tool.message_tool.execute.call_args.kwargs['media'][0]).exists()
 
 
 @pytest.mark.asyncio

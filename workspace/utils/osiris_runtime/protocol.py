@@ -41,7 +41,7 @@ def read_json(path: Path, limit: int):
         raise OsirisPayloadError("JSON file size limit exceeded")
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
-    except (ValueError, UnicodeError) as exc:
+    except (ValueError, UnicodeError, RecursionError) as exc:
         raise OsirisPayloadError("Invalid JSON file") from exc
     json_bytes(value, limit)
     return value
@@ -60,6 +60,7 @@ def request_identity(value):
 
 
 def operation(profile, name):
+    identity(name, "operation")
     if name not in profile.capabilities:
         raise OsirisUnknownOperationError("Operation is not registered for this service")
 
@@ -76,6 +77,8 @@ def confined(path: Path, root: Path, *, must_exist=False) -> Path:
 
 def request_paths(profile, manifest):
     from .client import session_dirs
+    if not isinstance(manifest, dict):
+        raise OsirisPayloadError("Manifest must be a JSON object")
     rid = request_identity(manifest.get("request_id"))
     if manifest.get("protocol_version") != profile.protocol_version:
         raise OsirisPayloadError("Protocol version mismatch")
@@ -89,6 +92,8 @@ def request_paths(profile, manifest):
     session = manifest.get("session_id")
     if not isinstance(session, str) or not session or len(session) > 4096:
         raise OsirisPayloadError("Invalid session ID")
+    if not isinstance(manifest.get("query"), str):
+        raise OsirisPayloadError("Invalid query")
     _, dirs = session_dirs(profile, session)
     expected = {"input_path": dirs["input"] / f"{rid}.json",
                 "output_path": dirs["output"] / f"{rid}.json",
@@ -100,7 +105,7 @@ def request_paths(profile, manifest):
         created, expires = float(manifest["created_at"]), float(manifest["expires_at"])
         if not math.isfinite(created) or not math.isfinite(expires) or expires <= created:
             raise ValueError()
-    except (KeyError, TypeError, ValueError) as exc:
+    except (KeyError, TypeError, ValueError, OverflowError) as exc:
         raise OsirisPayloadError("Invalid request deadline") from exc
     return dirs, expected
 

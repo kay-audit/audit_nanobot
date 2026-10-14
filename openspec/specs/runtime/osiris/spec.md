@@ -24,7 +24,7 @@
 ## Публичный контракт
 
 ServiceProfile; ServiceRegistry.register/get/load; OsirisRuntime.start/status/stop/
-invoke/invoke_legacy; HandlerRegistry.register; WorkerRequest; WorkerResult;
+invoke/invoke_legacy/cleanup; HandlerRegistry.register; WorkerRequest; WorkerResult;
 run_worker; исторические lifecycle/client functions сохраняются.
 
 ## Запрещённое поведение
@@ -73,6 +73,14 @@ Legacy pickle SHALL оставаться доверенным внутренни
 - **WHEN** артефакт указывает за пределы сессии
 - **THEN** запрос отклоняется без чтения файла
 
+#### Scenario: Malformed manifest
+- **WHEN** worker получает массив вместо манифеста или некорректный deadline
+- **THEN** запрос изолируется и worker продолжает обрабатывать корректные задания
+
+#### Scenario: Retained result artifacts
+- **WHEN** Python-потребитель получил файловый результат
+- **THEN** файлы доступны до явного cleanup после завершения копирования
+
 ### Requirement: One lifecycle and durable queue
 Runtime SHALL сохранять конкурентный запуск одной job, отдельные startup/request
 timeouts и восстановление непросроченных запросов. Stop SHALL не удалять
@@ -81,6 +89,10 @@ timeouts и восстановление непросроченных запро
 #### Scenario: Concurrent start
 - **WHEN** два клиента одновременно запускают один сервис
 - **THEN** создаётся одна job и оба клиента дожидаются совместимого heartbeat
+
+#### Scenario: Stale heartbeat with active work
+- **WHEN** SDK сообщает Running, heartbeat устарел и есть processing или activity evidence текущего поколения
+- **THEN** runtime не удаляет job только по возрасту heartbeat
 
 ### Requirement: Eight hour idle timeout
 Runtime SHALL использовать idle timeout 28800 секунд по умолчанию и

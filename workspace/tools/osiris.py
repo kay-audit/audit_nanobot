@@ -156,6 +156,7 @@ class OsirisTool(Tool):
     async def execute(self, *, action: str, service: str, operation: str | None = None,
                       payload: dict | None = None, query: str = "", artifacts: dict | None = None,
                       session_id: str | None = None, **_kwargs: Any):
+        result = None
         try:
             if action not in {"status", "start", "invoke", "stop"}:
                 raise OsirisPayloadError("Unknown action")
@@ -189,6 +190,10 @@ class OsirisTool(Tool):
                 delivery = await self.message_tool.execute(content=content, media=[str(path) for path in files])
                 if getattr(delivery, "is_error", False):
                     raise OsirisPayloadError("Artifact delivery failed")
+            from workspace.utils.osiris_runtime.json_transport import InvocationResult
+            if isinstance(result, InvocationResult):
+                await asyncio.to_thread(self.runtime.cleanup, service,
+                                        session_id=session, request_id=result.request_id)
             return content
         except Exception as exc:
             logger.error("OSIRIS Tool failed: {}", type(exc).__name__)
@@ -197,5 +202,9 @@ class OsirisTool(Tool):
                      (OsirisServiceNotFoundError, "unknown_service"), (OsirisUnknownOperationError, "unknown_operation"),
                      (OsirisPayloadError, "invalid_payload"), (OsirisUnavailableError, "startup_failed")]
             code = next((value for error, value in codes if isinstance(exc, error)), "worker_error")
-            return ToolResult.error(json.dumps({"error": code, "message": "OSIRIS не выполнил запрос.",
-                                               "retry_after_sec": self.runtime.profile(service).retry_after_sec if code in {"startup_failed", "startup_timeout", "gpu_unavailable"} else None}, ensure_ascii=False))
+            error = {"error": code, "message": "OSIRIS не выполнил запрос.",
+                     "retry_after_sec": self.runtime.profile(service).retry_after_sec if code in {"startup_failed", "startup_timeout", "gpu_unavailable"} else None}
+            from workspace.utils.osiris_runtime.json_transport import InvocationResult
+            if isinstance(result, InvocationResult):
+                error["request_id"] = result.request_id
+            return ToolResult.error(json.dumps(error, ensure_ascii=False))

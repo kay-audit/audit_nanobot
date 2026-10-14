@@ -68,6 +68,14 @@ SHALL доставляться как сессионные артефакты.
 - **WHEN** LLM передаёт session_id при наличии RequestContext
 - **THEN** используется session_key текущего запроса
 
+#### Scenario: Artifact delivery and cleanup
+- **WHEN** результат успешно сохранён в сессию и доставлен через message Tool
+- **THEN** исходные NFS-артефакты очищаются, а сессионные копии сохраняются
+
+#### Scenario: Failed artifact delivery
+- **WHEN** копирование или доставка артефакта завершились ошибкой
+- **THEN** Tool сообщает ошибку и сохраняет NFS-источник для восстановления передачи
+
 ### Requirement: Administrative stop
 Tool SHALL запрещать stop по умолчанию. Stop SHALL требовать включённый
 allow_stop и реальную сессию из конфигурационного admin_session_keys.

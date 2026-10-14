@@ -626,6 +626,98 @@ class ProtocolTests(unittest.TestCase):
 
 
 class WorkerInitializationTests(unittest.TestCase):
+    def test_baseline_worker_install_models_and_ml_contracts_are_unchanged(self):
+        result = subprocess.run(['git', 'show', 'c6f18b3:workspace/skills/appeals-analyzer/rerank_osiris_worker.py'],
+                                cwd=ROOT, capture_output=True, text=True, encoding='utf-8')
+        if result.returncode:
+            self.skipTest('c6f18b3 is unavailable in this checkout')
+        baseline = ast.parse(result.stdout)
+        current = ast.parse((SKILL / 'rerank_osiris_worker.py').read_text(encoding='utf-8'))
+        names = ['install_runtime_packages', 'load_runtime', 'ExistingAppealsRetrieval',
+                 'predict_with_retry', 'sigmoid', 'embed_items', '_paths']
+        for name in names:
+            with self.subTest(name=name):
+                old = next(node for node in baseline.body if getattr(node, 'name', None) == name)
+                new = next(node for node in current.body if getattr(node, 'name', None) == name)
+                self.assertEqual(ast.dump(old), ast.dump(new))
+        for path in ['workspace/skills/appeals-analyzer/utils/osiris_config.py',
+                     'workspace/skills/appeals-analyzer/utils/local_qwen.py',
+                     'workspace/skills/appeals-analyzer/utils/bge_search_engine.py',
+                     'appeals_osiris_job.py']:
+            with self.subTest(path=path):
+                old = subprocess.check_output(['git', 'show', f'c6f18b3:{path}'], cwd=ROOT)
+                self.assertEqual(old.replace(b'\r\n', b'\n'), (ROOT / path).read_bytes().replace(b'\r\n', b'\n'))
+
+    def test_baseline_and_current_legacy_masks_and_rerank_match(self):
+        result = subprocess.run(['git', 'show', 'c6f18b3:workspace/skills/appeals-analyzer/rerank_osiris_worker.py'],
+                                cwd=ROOT, capture_output=True, text=True, encoding='utf-8')
+        if result.returncode:
+            self.skipTest('c6f18b3 is unavailable in this checkout')
+        baseline = types.ModuleType('appeals_baseline_worker_contract')
+        baseline.__file__ = str(SKILL / 'rerank_osiris_worker.py')
+        with patch('builtins.print'):
+            exec(compile(result.stdout, baseline.__file__, 'exec'), baseline.__dict__)
+        for mask in [None, [], ['1', '3']]:
+            outputs = []
+            for module in [baseline, worker]:
+                with self.subTest(mask=mask, implementation=module.__name__), tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    profile = replace(client.SERVICE, nfs_root=root)
+                    search = Mock()
+                    expected = ['1', '2', '3'] if mask is None else mask
+                    search.retrieve_hybrid_adaptive.return_value = expected
+                    with patch.object(client, 'SERVICE', profile), patch.object(module, 'PROFILE', profile), patch.object(module, 'NFS_ROOT', root):
+                        rid = client.submit_request('s', 'retrieve', 'query', {'allowed_ids': mask})
+                        module.process_request(root/'inbox'/f'{rid}.json', search, None)
+                        outputs.append(client.wait_result('s', rid, 'retrieve'))
+                        search.retrieve_hybrid_adaptive.assert_called_once_with('query', mask)
+            self.assertEqual(outputs, [expected, expected])
+        scores = []
+        for module in [baseline, worker]:
+            with tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                profile = replace(client.SERVICE, nfs_root=root)
+                with patch.object(client, 'SERVICE', profile), patch.object(module, 'PROFILE', profile), patch.object(module, 'NFS_ROOT', root), patch.object(module, 'predict_with_retry', return_value=np.array([0, -1])):
+                    rid = client.submit_request('s', 'rerank', 'q', {'items': [{'id': '1', 'text': 'one'}, {'id': '2', 'text': 'two'}]})
+                    module.process_request(root/'inbox'/f'{rid}.json', None, object())
+                    scores.append(client.wait_result('s', rid, 'rerank'))
+        pd.testing.assert_frame_equal(*scores)
+
+    def test_json_retrieve_preserves_all_three_masks(self):
+        from workspace.utils.osiris_runtime import json_transport
+        for mask in [None, [], ['1', '3']]:
+            with self.subTest(mask=mask), tempfile.TemporaryDirectory() as directory:
+                profile = replace(worker.PROFILE, nfs_root=Path(directory))
+                search = Mock()
+                expected = ['1', '2', '3'] if mask is None else mask
+                search.retrieve_hybrid_adaptive.return_value = expected
+                with patch.object(worker, 'PROFILE', profile):
+                    rid = json_transport.submit(profile, 's', 'retrieve', {'allowed_ids': mask}, query='q')
+                    worker.process_request(profile.nfs_root/'inbox'/f'{rid}.json', search, None)
+                    result = json_transport.wait(profile, 's', rid, 'retrieve', auto_recover=False)
+                self.assertEqual(result.value, expected)
+                search.retrieve_hybrid_adaptive.assert_called_once_with('q', mask)
+
+    def test_worker_import_is_lazy_and_paths_are_independent_of_cwd(self):
+        code = f"""import importlib.util,sys,subprocess
+from pathlib import Path
+subprocess.run=lambda *a,**k: (_ for _ in ()).throw(AssertionError('pip on import'))
+path=Path({str(SKILL / 'rerank_osiris_worker.py')!r})
+sys.path.insert(0,{str(ROOT)!r})
+spec=importlib.util.spec_from_file_location('import_contract',path)
+module=importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+assert module._PROJECT_ROOT==Path({str(ROOT)!r})
+assert Path(module.PROFILE.worker_script)==path
+assert module.PROFILE.nfs_root==Path({str(ROOT)!r})/'workspace/data_store/osiris/srb_d3'
+assert not any(name in sys.modules for name in ['torch','sentence_transformers','osiris'])
+"""
+        env = dict(__import__('os').environ)
+        for key in ['APPEALS_OSIRIS_NFS_ROOT', 'APPEALS_OSIRIS_WORKER_SCRIPT']:
+            env.pop(key, None)
+        with tempfile.TemporaryDirectory() as directory:
+            result = subprocess.run([sys.executable, '-c', code], cwd=directory, env=env, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_main_exits_and_marks_stopped_after_idle_ttl(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as directory:
             root = Path(directory)
@@ -642,6 +734,26 @@ class WorkerInitializationTests(unittest.TestCase):
             heartbeat = json.loads(profile.heartbeat_path.read_text(encoding="utf-8"))
             self.assertEqual(heartbeat["status"], "stopped")
             self.assertEqual(heartbeat["ready_gpus"], 0)
+
+    def test_appeals_worker_receives_launcher_idle_timeout_via_metadata(self):
+        from workspace.utils.osiris_runtime import lifecycle
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            profile = replace(worker.PROFILE, nfs_root=root, idle_timeout_sec=.025)
+            sdk = Mock()
+            sdk.list.return_value = []
+            sdk.create.return_value = {'job_name': 'fixture-job'}
+            profile.prepare_nfs()
+            lifecycle._start_under_lock(profile, sdk)
+            meta = lifecycle._read_meta(profile)
+            self.assertEqual(meta['idle_timeout_sec'], .025)
+            default_profile = replace(profile, idle_timeout_sec=28800)
+            with patch.object(worker, 'PROFILE', default_profile), patch.object(worker, 'activity', worker.WorkerActivity(default_profile)), patch.object(worker, 'NFS_ROOT', root), patch.object(worker, 'HEARTBEAT', profile.heartbeat_path), patch.object(worker, 'SCAN_INTERVAL_SEC', .005), patch.object(worker, 'load_runtime', return_value=(Mock(), Mock())):
+                worker.main()
+            heartbeat = profile.read_heartbeat()
+            self.assertEqual(heartbeat['idle_timeout_sec'], .025)
+            self.assertEqual(heartbeat['generation'], meta['generation'])
+            self.assertEqual(heartbeat['status'], 'stopped')
 
     def test_closed_contour_packages_use_internal_index_with_token(self):
         with patch.object(worker.osiris_config, "OSIRIS_PIP_INDEX_URL", ""), patch.object(

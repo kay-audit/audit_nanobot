@@ -257,6 +257,8 @@ def build_handlers(search, reranker):
 
 def process_request(manifest_path, search, reranker):
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if not isinstance(manifest, dict):
+        raise ValueError("Manifest must be a JSON object")
     if manifest.get("serialization") == "json":
         from workspace.utils.osiris_runtime.dispatcher import process_json_request
         return process_json_request(PROFILE, manifest_path, build_handlers(search, reranker))
@@ -303,6 +305,8 @@ def main():
     PROFILE.prepare_nfs()
     try:
         metadata = json.loads(PROFILE.metadata_path.read_text(encoding="utf-8"))
+        if not isinstance(metadata, dict):
+            metadata = {}
         generation = metadata.get("generation")
         idle_timeout = metadata.get("idle_timeout_sec")
         if idle_timeout is not None:
@@ -335,8 +339,8 @@ def main():
             activity.begin()
             try:
                 process_request(manifest_path, search, reranker)
-            except Exception:
-                print(traceback.format_exc(), flush=True)
+            except Exception as exc:
+                print(f"Request quarantined: {type(exc).__name__}", flush=True)
                 if manifest_path.exists():
                     os.replace(manifest_path, FAILED / manifest_path.name)
             finally:

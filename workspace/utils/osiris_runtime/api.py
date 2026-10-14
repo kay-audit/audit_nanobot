@@ -24,6 +24,10 @@ class OsirisRuntime:
     def stop(self, service):
         return lifecycle.stop_service(self.profile(service), self.sdk)
 
+    def cleanup(self, service, *, session_id, request_id):
+        """Release retained NFS artifacts after the consumer has finished copying them."""
+        json_transport.cleanup(self.profile(service), session_id, request_id)
+
     def invoke(self, service, operation_name, payload, *, session_id, consumer_id="python",
                query="", timeout_sec=1800, artifacts=None, file_root=None):
         profile = self.profile(service)

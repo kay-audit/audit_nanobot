@@ -71,10 +71,13 @@ def process_json_request(profile, manifest_path: Path, handlers: HandlerRegistry
         "request_id", "request_type", "operation", "service_name", "session_id",
         "consumer_id", "protocol_version",
     )}
+    published = False
     try:
         if time.time() >= expires:
             return
         body = read_json(confined(paths["input_path"], profile.nfs_root, must_exist=True), profile.max_payload_bytes)
+        if not isinstance(body, dict) or "payload" not in body:
+            raise OsirisPayloadError("Request body must contain a payload")
         artifacts = check_artifacts(body.get("artifacts", []), dirs["input"] / f"{manifest['request_id']}.files", profile.max_artifact_bytes)
         output_dir = confined(dirs["output"] / f"{manifest['request_id']}.files", profile.nfs_root)
         context = WorkerRequest(manifest["session_id"], manifest["consumer_id"], manifest["request_id"],
@@ -92,13 +95,18 @@ def process_json_request(profile, manifest_path: Path, handlers: HandlerRegistry
         json_bytes(response, profile.max_result_bytes)
         if time.time() < expires:
             client._atomic_json(response, paths["output_path"])
+            published = True
     except Exception as exc:
         code = "unknown_operation" if isinstance(exc, OsirisUnknownOperationError) else "invalid_payload" if isinstance(exc, OsirisPayloadError) else "worker_error"
         if time.time() < expires:
             client._atomic_json(dict(correlation, error_code=code), paths["error_path"])
+            published = True
     finally:
         paths["input_path"].unlink(missing_ok=True)
         manifest_path.unlink(missing_ok=True)
+        if not published:
+            from .json_transport import cleanup
+            cleanup(profile, manifest["session_id"], manifest["request_id"])
 
 
 def run_worker(profile, handlers: HandlerRegistry, *, poll_sec=.25):
@@ -109,6 +117,8 @@ def run_worker(profile, handlers: HandlerRegistry, *, poll_sec=.25):
     try:
         metadata = json.loads(profile.metadata_path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
+        metadata = {}
+    if not isinstance(metadata, dict):
         metadata = {}
     if "idle_timeout_sec" in metadata:
         profile = replace(profile, idle_timeout_sec=float(metadata["idle_timeout_sec"]))

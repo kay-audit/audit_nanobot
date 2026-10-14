@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import queue
 import threading
@@ -73,11 +74,12 @@ class WorkerActivity:
 def _discard_expired(path: Path):
     try:
         manifest = json.loads(path.read_text(encoding="utf-8"))
-        if time.time() < float(manifest["expires_at"]):
+        expires = float(manifest["expires_at"])
+        if not math.isfinite(expires) or time.time() < expires:
             return False
         path.unlink(missing_ok=True)
         return True
-    except (OSError, ValueError, TypeError, KeyError):
+    except (OSError, ValueError, TypeError, KeyError, RecursionError, OverflowError):
         return False
 
 

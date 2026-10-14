@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import math
 import shutil
+import tempfile
 import time
 import uuid
 from dataclasses import dataclass
@@ -59,33 +60,41 @@ def submit(profile, session_id, op, payload, *, consumer_id="python", query="",
         return None
     profile.prepare_nfs()
     _, dirs = client.session_dirs(profile, session_id)
-    staging = dirs["input"] / f"{rid}.files"
-    now = time.time()
-    manifest = dict(protocol_version=profile.protocol_version, service_name=profile.service_name,
-                    request_id=rid, request_type=op, operation=op, serialization="json",
-                    consumer_id=consumer_id, session_id=session_id, query=query,
-                    created_at=now, expires_at=now + timeout_sec,
-                    input_path=str(dirs["input"] / f"{rid}.json"),
-                    output_path=str(dirs["output"] / f"{rid}.json"),
-                    error_path=str(dirs["error"] / f"{rid}.json"))
-    json_bytes(manifest, profile.max_payload_bytes + 32768)
-    with lifecycle_lock(profile, time.monotonic() + profile.startup_wait_timeout_sec):
-        if any((profile.nfs_root / queue / f"{rid}.json").exists() for queue in ("inbox", "processing", "failed")) or Path(manifest["input_path"]).exists():
-            raise OsirisPayloadError("Duplicate request ID")
-        try:
-            records = []
-            for name, source in sources.items():
-                target = confined(staging / name, staging)
-                target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(source, target)
-                records.append(dict(name=name, path=name, size=target.stat().st_size))
-            body = dict(payload=payload, artifacts=records)
-            json_bytes(body, profile.max_payload_bytes)
-            client._atomic_json(body, Path(manifest["input_path"]))
-            client._atomic_json(manifest, profile.nfs_root / "inbox" / f"{rid}.json")
-        except Exception:
-            cleanup(profile, session_id, rid)
-            raise
+    staging = Path(tempfile.mkdtemp(prefix=f".{rid}.", dir=dirs["input"]))
+    try:
+        records = []
+        for name, source in sources.items():
+            target = confined(staging / name, staging)
+            shutil.copyfile(source, target)
+            records.append(dict(name=name, path=name, size=target.stat().st_size))
+        check_artifacts(records, staging, profile.max_artifact_bytes)
+        body = dict(payload=payload, artifacts=records)
+        json_bytes(body, profile.max_payload_bytes)
+        now = time.time()
+        manifest = dict(protocol_version=profile.protocol_version, service_name=profile.service_name,
+                        request_id=rid, request_type=op, operation=op, serialization="json",
+                        consumer_id=consumer_id, session_id=session_id, query=query,
+                        created_at=now, expires_at=now + timeout_sec,
+                        input_path=str(dirs["input"] / f"{rid}.json"),
+                        output_path=str(dirs["output"] / f"{rid}.json"),
+                        error_path=str(dirs["error"] / f"{rid}.json"))
+        json_bytes(manifest, profile.max_payload_bytes + 32768)
+        with lifecycle_lock(profile, time.monotonic() + profile.startup_wait_timeout_sec):
+            destination = dirs["input"] / f"{rid}.files"
+            if (any((profile.nfs_root / queue / f"{rid}.json").exists() for queue in ("inbox", "processing", "failed"))
+                    or any((dirs[kind] / f"{rid}.json").exists() for kind in ("input", "output", "error"))
+                    or destination.exists() or (dirs["output"] / f"{rid}.files").exists()):
+                raise OsirisPayloadError("Duplicate request ID")
+            staging.replace(destination)
+            try:
+                client._atomic_json(body, Path(manifest["input_path"]))
+                client._atomic_json(manifest, profile.nfs_root / "inbox" / f"{rid}.json")
+            except Exception:
+                cleanup(profile, session_id, rid)
+                raise
+    finally:
+        if staging.exists():
+            shutil.rmtree(staging)
     return rid
 
 

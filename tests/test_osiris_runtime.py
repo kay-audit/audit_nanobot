@@ -303,3 +303,175 @@ def test_namespace_owner_cannot_be_overwritten_by_second_process(profile):
             pytest.fail('foreign namespace acquired')
     assert lifecycle._read_meta(profile)['job_name']=='actual'
     assert not profile.lock_path.exists()
+
+
+@pytest.mark.parametrize('manifest', [[], None, 7, 'invalid', {'operation': []}])
+def test_invalid_manifest_is_quarantined_and_worker_continues(profile, manifest):
+    profile = replace(profile, idle_timeout_sec=.03)
+    profile.prepare_nfs()
+    bad = profile.nfs_root / 'inbox' / ('0' * 32 + '.json')
+    bad.write_text(json.dumps(manifest), encoding='utf-8')
+    rid = json_transport.submit(profile, 's', 'echo', {'survived': True})
+    run_worker(profile, HandlerRegistry().register('echo', echo), poll_sec=.005)
+    result = json_transport.wait(profile, 's', rid, 'echo', auto_recover=False, timeout_sec=.1)
+    assert result.value['payload'] == {'survived': True}
+    assert (profile.nfs_root / 'failed' / bad.name).exists()
+
+
+@pytest.mark.parametrize('body', [[], None, {'artifacts': [], 'payload': None}])
+def test_invalid_body_is_safe_and_next_request_succeeds(profile, body):
+    rid = json_transport.submit(profile, 's', 'echo', {})
+    _, dirs = client.session_dirs(profile, 's')
+    client._atomic_json(body, dirs['input'] / f'{rid}.json')
+    process_json_request(profile, profile.nfs_root / 'inbox' / f'{rid}.json', HandlerRegistry().register('echo', echo))
+    if isinstance(body, dict):
+        assert json_transport.wait(profile, 's', rid, 'echo', auto_recover=False).value['payload'] is None
+    else:
+        with pytest.raises(OsirisPayloadError):
+            json_transport.wait(profile, 's', rid, 'echo', auto_recover=False)
+    assert roundtrip(profile, {'next': True}).value['payload']['next']
+
+
+@pytest.mark.parametrize('activity', ['processing', 'heartbeat'])
+def test_stale_running_job_with_activity_is_not_deleted(profile, monkeypatch, activity):
+    profile.prepare_nfs()
+    sdk = Mock()
+    monkeypatch.setattr(lifecycle, 'discover', lambda *args: ('job', 'running', None))
+    lifecycle._write_meta(profile, job_name='job', generation='current')
+    heartbeat = dict(timestamp=time.time()-100, service_name='test', generation='current',
+                     status='busy', active_requests=1 if activity == 'heartbeat' else 0,
+                     queue_size=0)
+    client._atomic_json(heartbeat, profile.heartbeat_path)
+    if activity == 'processing':
+        (profile.nfs_root / 'processing' / ('0'*32+'.json')).write_text('{}')
+    sdk.state.return_value = 'stopped'
+    assert not lifecycle._recycle_stale_running(profile, sdk, 'job', time.monotonic()+.1)
+    sdk.delete.assert_not_called()
+
+
+def test_artifact_copy_does_not_hold_lifecycle_lock(profile, tmp_path, monkeypatch):
+    source = tmp_path / 'source.bin'
+    source.write_bytes(b'fixture')
+    original = json_transport.shutil.copyfile
+    def copy(src, dst):
+        with lifecycle.lifecycle_lock(profile, time.monotonic()+.03):
+            assert not list((profile.nfs_root / 'inbox').glob('*.json'))
+        return original(src, dst)
+    monkeypatch.setattr(json_transport.shutil, 'copyfile', copy)
+    rid = json_transport.submit(profile, 's', 'echo', {}, artifacts={'file': source}, file_root=tmp_path)
+    json_transport.cleanup(profile, 's', rid)
+    assert not list((profile.nfs_root / 'sessions').rglob('*.files'))
+
+
+def test_lock_release_retries_transient_permission_error(profile, monkeypatch):
+    original = Path.unlink
+    denied = []
+    def unlink(path, *args, **kwargs):
+        if path == profile.lock_path and not denied:
+            denied.append(True)
+            raise PermissionError('temporarily held by another reader')
+        return original(path, *args, **kwargs)
+    monkeypatch.setattr(Path, 'unlink', unlink)
+    with lifecycle.lifecycle_lock(profile, time.monotonic()+.1):
+        assert profile.lock_path.exists()
+    assert denied
+    assert not profile.lock_path.exists()
+
+
+def test_idle_boundary_accepts_early_request_and_retains_late_request(profile, monkeypatch):
+    profile = replace(profile, idle_timeout_sec=.01)
+    profile.prepare_nfs()
+    activity = worker.WorkerActivity(profile)
+    activity.ready()
+    tasks = queue.Queue()
+    monkeypatch.setattr(activity, 'idle_expired', lambda size: size == 0)
+    early = json_transport.submit(profile, 's', 'echo', {'early': True})
+    assert not worker.should_idle_stop(profile, activity, tasks)
+    process_json_request(profile, tasks.get_nowait(), HandlerRegistry().register('echo', echo))
+    tasks.task_done()
+    assert json_transport.wait(profile, 's', early, 'echo', auto_recover=False).value['payload']['early']
+    assert worker.should_idle_stop(profile, activity, tasks)
+    late = json_transport.submit(profile, 's', 'echo', {'late': True})
+    assert (profile.nfs_root / 'inbox' / f'{late}.json').exists()
+    run_worker(profile, HandlerRegistry().register('echo', echo), poll_sec=.005)
+    assert json_transport.wait(profile, 's', late, 'echo', auto_recover=False).value['payload']['late']
+
+
+def test_duplicate_id_with_artifacts_preserves_original_after_staging(profile, tmp_path):
+    source = tmp_path / 'file.bin'
+    source.write_bytes(b'original')
+    rid = json_transport.submit(profile, 's', 'echo', {}, artifacts={'file': source}, file_root=tmp_path)
+    source.write_bytes(b'duplicate')
+    with pytest.raises(OsirisPayloadError):
+        json_transport.submit(profile, 's', 'echo', {}, artifacts={'file': source}, file_root=tmp_path, request_id=rid)
+    _, dirs = client.session_dirs(profile, 's')
+    assert (dirs['input'] / f'{rid}.files' / 'file').read_bytes() == b'original'
+    assert len(list(dirs['input'].iterdir())) == 2
+    json_transport.cleanup(profile, 's', rid)
+
+
+def test_python_api_retains_output_until_explicit_cleanup(profile, tmp_path):
+    def handle(payload, context):
+        context.output_dir.mkdir(parents=True)
+        path = context.output_dir / 'file.bin'
+        path.write_bytes(b'keep until copied')
+        return WorkerResult({}, {'file.bin': path})
+    result = roundtrip(profile, {}, handlers=HandlerRegistry().register('echo', handle))
+    registry = ServiceRegistry()
+    registry.register(profile)
+    assert result.artifacts['file.bin'].read_bytes() == b'keep until copied'
+    OsirisRuntime(registry).cleanup('test', session_id='session', request_id=result.request_id)
+    assert not result.artifacts['file.bin'].exists()
+
+
+@pytest.mark.parametrize('metadata', [[], None, 'invalid'])
+def test_worker_ignores_nonobject_metadata(profile, metadata):
+    profile = replace(profile, idle_timeout_sec=.02)
+    profile.prepare_nfs()
+    client._atomic_json(metadata, profile.metadata_path)
+    run_worker(profile, HandlerRegistry().register('echo', echo), poll_sec=.005)
+    assert profile.read_heartbeat()['status'] == 'stopped'
+
+
+def test_remote_or_malformed_lock_is_not_recovered_by_age(profile):
+    profile.prepare_nfs()
+    for owner in [[], dict(host='other-host', pid=99999999, created_at=0, token='remote')]:
+        client._atomic_json(owner, profile.lock_path)
+        before = profile.lock_path.read_bytes()
+        with pytest.raises(TimeoutError, match='verify its owner'):
+            with lifecycle.lifecycle_lock(profile, time.monotonic()+.005):
+                pytest.fail('unsafe recovery')
+        assert profile.lock_path.read_bytes() == before
+        profile.lock_path.unlink()
+
+
+@pytest.mark.parametrize('field,value', [('expires_at', 10**400), ('created_at', 10**400), ('expires_at', float('nan'))])
+def test_invalid_deadline_is_quarantined_without_killing_worker(profile, field, value):
+    profile = replace(profile, idle_timeout_sec=.02)
+    bad_rid = json_transport.submit(profile, 's', 'echo', {})
+    bad = profile.nfs_root/'inbox'/f'{bad_rid}.json'
+    manifest = json.loads(bad.read_text())
+    manifest[field] = value
+    bad.write_text(json.dumps(manifest))
+    rid = json_transport.submit(profile, 's', 'echo', {'good': True})
+    run_worker(profile, HandlerRegistry().register('echo', echo), poll_sec=.005)
+    assert json_transport.wait(profile, 's', rid, 'echo', auto_recover=False).value['payload']['good']
+    assert (profile.nfs_root/'failed'/bad.name).exists()
+
+
+def test_late_handler_artifacts_are_removed_after_client_timeout(profile, monkeypatch):
+    rid = json_transport.submit(profile, 's', 'echo', {})
+    path = profile.nfs_root/'inbox'/f'{rid}.json'
+    expires = json.loads(path.read_text())['expires_at']
+    files = []
+    def late(payload, context):
+        json_transport.cleanup(profile, 's', rid)
+        context.output_dir.mkdir(parents=True)
+        artifact = context.output_dir/'late.bin'
+        artifact.write_bytes(b'created after client cleanup')
+        files.append(artifact)
+        monkeypatch.setattr(time, 'time', lambda: expires+1)
+        return WorkerResult({}, {'late.bin': artifact})
+    process_json_request(profile, path, HandlerRegistry().register('echo', late))
+    assert files
+    assert not files[0].exists()

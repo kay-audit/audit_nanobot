@@ -8,7 +8,7 @@
 
 - `registry.py`: доверенные ServiceProfile, проверка уникальности имени/job
   и непересекающихся NFS roots. Повторная регистрация идентичного профиля идемпотентна.
-- `api.py`: OsirisRuntime.start/status/stop/invoke/invoke_legacy — общий Python API.
+- `api.py`: OsirisRuntime.start/status/stop/invoke/invoke_legacy/cleanup — общий Python API.
 - `lifecycle.py`: discovery, ensure_ready, SDK create/delete/state/status,
   одна NFS-блокировка, проверка готовности и поколения heartbeat.
 - `client.py`: совместимый доверенный legacy pickle v2 transport.
@@ -84,11 +84,27 @@ result = runtime.invoke("shared-gpu", "echo", {}, session_id="s", consumer_id="s
 context.artifacts и пишет файлы только под context.output_dir. WorkerResult
 содержит JSON value и mapping имени к созданному файлу. InvocationResult возвращает
 value и проверенные Path. Успешные output artifacts остаются на NFS для копирования;
-прямой Python-потребитель после использования вызывает json_transport.cleanup.
+прямой Python-потребитель после использования вызывает
+`runtime.cleanup(service, session_id=session, request_id=result.request_id)`
+или прежнюю `json_transport.cleanup(profile, session, result.request_id)`.
+При ошибке копирования cleanup откладывается до успешного сохранения результата.
 Тайм-аут очищает input/output/error и queue manifests. Непросроченный processing
 восстанавливается в inbox при рестарте; дубль изолируется в failed/*.duplicate.json.
 Некорректный manifest изолируется в failed; клиент получает диагностируемый timeout,
 а не ложный успешный ответ.
+
+Манифест обязан быть JSON-объектом с конечными created_at/expires_at и строковым
+query. Повреждённый JSON, массив/null вместо манифеста и переполнение числового
+deadline изолируются в failed, не завершая worker. Некорректное тело запроса
+отвечает безопасным invalid_payload, без текста исключения. Если handler создаёт
+файлы после истечения срока и результат не опубликован, worker убирает эти файлы,
+включая созданные уже после клиентского cleanup.
+
+Крупные входные файлы сначала копируются в уникальный временный каталог внутри
+того же NFS namespace без lifecycle lock. Под lock выполняются проверка дубля,
+rename подготовленного каталога и атомарная публикация input/manifest. Worker
+не видит запрос до завершения подготовки; неудачная копия не затрагивает другой
+запрос с тем же ID. Deadline запроса начинается после подготовки файлов.
 
 Legacy pickle принимается только историческим внутренним Appeals worker на
 доверенном NFS. Native Tool никогда не сериализует и не читает pickle. Права NFS
@@ -191,6 +207,12 @@ admin_session_keys. Подтверждённого admin role в текущем 
 Start/status/invoke не блокируют event loop. Файлы источника задаются относительно
 текущей папки sessions/<safe_session_key> через artifacts. Крупные JSON-результаты
 и бинарные файлы копируются в сессию и доставляются стандартным message Tool.
+После успешного копирования и подтверждения доставки Tool вызывает cleanup
+исходного NFS namespace запроса. Сессионные копии остаются для штатной выдачи.
+Без RequestContext достаточно успешного сохранения в сессию. При ошибке копирования,
+недоступном message Tool или ошибке доставки NFS-файлы остаются; оператор может
+завершить перенос и выполнить явный cleanup по service/session/request ID.
+Ошибка после получения InvocationResult содержит request_id для такой диагностики.
 Пользователю не возвращаются traceback, credentials или произвольный SDK output.
 
 ## CLI, lifecycle и idle timeout
@@ -225,6 +247,15 @@ Worker публикует stopped и завершает процесс; SDK crea
 Administrative stop отказывается с busy при accepted queue или active requests;
 метаданные удаляются только после подтверждённого terminal/not-found.
 
+Stale heartbeat сам по себе не даёт права удалять job, если есть processing
+manifest или busy/active/queued evidence текущего поколения heartbeat. В этом
+случае ensure_ready ждёт свежего READY или завершает startup timeout; SDK delete
+не вызывается. Если SDK подтвердил terminal state, штатный restart и recovery
+processing сохраняются. При Running без activity evidence сохраняется прежняя
+проверка двух heartbeat windows перед recycle. Зависший processing после смерти
+worker с неопределённым SDK state требует проверки оператором, а не удаления
+job исключительно по возрасту heartbeat.
+
 ## Ошибки и диагностика
 
 Ошибки различают unknown_service, unknown_operation, invalid_payload, startup_failed,
@@ -236,6 +267,10 @@ worker_error и busy. Неизвестный или неподтверждённ
 queue size, active requests, idle remaining; затем failed manifests и SDK state.
 Не удалять чужую/неподтверждённую launcher.lock автоматически. Lock локально
 умершего процесса восстанавливается только после проверки recorded PID.
+Владелец с другого hostname или некорректный lock не удаляется по возрасту:
+timeout явно требует проверки владельца. Освобождение собственного lock повторяет
+временный PermissionError с повторной проверкой token; исчерпание повторов явно
+сообщает об ошибке, не объявляя блокировку освобождённой.
 
 ## Проверка в закрытом контуре (не выполнена локально)
 
@@ -256,3 +291,44 @@ queue size, active requests, idle remaining; затем failed manifests и SDK 
 
 Локальные mocks не подтверждают SDK API, CUDA image, реальное NFS или освобождение
 GPU. Все unit/regression-проверки выполняются без обращения к закрытым данным.
+
+### Компактный smoke после переноса
+
+Команды ниже выполняются из корня проекта в окружении закрытого контура;
+пример quoting для Linux shell. Нельзя считать Gateway environment автоматически
+переданным GPU-container: внутренний PyPI/TOKEN_OSC и пути моделей проверяются
+отдельно внутри worker. Для маски выбираются существующие тестовые ID.
+
+1. Настроить `osiris_config.py` либо существующие APPEALS_* overrides.
+   Выполнить `python appeals_osiris_job.py start`, затем
+   `python appeals_osiris_job.py status`. Критерий: SDK Running, один actual job,
+   heartbeat READY с текущим generation, CUDA-модели загружены без скачивания.
+   В worker log проверить установку фиксированных библиотек через внутренний индекс.
+2. Выполнить поиск во всех трёх режимах:
+
+   ```bash
+   python osiris_job.py invoke --operation retrieve --payload '{"allowed_ids":null}' --session osiris-smoke --query 'Тестовый запрос'
+   python osiris_job.py invoke --operation retrieve --payload '{"allowed_ids":["<known-id>"]}' --session osiris-smoke --query 'Тестовый запрос'
+   python osiris_job.py invoke --operation retrieve --payload '{"allowed_ids":[]}' --session osiris-smoke --query 'Тестовый запрос'
+   python osiris_job.py invoke --operation rerank --payload '{"items":[{"id":"smoke-1","text":"Тестовое обращение"}]}' --session osiris-smoke --query 'Тестовый запрос'
+   ```
+
+   Критерий: None не вводит маску, непустая маска ограничивает ID, пустая даёт [];
+   rerank возвращает JSON scores. Отдельно через штатный Appeals-клиент проверить
+   legacy retrieve=list и rerank=DataFrame. Первый retrieve должен загрузить
+   FAISS/BM25 индексы. Сравнить результаты с той же тестовой выборкой baseline.
+3. Повторить `python osiris_job.py start` и несколько запросов, чередуя оба CLI.
+   Критерий: actual job/generation не меняются, SDK не создаёт вторую job.
+4. После завершения запросов выполнить `python appeals_osiris_job.py stop`.
+   Для быстрого smoke задать `OSIRIS_IDLE_TIMEOUT_SEC=30` в launcher environment,
+   снова выполнить start/status. После READY и 30 секунд без запросов проверить
+   stopped heartbeat, terminal SDK state и фактическое освобождение GPU. Следующий
+   запрос должен создать новую job. Вернуть 28800, перезапустить job и проверить
+   `idle timeout seconds: 28800` и metadata/heartbeat. Внешний scheduler TTL
+   выяснить у платформы; его значение runtime не предполагает.
+5. На тестовой job выполнить контролируемое завершение worker с непросроченным
+   запросом в processing. После terminal SDK state повторный ensure_ready должен
+   создать worker и восстановить запрос. Отдельно проверить задержанный heartbeat
+   при активном запросе: delete запрещён. Проверить Native Tool с бинарным
+   результатом: после доставки есть сессионная копия и нет исходного NFS output;
+   при ошибке доставки исходник остаётся для повторной передачи/cleanup.
