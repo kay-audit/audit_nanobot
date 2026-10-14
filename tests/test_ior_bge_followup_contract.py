@@ -20,6 +20,33 @@ bge = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(bge)
 
 
+def _extend_utils_package_with_skill() -> None:
+    """Дополнить пакет ``utils`` каталогом ``utils`` навыка ior-analyzer.
+
+    Имя ``utils`` общее у двух разных пакетов: ``workspace/utils`` (media,
+    db, jsonb — он и резолвится здесь, потому что ``pyproject.toml`` кладёт
+    в ``pythonpath`` каталог ``workspace``) и
+    ``workspace/skills/ior-analyzer/utils`` (bge_search_engine,
+    osiris_client, session_extract_manager).
+
+    Тесты внутри навыка получают нужный каталог через свой ``conftest.py``.
+    Корневые тесты этот conftest не видят, поэтому расширяем ``__path__``
+    уже импортированного пакета. Именно ``__path__``, а не вставка в
+    ``sys.path``: вставка перехватила бы имя ``utils`` целиком и сломала
+    ``utils.media`` в ``redis_channel.py``.
+    """
+    skill_utils = ROOT / "workspace" / "skills" / "ior-analyzer" / "utils"
+    if not skill_utils.is_dir():
+        return
+    import utils as utils_pkg
+
+    if str(skill_utils) not in [str(entry) for entry in utils_pkg.__path__]:
+        utils_pkg.__path__.append(str(skill_utils))
+
+
+_extend_utils_package_with_skill()
+
+
 class FakeIndex:
     def __init__(self, dimension):
         self.d = dimension
