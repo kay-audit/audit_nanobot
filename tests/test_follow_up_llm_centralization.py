@@ -45,6 +45,7 @@ def clean_env(monkeypatch):
     выход. Тест дефолтов обязан видеть состояние чистой машины, иначе он
     проверяет чужое окружение, а не код.
     """
+    monkeypatch.syspath_prepend(str(SKILL_ROOT))
     for name in list(os.environ):
         if name.startswith(("LLM_", "VLLM_", "FOLLOW_UP_LLM")) or \
                 name in (HOME_ENV, "FU_SKIP_CORPUS_BOOT"):
