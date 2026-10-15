@@ -209,15 +209,14 @@ class IORAnalyzerTool(Tool):
                     user_prompt=prompt,
                 )
             if paths:
-                # The stock message tool already publishes exact media paths to
-                # the active channel.  Its content is the full report because
-                # Nanobot suppresses the later final reply after message(...).
                 if request_context is not None:
                     if self._message_tool is None:
                         raise RuntimeError("MessageTool is unavailable for IOR artifact delivery")
-                    delivery = await self._message_tool.execute(
-                        content=report, media=[str(path) for path in paths]
-                    )
+                    from lib.utils.verbatim_report import verbatim_report_context
+                    with verbatim_report_context(request_context, 'ior_analyzer', report):
+                        delivery = await self._message_tool.execute(
+                            content=report, media=[str(path) for path in paths]
+                        )
                     if getattr(delivery, "is_error", False):
                         raise RuntimeError(f"IOR artifact delivery failed: {delivery}")
             return report
