@@ -343,6 +343,40 @@ def test_manifest_activation_uses_the_tool_settings_section():
                for overlay in manifest["overlays"]["project_json"])
 
 
+def test_local_corpus_keeps_session_memory_and_probes_processes(tmp_path):
+    code = '''
+import os
+import subprocess
+import sys
+from backend.storage import database, writer
+from backend.core.memory import state
+database.init_db()
+assert writer._pid_alive(os.getpid())
+child = subprocess.Popen([sys.executable, '-c', 'pass'])
+child.wait(timeout=10)
+assert not writer._pid_alive(child.pid)
+assert not writer._pid_alive(0)
+with database.get_db() as db:
+    first = database.ExternalSessionRepo.resolve(db, 'synthetic:a', 'alice', source='nanobot')
+    second = database.ExternalSessionRepo.resolve(db, 'synthetic:b', 'bob', source='nanobot')
+assert first != second
+state.set_focus(first, '99-12345', 'explicit')
+state.freeze_question(first, 'Какая КМ?', 'исходный вопрос', candidates=['99-12345'])
+assert state.load(first).check_id == 'КМ-99-12345'
+assert state.load(first).open_question.original_query == 'исходный вопрос'
+assert state.load(second).check_id is None
+assert state.load(second).open_question is None
+state.clear_question(first)
+assert state.load(first).open_question is None
+database.get_engine().dispose()
+print('synthetic SQLite/session memory/process probe passed')
+'''
+    env = dict(os.environ, PYTHONPATH=str(SKILL_DIR), DATA_INDEX_DIR=str(tmp_path / 'index'))
+    result = subprocess.run([sys.executable, '-c', code], env=env, capture_output=True,
+                            text=True, encoding='utf-8', timeout=30)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 _STUB_SERVER = """
 import json, os, sys
 import anyio
