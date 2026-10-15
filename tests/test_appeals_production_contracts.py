@@ -500,12 +500,19 @@ def _cleanup_quietly(directory: tempfile.TemporaryDirectory) -> None:
         directory.cleanup()
 
 
+def standalone_profile(profile, **changes):
+    """These fixtures verify legacy transport, not shared deployment placement."""
+    if hasattr(profile, 'deployment'):
+        changes['deployment'] = None
+    return replace(profile, **changes)
+
+
 class ProtocolTests(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
         self.addCleanup(_cleanup_quietly, self.directory)
         self.root = Path(self.directory.name)
-        profile = replace(client.SERVICE, nfs_root=self.root)
+        profile = standalone_profile(client.SERVICE, nfs_root=self.root)
         for module, values in (
             (client, {"SERVICE": profile}),
             (worker, {"PROFILE": profile, "NFS_ROOT": self.root,
@@ -629,7 +636,7 @@ class WorkerInitializationTests(unittest.TestCase):
     def test_main_exits_and_marks_stopped_after_idle_ttl(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as directory:
             root = Path(directory)
-            profile = replace(worker.PROFILE, nfs_root=root, idle_timeout_sec=.025)
+            profile = standalone_profile(worker.PROFILE, nfs_root=root, idle_timeout_sec=.025)
             with patch.object(worker, "PROFILE", profile), patch.object(
                 worker, "activity", worker.WorkerActivity(profile),
             ), patch.object(worker, "NFS_ROOT", root), patch.object(
