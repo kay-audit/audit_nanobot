@@ -58,6 +58,17 @@ def fields(profile, manifest):
     manifest.update(deployment_id=physical.service_name, generation=generation,
                     consumer_id=manifest.get("consumer_id", "python"),
                     operation=manifest["request_type"])
+    # Never recycle a UUID after timeout/cleanup: an in-flight handler may still
+    # finish later. An empty durable tombstone contains no user data and is not
+    # removed by request cleanup or worker recovery.
+    accepted = physical.nfs_root / "accepted"
+    accepted.mkdir(exist_ok=True)
+    marker = confined(accepted / (manifest["request_id"] + ".seen"), physical.nfs_root)
+    try:
+        with marker.open("xb"):
+            pass
+    except FileExistsError as exc:
+        raise OsirisPayloadError("Request ID was already accepted; use a fresh UUID") from exc
 
 
 def ticket(profile, manifest):

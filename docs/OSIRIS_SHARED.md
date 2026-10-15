@@ -32,6 +32,10 @@ match the retained request identity and current deployment generation. Late or
 mismatched replies fail closed. Files live in per-request directories inside
 logical/session namespaces. Cleanup cannot traverse other requests. Pickle is
 trusted internal transport only; the native Tool accepts JSON, never pickle/code.
+Empty `accepted/<UUID>.seen` tombstones survive cleanup/restart and prevent UUID
+reuse even after a timeout while an earlier handler could still be running.
+They contain no user payload; retire them only with a fully stopped deployment
+and no old clients/workers, never as part of per-request cleanup.
 
 ModelPool shares identical canonical paths and constructor/dtype contracts only.
 CUDA operations are serialized. Incompatible weights are parked in CPU memory

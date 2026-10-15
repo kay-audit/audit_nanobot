@@ -343,3 +343,13 @@ def test_start_stop_shared_lifecycle_never_overlaps_physical_jobs(shared):
     with ThreadPoolExecutor(2) as pool: list(pool.map(action,range(2)))
     # Depending on lock order, start observes the old job or creates after stop.
     assert state['creates'] in (1,2)
+
+
+def test_timeout_cleanup_never_allows_uuid_reuse(shared):
+    _,profiles=shared
+    rid=json_transport.submit(profiles[0],'A','echo',{})
+    json_transport.cleanup(profiles[0],'A',rid)
+    from workspace.utils.osiris_runtime.errors import OsirisPayloadError
+    for profile,session in [(profiles[0],'A'),(profiles[0],'B'),(profiles[1],'A')]:
+        with pytest.raises(OsirisPayloadError,match='already accepted'):
+            json_transport.submit(profile,session,'echo',{'different':True},request_id=rid)
