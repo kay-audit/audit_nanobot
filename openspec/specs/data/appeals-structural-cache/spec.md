@@ -60,7 +60,7 @@ Eligibility подготовлена внешним ETL и не вычисляе
 
 #### Scenario: Несколько base rows
 
-WHEN один ID имеет A/X и B/Y, THEN оба structural rows SHALL сохраняться и каждый соответствующий lookup SHALL возвращать этот ID один раз.
+**WHEN** один ID имеет A/X и B/Y, **THEN** оба structural rows SHALL сохраняться и каждый соответствующий lookup SHALL возвращать этот ID один раз.
 
 ## Запрещённое поведение
 
