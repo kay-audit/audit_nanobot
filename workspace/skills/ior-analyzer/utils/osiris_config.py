@@ -10,3 +10,7 @@ SERVICE=ServiceProfile(
     worker_script=os.getenv('IOR_OSIRIS_WORKER_SCRIPT',str(ROOT/'skills/ior-analyzer/rerank_osiris_worker.py')),
     num_gpus=1,nfs_root=Path(os.getenv('IOR_OSIRIS_NFS_ROOT',str(ROOT/'data_store/osiris/ior'))),
     capabilities=('embed','build_index','search','retrieve','rerank'), **common_timeout_settings())
+
+if (ROOT.parent / 'osiris_deployment.json').exists() or 'OSIRIS_SHARED_CONFIG' in os.environ:
+    from workspace.utils.osiris_runtime.deployment import bind_profile
+    SERVICE=bind_profile(SERVICE)
