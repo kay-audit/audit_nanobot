@@ -18,6 +18,8 @@ DEFAULT_TIMEOUT_SEC = transport.DEFAULT_REQUEST_TIMEOUT_SEC
 def ensure_srb_d3_ready():
     """Auto-start once when absent and wait up to the profile startup deadline."""
     registry = ServiceRegistry()
+    if SERVICE.deployment is not None:
+        registry.register_deployment(SERVICE.deployment)
     registry.register(SERVICE)
     return OsirisRuntime(registry).start(SERVICE.service_name)
 
