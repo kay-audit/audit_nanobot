@@ -1,0 +1,338 @@
+"workspace/skills/ior-analyzer/knowledge_base/mapping/\320\230\320\236\320\240_Mapping_\321\200\320\260\320\267\320\264\320\265\320\273\321\213.md"	feature/d6_ior
+AGENTS.md	feature/d6_ior, feature/osiris
+appeals_osiris_job.py	feature/d3_crm, feature/osiris
+config.json	feature/d6_ior, feature/d5_followup, feature/d3_crm, feature/osiris
+docs/D3.md	feature/d3_crm, feature/osiris
+docs/D5.md	feature/d5_followup
+docs/D6.md	feature/d6_ior
+docs/INSTALL.md	feature/d6_ior
+docs/OSIRIS_RUNTIME.md	feature/d3_crm, feature/osiris
+docs/README.md	feature/osiris
+docs/TARGET_ARCHITECTURE.md	feature/osiris
+feature.yaml	feature/d6_ior, feature/d5_followup, feature/d3_crm, feature/osiris
+gateway.py	feature/d3_crm, feature/osiris
+lib/services/llm_client.py	feature/d6_ior, feature/d5_followup, feature/d3_crm, feature/osiris
+lib/services/llm_config.py	feature/d6_ior, feature/d5_followup, feature/d3_crm, feature/osiris
+lib/services/llm_reasoning.py	feature/d6_ior, feature/d5_followup, feature/d3_crm, feature/osiris
+lib/services/runtime_patcher.py	feature/d6_ior, feature/d5_followup, feature/d3_crm
+openspec/changes/appeals-structural-startup-cache/design.md	feature/d3_crm, feature/osiris
+openspec/changes/appeals-structural-startup-cache/proposal.md	feature/d3_crm, feature/osiris
+openspec/changes/appeals-structural-startup-cache/specs/appeals-structural-cache/spec.md	feature/d3_crm, feature/osiris
+openspec/changes/appeals-structural-startup-cache/tasks.md	feature/d3_crm, feature/osiris
+openspec/changes/archive/2026-10-14-universal-osiris-runtime/.openspec.yaml	feature/osiris
+openspec/changes/archive/2026-10-14-universal-osiris-runtime/design.md	feature/osiris
+openspec/changes/archive/2026-10-14-universal-osiris-runtime/proposal.md	feature/osiris
+openspec/changes/archive/2026-10-14-universal-osiris-runtime/specs/runtime/osiris/spec.md	feature/osiris
+openspec/changes/archive/2026-10-14-universal-osiris-runtime/specs/tools/osiris/spec.md	feature/osiris
+openspec/changes/archive/2026-10-14-universal-osiris-runtime/tasks.md	feature/osiris
+openspec/specs/COMPONENTS.md	feature/osiris
+openspec/specs/data/appeals-structural-cache/spec.md	feature/d3_crm, feature/osiris
+openspec/specs/runtime/osiris/spec.md	feature/osiris
+openspec/specs/tools/osiris/spec.md	feature/osiris
+osiris_job.py	feature/d3_crm, feature/osiris
+project.json	feature/osiris
+scripts/d5_smoke_seed.py	feature/d5_followup
+sql/migrations/V006__d6_ior_tables_real.sql	feature/d6_ior
+sql/migrations/V007__d5_followup_tables.sql	feature/d5_followup
+sql/migrations/V008__fu_poruch_data.sql	feature/d5_followup
+sql/seed/seed_ior_dev_data.sql	feature/d6_ior
+sql/test_d3_schema.sql	feature/d3_crm, feature/osiris
+tests/test_appeals_hybrid_contracts.py	feature/d3_crm, feature/osiris
+tests/test_appeals_osiris_lifecycle.py	feature/d3_crm, feature/osiris
+tests/test_appeals_production_contracts.py	feature/d3_crm, feature/osiris
+tests/test_appeals_routing.py	feature/d3_crm, feature/osiris
+tests/test_appeals_standalone_cli.py	feature/d3_crm, feature/osiris
+tests/test_appeals_structural_cache.py	feature/d3_crm, feature/osiris
+tests/test_follow_up_llm_centralization.py	feature/d5_followup
+tests/test_follow_up_skill.py	feature/d5_followup
+tests/test_gateway.py	feature/d3_crm, feature/osiris
+tests/test_ior_bge_followup_contract.py	feature/d6_ior
+tests/test_osiris_runtime.py	feature/osiris
+tests/test_postgres_fixture.py	feature/d5_followup
+tests/test_prepare_outbound_suppressed.py	feature/d6_ior, feature/d5_followup, feature/d3_crm
+tests/test_runtime_patcher.py	feature/d6_ior, feature/d5_followup, feature/d3_crm
+tests/test_tools_appeals_analyzer.py	feature/d3_crm, feature/osiris
+tests/test_tools_ior_analyzer.py	feature/d6_ior
+tests/test_tools_osiris.py	feature/osiris
+tools/osiris_echo_worker.py	feature/osiris
+tools/seed_follow_up_corpus.py	feature/d5_followup
+tools/seed_follow_up_data.py	feature/d5_followup
+tools/seed_follow_up_extended.py	feature/d5_followup
+workspace/skills/appeals-analyzer/__init__.py	feature/d3_crm, feature/osiris
+workspace/skills/appeals-analyzer/.gitignore	feature/d3_crm, feature/osiris
+workspace/skills/appeals-analyzer/appeals_analyze.sh	feature/d3_crm, feature/osiris
+workspace/skills/appeals-analyzer/benchmarks/gold_queries.jsonl	feature/d3_crm, feature/osiris
+workspace/skills/appeals-analyzer/canonical_filters.json	feature/d3_crm, feature/osiris
+workspace/skills/appeals-analyzer/CHANGELOG.md	feature/d3_crm, feature/osiris
+workspace/skills/appeals-analyzer/config.json	feature/d3_crm, feature/osiris
+workspace/skills/appeals-analyzer/PRODUCTION.md	feature/d3_crm, feature/osiris
+workspace/skills/appeals-analyzer/rerank_osiris_worker.py	feature/d3_crm, feature/osiris
+workspace/skills/appeals-analyzer/scripts/__init__.py	feature/d3_crm, feature/osiris
+workspace/skills/appeals-analyzer/scripts/appeals_hypothesis.py	feature/d3_crm, feature/osiris
+workspace/skills/appeals-analyzer/scripts/appeals_profiler.py	feature/d3_crm, feature/osiris
+workspace/skills/appeals-analyzer/scripts/appeals_reports.py	feature/d3_crm, feature/osiris
+workspace/skills/appeals-analyzer/scripts/cli.py	feature/d3_crm, feature/osiris
+workspace/skills/appeals-analyzer/scripts/tool.py	feature/d3_crm, feature/osiris
+workspace/skills/appeals-analyzer/SKILL.md	feature/d3_crm, feature/osiris
+workspace/skills/appeals-analyzer/testing/__init__.py	feature/d3_crm, feature/osiris
+workspace/skills/appeals-analyzer/testing/data_generator.py	feature/d3_crm, feature/osiris
+workspace/skills/appeals-analyzer/testing/llm_search.py	feature/d3_crm, feature/osiris
+workspace/skills/appeals-analyzer/testing/README.md	feature/d3_crm, feature/osiris
+workspace/skills/appeals-analyzer/testing/report.py	feature/d3_crm, feature/osiris
+workspace/skills/appeals-analyzer/testing/runner.py	feature/d3_crm, feature/osiris
+workspace/skills/appeals-analyzer/testing/unit_checks.py	feature/d3_crm, feature/osiris
+workspace/skills/appeals-analyzer/tests/test_appeals_contract.py	feature/d3_crm, feature/osiris
+workspace/skills/appeals-analyzer/tool.py	feature/d3_crm, feature/osiris
+workspace/skills/appeals-analyzer/utils/__init__.py	feature/d3_crm, feature/osiris
+workspace/skills/appeals-analyzer/utils/appeal_text.py	feature/d3_crm, feature/osiris
+workspace/skills/appeals-analyzer/utils/appeals_artifacts.py	feature/d3_crm, feature/osiris
+workspace/skills/appeals-analyzer/utils/bge_search_engine.py	feature/d3_crm, feature/osiris
+workspace/skills/appeals-analyzer/utils/data_store.py	feature/d3_crm, feature/osiris
+workspace/skills/appeals-analyzer/utils/db.py	feature/d3_crm, feature/osiris
+workspace/skills/appeals-analyzer/utils/greenplum_engine.py	feature/d3_crm, feature/osiris
+workspace/skills/appeals-analyzer/utils/intent_router.py	feature/d3_crm, feature/osiris
+workspace/skills/appeals-analyzer/utils/local_qwen.py	feature/d3_crm, feature/osiris
+workspace/skills/appeals-analyzer/utils/osiris_config.py	feature/d3_crm, feature/osiris
+workspace/skills/appeals-analyzer/utils/pipeline_config.py	feature/d3_crm, feature/osiris
+workspace/skills/appeals-analyzer/utils/session_extract_manager.py	feature/d3_crm, feature/osiris
+workspace/skills/appeals-analyzer/utils/session_file_store.py	feature/d3_crm, feature/osiris
+workspace/skills/appeals-analyzer/utils/skill_config.py	feature/d3_crm, feature/osiris
+workspace/skills/appeals-analyzer/utils/srb_d3.py	feature/d3_crm, feature/osiris
+workspace/skills/appeals-analyzer/utils/sva_metrics.py	feature/d3_crm, feature/osiris
+workspace/skills/audit_analyzer/scripts/cli.py	feature/d5_followup
+workspace/skills/audit_analyzer/scripts/pg_provider.py	feature/d5_followup
+workspace/skills/follow_up/__init__.py	feature/d5_followup
+workspace/skills/follow_up/.gitignore	feature/d5_followup
+workspace/skills/follow_up/backend/__init__.py	feature/d5_followup
+workspace/skills/follow_up/backend/agents/__init__.py	feature/d5_followup
+workspace/skills/follow_up/backend/agents/analytics_agent.py	feature/d5_followup
+workspace/skills/follow_up/backend/agents/base.py	feature/d5_followup
+workspace/skills/follow_up/backend/agents/execution_control.py	feature/d5_followup
+workspace/skills/follow_up/backend/agents/followup_agent.py	feature/d5_followup
+workspace/skills/follow_up/backend/agents/general_agent.py	feature/d5_followup
+workspace/skills/follow_up/backend/agents/hypothesis_agent.py	feature/d5_followup
+workspace/skills/follow_up/backend/agents/km_detail_agent.py	feature/d5_followup
+workspace/skills/follow_up/backend/agents/poruch_resolver.py	feature/d5_followup
+workspace/skills/follow_up/backend/agents/recheck_agent.py	feature/d5_followup
+workspace/skills/follow_up/backend/agents/router.py	feature/d5_followup
+workspace/skills/follow_up/backend/api/__init__.py	feature/d5_followup
+workspace/skills/follow_up/backend/api/{routes}/__init__.py	feature/d5_followup
+workspace/skills/follow_up/backend/api/routes/__init__.py	feature/d5_followup
+workspace/skills/follow_up/backend/api/routes/admin.py	feature/d5_followup
+workspace/skills/follow_up/backend/api/routes/chat.py	feature/d5_followup
+workspace/skills/follow_up/backend/api/routes/execution.py	feature/d5_followup
+workspace/skills/follow_up/backend/api/routes/files.py	feature/d5_followup
+workspace/skills/follow_up/backend/api/routes/history.py	feature/d5_followup
+workspace/skills/follow_up/backend/api/routes/ws.py	feature/d5_followup
+workspace/skills/follow_up/backend/config.py	feature/d5_followup
+workspace/skills/follow_up/backend/connectors/__init__.py	feature/d5_followup
+workspace/skills/follow_up/backend/connectors/bitbucket.py	feature/d5_followup
+workspace/skills/follow_up/backend/core/__init__.py	feature/d5_followup
+workspace/skills/follow_up/backend/core/activity.py	feature/d5_followup
+workspace/skills/follow_up/backend/core/boot.py	feature/d5_followup
+workspace/skills/follow_up/backend/core/budget.py	feature/d5_followup
+workspace/skills/follow_up/backend/core/contract.py	feature/d5_followup
+workspace/skills/follow_up/backend/core/critic.py	feature/d5_followup
+workspace/skills/follow_up/backend/core/evidence.py	feature/d5_followup
+workspace/skills/follow_up/backend/core/identity.py	feature/d5_followup
+workspace/skills/follow_up/backend/core/interpreter.py	feature/d5_followup
+workspace/skills/follow_up/backend/core/llm_gateway.py	feature/d5_followup
+workspace/skills/follow_up/backend/core/memory/__init__.py	feature/d5_followup
+workspace/skills/follow_up/backend/core/memory/bridge.py	feature/d5_followup
+workspace/skills/follow_up/backend/core/memory/state.py	feature/d5_followup
+workspace/skills/follow_up/backend/core/nanobot_config.py	feature/d5_followup
+workspace/skills/follow_up/backend/core/orchestrator.py	feature/d5_followup
+workspace/skills/follow_up/backend/core/pools.py	feature/d5_followup
+workspace/skills/follow_up/backend/core/render.py	feature/d5_followup
+workspace/skills/follow_up/backend/core/slots.py	feature/d5_followup
+workspace/skills/follow_up/backend/core/structured.py	feature/d5_followup
+workspace/skills/follow_up/backend/core/tools/__init__.py	feature/d5_followup
+workspace/skills/follow_up/backend/core/tools/facts.py	feature/d5_followup
+workspace/skills/follow_up/backend/core/tools/registry.py	feature/d5_followup
+workspace/skills/follow_up/backend/core/tools/search.py	feature/d5_followup
+workspace/skills/follow_up/backend/core/verify.py	feature/d5_followup
+workspace/skills/follow_up/backend/indexing/__init__.py	feature/d5_followup
+workspace/skills/follow_up/backend/indexing/chunker.py	feature/d5_followup
+workspace/skills/follow_up/backend/indexing/converter.py	feature/d5_followup
+workspace/skills/follow_up/backend/indexing/derived.py	feature/d5_followup
+workspace/skills/follow_up/backend/indexing/embedder.py	feature/d5_followup
+workspace/skills/follow_up/backend/indexing/extractor.py	feature/d5_followup
+workspace/skills/follow_up/backend/indexing/index_builder.py	feature/d5_followup
+workspace/skills/follow_up/backend/indexing/lexicon.py	feature/d5_followup
+workspace/skills/follow_up/backend/indexing/pipeline.py	feature/d5_followup
+workspace/skills/follow_up/backend/llm/__init__.py	feature/d5_followup
+workspace/skills/follow_up/backend/llm/client.py	feature/d5_followup
+workspace/skills/follow_up/backend/llm/prompts/__init__.py	feature/d5_followup
+workspace/skills/follow_up/backend/llm/prompts/_shared.py	feature/d5_followup
+workspace/skills/follow_up/backend/llm/prompts/analytics.py	feature/d5_followup
+workspace/skills/follow_up/backend/llm/prompts/clarification.py	feature/d5_followup
+workspace/skills/follow_up/backend/llm/prompts/execution_control.py	feature/d5_followup
+workspace/skills/follow_up/backend/llm/prompts/extractor.py	feature/d5_followup
+workspace/skills/follow_up/backend/llm/prompts/followup.py	feature/d5_followup
+workspace/skills/follow_up/backend/llm/prompts/general.py	feature/d5_followup
+workspace/skills/follow_up/backend/llm/prompts/hypothesis.py	feature/d5_followup
+workspace/skills/follow_up/backend/llm/prompts/km_detail.py	feature/d5_followup
+workspace/skills/follow_up/backend/llm/prompts/recheck.py	feature/d5_followup
+workspace/skills/follow_up/backend/llm/prompts/router.py	feature/d5_followup
+workspace/skills/follow_up/backend/llm/reasoning.py	feature/d5_followup
+workspace/skills/follow_up/backend/main.py	feature/d5_followup
+workspace/skills/follow_up/backend/rag/__init__.py	feature/d5_followup
+workspace/skills/follow_up/backend/rag/context_builder.py	feature/d5_followup
+workspace/skills/follow_up/backend/rag/conversation.py	feature/d5_followup
+workspace/skills/follow_up/backend/rag/query_understanding.py	feature/d5_followup
+workspace/skills/follow_up/backend/rag/reranker.py	feature/d5_followup
+workspace/skills/follow_up/backend/rag/retrieval.py	feature/d5_followup
+workspace/skills/follow_up/backend/reporting/__init__.py	feature/d5_followup
+workspace/skills/follow_up/backend/reports/__init__.py	feature/d5_followup
+workspace/skills/follow_up/backend/reports/card_docx.py	feature/d5_followup
+workspace/skills/follow_up/backend/skill/__init__.py	feature/d5_followup
+workspace/skills/follow_up/backend/skill/api.py	feature/d5_followup
+workspace/skills/follow_up/backend/skill/jobs.py	feature/d5_followup
+workspace/skills/follow_up/backend/skill/mcp_server.py	feature/d5_followup
+workspace/skills/follow_up/backend/skill/render.py	feature/d5_followup
+workspace/skills/follow_up/backend/skill/selfcheck.py	feature/d5_followup
+workspace/skills/follow_up/backend/storage/__init__.py	feature/d5_followup
+workspace/skills/follow_up/backend/storage/database.py	feature/d5_followup
+workspace/skills/follow_up/backend/storage/gp.py	feature/d5_followup
+workspace/skills/follow_up/backend/storage/postgres_fixture.py	feature/d5_followup
+workspace/skills/follow_up/backend/storage/writer.py	feature/d5_followup
+workspace/skills/follow_up/backend/sync/__init__.py	feature/d5_followup
+workspace/skills/follow_up/backend/sync/act_backfill.py	feature/d5_followup
+workspace/skills/follow_up/backend/sync/act_cache_sync.py	feature/d5_followup
+workspace/skills/follow_up/backend/sync/poruch_sync.py	feature/d5_followup
+workspace/skills/follow_up/backend/utils/__init__.py	feature/d5_followup
+workspace/skills/follow_up/backend/utils/sse_to_ws.py	feature/d5_followup
+workspace/skills/follow_up/follow_up.env.local.example	feature/d5_followup
+workspace/skills/follow_up/requirements.txt	feature/d5_followup
+workspace/skills/follow_up/ruff.toml	feature/d5_followup
+workspace/skills/follow_up/scripts/__init__.py	feature/d5_followup
+workspace/skills/follow_up/scripts/cli.py	feature/d5_followup
+workspace/skills/follow_up/scripts/follow_up_mcp	feature/d5_followup
+workspace/skills/follow_up/scripts/follow_up_mcp.cmd	feature/d5_followup
+workspace/skills/follow_up/SKILL.md	feature/d5_followup
+workspace/skills/follow_up/tools.json	feature/d5_followup
+workspace/skills/ior-analyzer/config.json	feature/d6_ior
+workspace/skills/ior-analyzer/conftest.py	feature/d6_ior
+workspace/skills/ior-analyzer/data_store/schema/__init__.py	feature/d6_ior
+workspace/skills/ior-analyzer/data_store/schema/kb_schema.yaml	feature/d6_ior
+workspace/skills/ior-analyzer/data_store/schema/kb_value_catalog.json	feature/d6_ior
+workspace/skills/ior-analyzer/data_store/schema/kb_value_index.json	feature/d6_ior
+workspace/skills/ior-analyzer/data_store/schema/loader.py	feature/d6_ior
+workspace/skills/ior-analyzer/ior_analyze.sh	feature/d6_ior
+workspace/skills/ior-analyzer/knowledge_base/ANALYSIS_ARCHITECTURE.md	feature/d6_ior
+workspace/skills/ior-analyzer/knowledge_base/notebooks/credit_no_way_collect_debt_v2.ipynb	feature/d6_ior
+workspace/skills/ior-analyzer/knowledge_base/notebooks/deleted_ior_v2.ipynb	feature/d6_ior
+workspace/skills/ior-analyzer/knowledge_base/notebooks/financial_consequences_ior_v2.ipynb	feature/d6_ior
+workspace/skills/ior-analyzer/knowledge_base/notebooks/ior_hypothesis_v2.ipynb	feature/d6_ior
+workspace/skills/ior-analyzer/knowledge_base/notebooks/ior_nonfinancial_consequences_v2.ipynb	feature/d6_ior
+workspace/skills/ior-analyzer/knowledge_base/notebooks/ior_period_pao_sberbank_v2.ipynb	feature/d6_ior
+workspace/skills/ior-analyzer/knowledge_base/notebooks/report_period_specific_ior_v2.ipynb	feature/d6_ior
+workspace/skills/ior-analyzer/knowledge_base/notebooks/vozmeshenie_ior_v2.ipynb	feature/d6_ior
+workspace/skills/ior-analyzer/knowledge_base/RUNTIME_CONTRACT.md	feature/d6_ior
+workspace/skills/ior-analyzer/knowledge_base/scripts/credit_no_way_collect_debt.md	feature/d6_ior
+workspace/skills/ior-analyzer/knowledge_base/scripts/deleted_ior.md	feature/d6_ior
+workspace/skills/ior-analyzer/knowledge_base/scripts/financial_consequences_ior.md	feature/d6_ior
+workspace/skills/ior-analyzer/knowledge_base/scripts/ior_hypothesis.md	feature/d6_ior
+workspace/skills/ior-analyzer/knowledge_base/scripts/ior_nonfinancial_consequences.md	feature/d6_ior
+workspace/skills/ior-analyzer/knowledge_base/scripts/ior_period_pao_sberbank.md	feature/d6_ior
+workspace/skills/ior-analyzer/knowledge_base/scripts/report_period_specific_ior.md	feature/d6_ior
+workspace/skills/ior-analyzer/knowledge_base/scripts/vozmeshenie_ior.md	feature/d6_ior
+workspace/skills/ior-analyzer/knowledge_base/STRUCTURED_ANALYSIS.md	feature/d6_ior
+workspace/skills/ior-analyzer/rerank_osiris_worker.py	feature/d6_ior
+workspace/skills/ior-analyzer/run_batch_test.sh	feature/d6_ior
+workspace/skills/ior-analyzer/scripts/analysis_mode/__init__.py	feature/d6_ior
+workspace/skills/ior-analyzer/scripts/analysis_mode/anomalies.py	feature/d6_ior
+workspace/skills/ior-analyzer/scripts/analysis_mode/direct_loss.py	feature/d6_ior
+workspace/skills/ior-analyzer/scripts/analysis_mode/export.py	feature/d6_ior
+workspace/skills/ior-analyzer/scripts/analysis_mode/hypotheses.py	feature/d6_ior
+workspace/skills/ior-analyzer/scripts/analysis_mode/models.py	feature/d6_ior
+workspace/skills/ior-analyzer/scripts/analysis_mode/parser.py	feature/d6_ior
+workspace/skills/ior-analyzer/scripts/analysis_mode/registry.py	feature/d6_ior
+workspace/skills/ior-analyzer/scripts/analysis_mode/report.py	feature/d6_ior
+workspace/skills/ior-analyzer/scripts/analysis_mode/runner.py	feature/d6_ior
+workspace/skills/ior-analyzer/scripts/analysis_mode/statistics.py	feature/d6_ior
+workspace/skills/ior-analyzer/scripts/cli.py	feature/d6_ior
+workspace/skills/ior-analyzer/scripts/ior_hypothesis.py	feature/d6_ior
+workspace/skills/ior-analyzer/scripts/ior_profiler.py	feature/d6_ior
+workspace/skills/ior-analyzer/scripts/ior_reports.py	feature/d6_ior
+workspace/skills/ior-analyzer/scripts/preset_analysis/__init__.py	feature/d6_ior
+workspace/skills/ior-analyzer/scripts/preset_analysis/common.py	feature/d6_ior
+workspace/skills/ior-analyzer/scripts/preset_analysis/deleted_ior_analysis.py	feature/d6_ior
+workspace/skills/ior-analyzer/scripts/preset_analysis/financial_consequences_analysis.py	feature/d6_ior
+workspace/skills/ior-analyzer/scripts/preset_analysis/ior_hypothesis_analysis.py	feature/d6_ior
+workspace/skills/ior-analyzer/scripts/preset_analysis/ior_period_pao_sberbank_analysis.py	feature/d6_ior
+workspace/skills/ior-analyzer/scripts/preset_analysis/nonfinancial_consequences_analysis.py	feature/d6_ior
+workspace/skills/ior-analyzer/scripts/preset_analysis/registry.py	feature/d6_ior
+workspace/skills/ior-analyzer/scripts/preset_analysis/report_period_specific_ior_analysis.py	feature/d6_ior
+workspace/skills/ior-analyzer/scripts/preset_analysis/slices.py	feature/d6_ior
+workspace/skills/ior-analyzer/scripts/preset_analysis/vozmeshenie_analysis.py	feature/d6_ior
+workspace/skills/ior-analyzer/scripts/run_batch_test.py	feature/d6_ior
+workspace/skills/ior-analyzer/scripts/source_planner.py	feature/d6_ior
+workspace/skills/ior-analyzer/scripts/test_analysis_mode.py	feature/d6_ior
+workspace/skills/ior-analyzer/scripts/test_osiris_contract.py	feature/d6_ior
+workspace/skills/ior-analyzer/scripts/test_preset_analysis.py	feature/d6_ior
+workspace/skills/ior-analyzer/scripts/vozmeshenie_analysis.py	feature/d6_ior
+workspace/skills/ior-analyzer/SKILL.md	feature/d6_ior
+workspace/skills/ior-analyzer/testing/__init__.py	feature/d6_ior
+workspace/skills/ior-analyzer/testing/data_generator.py	feature/d6_ior
+workspace/skills/ior-analyzer/testing/README.md	feature/d6_ior
+workspace/skills/ior-analyzer/testing/seed_test_data.py	feature/d6_ior
+workspace/skills/ior-analyzer/tests/test_business_contract.py	feature/d6_ior
+workspace/skills/ior-analyzer/tests/test_source_planner.py	feature/d6_ior
+workspace/skills/ior-analyzer/utils/__init__.py	feature/d6_ior
+workspace/skills/ior-analyzer/utils/artifact_manager.py	feature/d6_ior
+workspace/skills/ior-analyzer/utils/bge_search_engine.py	feature/d6_ior
+workspace/skills/ior-analyzer/utils/data_store.py	feature/d6_ior
+workspace/skills/ior-analyzer/utils/dataframe_ops.py	feature/d6_ior
+workspace/skills/ior-analyzer/utils/db.py	feature/d6_ior
+workspace/skills/ior-analyzer/utils/excel_inspector.py	feature/d6_ior
+workspace/skills/ior-analyzer/utils/excel_literal.py	feature/d6_ior
+workspace/skills/ior-analyzer/utils/ior_artifacts.py	feature/d6_ior
+workspace/skills/ior-analyzer/utils/local_qwen.py	feature/d6_ior
+workspace/skills/ior-analyzer/utils/osiris_client.py	feature/d6_ior
+workspace/skills/ior-analyzer/utils/osiris_config.py	feature/d6_ior
+workspace/skills/ior-analyzer/utils/osiris_search_runtime.py	feature/d6_ior
+workspace/skills/ior-analyzer/utils/query_adapter.py	feature/d6_ior
+workspace/skills/ior-analyzer/utils/query_spec.py	feature/d6_ior
+workspace/skills/ior-analyzer/utils/qwen_response.py	feature/d6_ior
+workspace/skills/ior-analyzer/utils/resolve/grounding.py	feature/d6_ior
+workspace/skills/ior-analyzer/utils/resolve/money_parser.py	feature/d6_ior
+workspace/skills/ior-analyzer/utils/resolve/period_parser.py	feature/d6_ior
+workspace/skills/ior-analyzer/utils/resolve/request_outcome.py	feature/d6_ior
+workspace/skills/ior-analyzer/utils/resolve/request_plan.py	feature/d6_ior
+workspace/skills/ior-analyzer/utils/resolve/semantic_grounding.py	feature/d6_ior
+workspace/skills/ior-analyzer/utils/resolve/test_resolve.py	feature/d6_ior
+workspace/skills/ior-analyzer/utils/schema/__init__.py	feature/d6_ior
+workspace/skills/ior-analyzer/utils/schema/kb_schema.yaml	feature/d6_ior
+workspace/skills/ior-analyzer/utils/schema/kb_value_catalog.json	feature/d6_ior
+workspace/skills/ior-analyzer/utils/schema/kb_value_index.json	feature/d6_ior
+workspace/skills/ior-analyzer/utils/schema/loader.py	feature/d6_ior
+workspace/skills/ior-analyzer/utils/session_extract_manager.py	feature/d6_ior
+workspace/skills/ior-analyzer/utils/session_file_store.py	feature/d6_ior
+workspace/skills/ior-analyzer/utils/skill_config.py	feature/d6_ior
+workspace/skills/ior-analyzer/utils/test_data_store_cache.py	feature/d6_ior
+workspace/skills/ior-analyzer/utils/tools/__init__.py	feature/d6_ior
+workspace/skills/ior-analyzer/utils/tools/base.py	feature/d6_ior
+workspace/skills/ior-analyzer/utils/tools/dataframe_ops.py	feature/d6_ior
+workspace/skills/ior-analyzer/utils/tools/introspect.py	feature/d6_ior
+workspace/skills/ior-analyzer/utils/tools/query_spec_tool.py	feature/d6_ior
+workspace/skills/ior-analyzer/utils/tools/registry.py	feature/d6_ior
+workspace/skills/ior-analyzer/utils/tools/run_preset.py	feature/d6_ior
+workspace/TOOLS.md	feature/osiris
+workspace/tools/appeals_analyzer.py	feature/d3_crm, feature/osiris
+workspace/tools/follow_up.py	feature/d5_followup
+workspace/tools/ior_analyzer.py	feature/d6_ior
+workspace/tools/osiris.py	feature/osiris
+workspace/utils/appeals_structural_cache.py	feature/d3_crm, feature/osiris
+workspace/utils/osiris_runtime/__init__.py	feature/d6_ior, feature/d3_crm, feature/osiris
+workspace/utils/osiris_runtime/api.py	feature/osiris
+workspace/utils/osiris_runtime/client.py	feature/d6_ior, feature/d3_crm, feature/osiris
+workspace/utils/osiris_runtime/config.py	feature/d6_ior, feature/d3_crm, feature/osiris
+workspace/utils/osiris_runtime/dispatcher.py	feature/osiris
+workspace/utils/osiris_runtime/errors.py	feature/d6_ior, feature/d3_crm, feature/osiris
+workspace/utils/osiris_runtime/json_transport.py	feature/osiris
+workspace/utils/osiris_runtime/lifecycle.py	feature/d6_ior, feature/d3_crm, feature/osiris
+workspace/utils/osiris_runtime/protocol.py	feature/osiris
+workspace/utils/osiris_runtime/registry.py	feature/osiris
+workspace/utils/osiris_runtime/worker.py	feature/d6_ior, feature/d3_crm, feature/osiris
+workspace/utils/skill_runtime_mode.py	feature/d3_crm, feature/osiris

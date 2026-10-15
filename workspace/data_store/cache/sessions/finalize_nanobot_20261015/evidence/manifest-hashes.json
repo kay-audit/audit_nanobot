@@ -1,0 +1,50 @@
+[
+  {
+    "stage": "original",
+    "branch": "codex/backup-finalize-20261015/feature/d6_ior",
+    "path": "workspace\\data_store\\cache\\sessions\\finalize_nanobot_20261015\\manifests\\original\\d6_ior.yaml",
+    "sha256": "4585a974a3ef439c654d778414751e70605222941aa78d484c206a79a7c3199c"
+  },
+  {
+    "stage": "final",
+    "branch": "feature/d6_ior",
+    "path": "workspace\\data_store\\cache\\sessions\\finalize_nanobot_20261015\\manifests\\final\\d6_ior.yaml",
+    "sha256": "4585a974a3ef439c654d778414751e70605222941aa78d484c206a79a7c3199c"
+  },
+  {
+    "stage": "original",
+    "branch": "codex/backup-finalize-20261015/feature/d5_followup",
+    "path": "workspace\\data_store\\cache\\sessions\\finalize_nanobot_20261015\\manifests\\original\\d5_followup.yaml",
+    "sha256": "b4acca3911153779c3350f78ffb77aac814cb5e6c534849e43b11e21e0b0ad56"
+  },
+  {
+    "stage": "final",
+    "branch": "feature/d5_followup",
+    "path": "workspace\\data_store\\cache\\sessions\\finalize_nanobot_20261015\\manifests\\final\\d5_followup.yaml",
+    "sha256": "33ed353eba1abbd9249adafa81ed0804372267af6d3cb61feab4445033a16242"
+  },
+  {
+    "stage": "original",
+    "branch": "codex/backup-finalize-20261015/feature/d3_crm",
+    "path": "workspace\\data_store\\cache\\sessions\\finalize_nanobot_20261015\\manifests\\original\\d3_crm.yaml",
+    "sha256": "0e79b746b06bff4484a98b712e56f903e51aaa4ceb2dc6fcf6cb40f98cbe4be2"
+  },
+  {
+    "stage": "final",
+    "branch": "feature/d3_crm",
+    "path": "workspace\\data_store\\cache\\sessions\\finalize_nanobot_20261015\\manifests\\final\\d3_crm.yaml",
+    "sha256": "0e79b746b06bff4484a98b712e56f903e51aaa4ceb2dc6fcf6cb40f98cbe4be2"
+  },
+  {
+    "stage": "original",
+    "branch": "codex/backup-finalize-20261015/feature/osiris",
+    "path": "workspace\\data_store\\cache\\sessions\\finalize_nanobot_20261015\\manifests\\original\\osiris.yaml",
+    "sha256": "0e79b746b06bff4484a98b712e56f903e51aaa4ceb2dc6fcf6cb40f98cbe4be2"
+  },
+  {
+    "stage": "final",
+    "branch": "feature/osiris",
+    "path": "workspace\\data_store\\cache\\sessions\\finalize_nanobot_20261015\\manifests\\final\\osiris.yaml",
+    "sha256": "0e79b746b06bff4484a98b712e56f903e51aaa4ceb2dc6fcf6cb40f98cbe4be2"
+  }
+]

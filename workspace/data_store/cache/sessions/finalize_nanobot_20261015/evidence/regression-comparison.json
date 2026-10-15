@@ -1,0 +1,772 @@
+{
+  "code_sha": "b8fac7ab920964eed8bbb1d88ded3fd28dd1fb9d",
+  "baseline_counts": {
+    "failed": 10,
+    "passed": 4246,
+    "skipped": 35
+  },
+  "final_counts": {
+    "failed": 10,
+    "passed": 5367,
+    "skipped": 36
+  },
+  "new_failures": [],
+  "resolved_baseline_failures": [],
+  "baseline_failure_names": [
+    "tests.benchmarks.test_acceptance_matrix::test_acceptance_matrix_required_modules_exist",
+    "tests.contract.test_session_manager_contract.TestReadSessionMetadataReturnsLogicalUpdatedAt::test_updated_at_changes_after_save",
+    "tests.test_audit_analyzer_cli.TestCLIIntegration::test_cli_help_exits_zero",
+    "tests.test_config.TestSettingsModule::test_secrets_exported_to_env",
+    "tests.test_config.TestSettingsModule::test_settings_loaded_via_resolver",
+    "tests.test_information_preservation::test_info_preservation_e2e_mock_passes_keywords",
+    "tests.test_information_preservation::test_info_preservation_e2e_partial_summary_below_threshold",
+    "tests.test_profile_lifecycle::test_cli_agent_starts_without_profile_flag",
+    "tests.test_resume_scenarios::test_resume_integration_run_writes_manifest",
+    "workspace.skills.audit_analyzer.tests.test_audit_analyzer_behavior.TestAuditAnalyerSkillToolSet::test_no_removed_tool_modules_exist"
+  ],
+  "component_files": {
+    "tests.benchmarks.test_acceptance_matrix": {
+      "failed": 1
+    },
+    "tests.benchmarks.test_quality_benchmark": {
+      "passed": 4
+    },
+    "tests.contract.test_agent_loop_api": {
+      "passed": 5
+    },
+    "tests.contract.test_channels_base": {
+      "passed": 4
+    },
+    "tests.contract.test_command_router": {
+      "passed": 4
+    },
+    "tests.contract.test_compaction_api": {
+      "passed": 5
+    },
+    "tests.contract.test_composite_hook_lifecycle": {
+      "passed": 9
+    },
+    "tests.contract.test_database_logging_get_model": {
+      "passed": 6
+    },
+    "tests.contract.test_history_search_identity_contract": {
+      "passed": 3
+    },
+    "tests.contract.test_hook_protocol": {
+      "passed": 4
+    },
+    "tests.contract.test_hook_subclass_contract": {
+      "passed": 9
+    },
+    "tests.contract.test_import_surface": {
+      "passed": 4
+    },
+    "tests.contract.test_llm_observer_api": {
+      "passed": 6
+    },
+    "tests.contract.test_message_bus": {
+      "passed": 1
+    },
+    "tests.contract.test_nanobot_cli_compat": {
+      "passed": 8
+    },
+    "tests.contract.test_runtime_events_api": {
+      "passed": 8
+    },
+    "tests.contract.test_session_manager": {
+      "passed": 3
+    },
+    "tests.contract.test_session_manager_api": {
+      "passed": 17
+    },
+    "tests.contract.test_session_manager_contract": {
+      "failed": 1,
+      "passed": 8
+    },
+    "tests.contract.test_tools_and_context": {
+      "passed": 5
+    },
+    "tests.contract.test_usage_store_api": {
+      "passed": 11
+    },
+    "tests.contract.test_usage_to_dict_contract": {
+      "passed": 7
+    },
+    "tests.integration.test_vector_build_e2e": {
+      "passed": 3
+    },
+    "tests.integration.test_worker_pool_real_bot": {
+      "skipped": 3
+    },
+    "tests.test_active_files_hook": {
+      "passed": 2
+    },
+    "tests.test_agent_factory": {
+      "passed": 6
+    },
+    "tests.test_appeals_hybrid_contracts": {
+      "passed": 54
+    },
+    "tests.test_appeals_osiris_lifecycle.LifecycleTests": {
+      "passed": 22
+    },
+    "tests.test_appeals_osiris_lifecycle.WorkerIdleTests": {
+      "passed": 4
+    },
+    "tests.test_appeals_osiris_lifecycle.TransportRecoveryTests": {
+      "passed": 3
+    },
+    "tests.test_appeals_production_contracts.ParserAndSQLTests": {
+      "passed": 8
+    },
+    "tests.test_appeals_production_contracts.BackendTests": {
+      "passed": 8
+    },
+    "tests.test_appeals_production_contracts.RetrievalTests": {
+      "skipped": 1,
+      "passed": 5
+    },
+    "tests.test_appeals_production_contracts.PipelineTests": {
+      "passed": 13
+    },
+    "tests.test_appeals_production_contracts.ProtocolTests": {
+      "passed": 10
+    },
+    "tests.test_appeals_production_contracts.WorkerInitializationTests": {
+      "passed": 11
+    },
+    "tests.test_appeals_production_contracts.NativeDeliveryTests": {
+      "passed": 7
+    },
+    "tests.test_appeals_production_contracts.StandaloneBackendTests": {
+      "passed": 1
+    },
+    "tests.test_appeals_routing.RoutingTests": {
+      "passed": 21
+    },
+    "tests.test_appeals_standalone_cli": {
+      "passed": 9
+    },
+    "tests.test_appeals_structural_cache": {
+      "passed": 36
+    },
+    "tests.test_application_context": {
+      "passed": 18,
+      "skipped": 1
+    },
+    "tests.test_application_context_cache_lifecycle": {
+      "passed": 18
+    },
+    "tests.test_application_context_logging": {
+      "passed": 3
+    },
+    "tests.test_application_context_role": {
+      "passed": 17
+    },
+    "tests.test_application_context_schema_validation": {
+      "passed": 7
+    },
+    "tests.test_application_context_single_application_point": {
+      "passed": 5
+    },
+    "tests.test_application_context_skip_data_load": {
+      "passed": 8
+    },
+    "tests.test_architecture_tool_domain_free": {
+      "passed": 40
+    },
+    "tests.test_audit_analyzer_cli": {
+      "passed": 26,
+      "failed": 1
+    },
+    "tests.test_audit_analyzer_generated_sql": {
+      "passed": 22
+    },
+    "tests.test_audit_analyzer_mode_selection": {
+      "passed": 17
+    },
+    "tests.test_auto_register_skills": {
+      "passed": 24
+    },
+    "tests.test_benchmarks_db": {
+      "passed": 16
+    },
+    "tests.test_benchmarks_evaluator": {
+      "passed": 56
+    },
+    "tests.test_benchmarks_hooks": {
+      "passed": 21
+    },
+    "tests.test_benchmarks_loader": {
+      "passed": 24
+    },
+    "tests.test_benchmarks_models": {
+      "passed": 1
+    },
+    "tests.test_benchmarks_reporter": {
+      "passed": 22
+    },
+    "tests.test_benchmarks_runner": {
+      "passed": 66
+    },
+    "tests.test_benchmarks_scorer": {
+      "passed": 19
+    },
+    "tests.test_build_vectors_cli": {
+      "passed": 17
+    },
+    "tests.test_bus_factory": {
+      "passed": 5
+    },
+    "tests.test_cache_provider_meta": {
+      "passed": 20
+    },
+    "tests.test_cache_provider_mode": {
+      "passed": 21
+    },
+    "tests.test_cache_snapshot_ttl": {
+      "passed": 15
+    },
+    "tests.test_channel_factory": {
+      "passed": 9
+    },
+    "tests.test_check_indexes": {
+      "passed": 16
+    },
+    "tests.test_cli_agent": {
+      "passed": 19
+    },
+    "tests.test_cli_agent_profile": {
+      "passed": 11
+    },
+    "tests.test_compaction_event_subscriber": {
+      "passed": 11
+    },
+    "tests.test_config": {
+      "passed": 49,
+      "failed": 2
+    },
+    "tests.test_config_keys": {
+      "passed": 121
+    },
+    "tests.test_config_resolver": {
+      "passed": 13
+    },
+    "tests.test_config_service": {
+      "passed": 16
+    },
+    "tests.test_conftest_lifecycle_fixture": {
+      "passed": 3
+    },
+    "tests.test_console_loop": {
+      "passed": 12
+    },
+    "tests.test_consolidator_locale": {
+      "passed": 5
+    },
+    "tests.test_context_compaction": {
+      "passed": 35,
+      "skipped": 1
+    },
+    "tests.test_context_compaction_user_id": {
+      "passed": 7
+    },
+    "tests.test_core_infrastructure_independence": {
+      "passed": 68
+    },
+    "tests.test_database_logging_bridge": {
+      "passed": 14
+    },
+    "tests.test_db_logging_service": {
+      "passed": 61
+    },
+    "tests.test_dependency_direction": {
+      "passed": 168
+    },
+    "tests.test_diagnose_media_v22_vs_v23": {
+      "passed": 5,
+      "skipped": 1
+    },
+    "tests.test_diagnose_startup": {
+      "passed": 7
+    },
+    "tests.test_docs_consistency": {
+      "passed": 5,
+      "skipped": 1
+    },
+    "tests.test_duckdb_cache_store": {
+      "passed": 47
+    },
+    "tests.test_duckdb_query_tool": {
+      "passed": 37
+    },
+    "tests.test_follow_up_llm_centralization": {
+      "passed": 19
+    },
+    "tests.test_follow_up_skill": {
+      "passed": 32
+    },
+    "tests.test_gateway": {
+      "passed": 9
+    },
+    "tests.test_gateway_entrypoint_schema_validation": {
+      "passed": 1
+    },
+    "tests.test_gateway_live_media_e2e": {
+      "skipped": 6
+    },
+    "tests.test_gateway_runner": {
+      "passed": 5
+    },
+    "tests.test_gateway_startup_gate": {
+      "passed": 20
+    },
+    "tests.test_get_embedding_auth": {
+      "passed": 4
+    },
+    "tests.test_greenplum_compat": {
+      "passed": 4
+    },
+    "tests.test_history_search_benchmark": {
+      "passed": 1
+    },
+    "tests.test_history_search_tool": {
+      "passed": 25,
+      "skipped": 15
+    },
+    "tests.test_history_search_user_isolation_guards": {
+      "passed": 6
+    },
+    "tests.test_hook_allowlist": {
+      "passed": 4
+    },
+    "tests.test_hooks_database_logging": {
+      "passed": 27
+    },
+    "tests.test_hooks_tool_audit_hook": {
+      "passed": 20
+    },
+    "tests.test_information_preservation": {
+      "passed": 8,
+      "failed": 2
+    },
+    "tests.test_infra_registration": {
+      "passed": 7
+    },
+    "tests.test_ior_bge_followup_contract": {
+      "passed": 5
+    },
+    "tests.test_legal_summarizer_query_ipc": {
+      "passed": 14
+    },
+    "tests.test_legal_summarizer_query_manifest_integration": {
+      "passed": 9
+    },
+    "tests.test_legal_summarizer_running_subprocess": {
+      "passed": 1
+    },
+    "tests.test_llm_config": {
+      "passed": 6
+    },
+    "tests.test_manifest": {
+      "passed": 13
+    },
+    "tests.test_media": {
+      "passed": 24
+    },
+    "tests.test_migrations": {
+      "passed": 12
+    },
+    "tests.test_no_legacy_imports": {
+      "passed": 2
+    },
+    "tests.test_obsolete_comments_removed": {
+      "passed": 1
+    },
+    "tests.test_office_files": {
+      "passed": 19
+    },
+    "tests.test_osiris_runtime": {
+      "passed": 66
+    },
+    "tests.test_outbound_meta": {
+      "passed": 6
+    },
+    "tests.test_parallel_modes": {
+      "passed": 12
+    },
+    "tests.test_pg_duckdb_sync_service": {
+      "passed": 21
+    },
+    "tests.test_pg_session_manager": {
+      "passed": 17
+    },
+    "tests.test_postgres_channel": {
+      "passed": 69
+    },
+    "tests.test_postgres_channel_static_audit": {
+      "passed": 8
+    },
+    "tests.test_postgres_fixture": {
+      "passed": 9
+    },
+    "tests.test_preload_service": {
+      "passed": 20
+    },
+    "tests.test_prepare_outbound_suppressed": {
+      "passed": 7
+    },
+    "tests.test_priority_commands": {
+      "passed": 8
+    },
+    "tests.test_profile_integration": {
+      "passed": 21
+    },
+    "tests.test_profile_lifecycle": {
+      "passed": 17,
+      "skipped": 5,
+      "failed": 1
+    },
+    "tests.test_project_settings": {
+      "passed": 70
+    },
+    "tests.test_recent_files_hook": {
+      "passed": 13
+    },
+    "tests.test_redis_channel": {
+      "passed": 24
+    },
+    "tests.test_remove_vector_index_store_guards": {
+      "passed": 8
+    },
+    "tests.test_resource_universality": {
+      "passed": 13
+    },
+    "tests.test_resume_scenarios": {
+      "passed": 6,
+      "failed": 1
+    },
+    "tests.test_runtime_events_subscriber": {
+      "passed": 10
+    },
+    "tests.test_runtime_health": {
+      "passed": 15
+    },
+    "tests.test_runtime_inventory": {
+      "passed": 24
+    },
+    "tests.test_runtime_patcher": {
+      "passed": 75
+    },
+    "tests.test_runtime_patcher_e2e": {
+      "passed": 9
+    },
+    "tests.test_runtime_patcher_no_project_tools_boundary": {
+      "passed": 6
+    },
+    "tests.test_schema_validation": {
+      "passed": 40
+    },
+    "tests.test_session_cold_sync_service": {
+      "passed": 21
+    },
+    "tests.test_session_file_redirect_hook": {
+      "passed": 12
+    },
+    "tests.test_session_key": {
+      "passed": 14
+    },
+    "tests.test_session_storage": {
+      "passed": 11
+    },
+    "tests.test_shared_cache_path_across_profiles": {
+      "passed": 6
+    },
+    "tests.test_shutdown_coordinator": {
+      "passed": 7
+    },
+    "tests.test_single_mode_audit": {
+      "passed": 14
+    },
+    "tests.test_skill_config_api": {
+      "passed": 17
+    },
+    "tests.test_skill_legal_summarizer_characterization": {
+      "passed": 22
+    },
+    "tests.test_skill_tool_independence": {
+      "passed": 416
+    },
+    "tests.test_skill_tool_integration": {
+      "passed": 9
+    },
+    "tests.test_smoke_postgres_channel_media": {
+      "passed": 3
+    },
+    "tests.test_spec_drift_guards": {
+      "passed": 10
+    },
+    "tests.test_sql_safety": {
+      "passed": 43
+    },
+    "tests.test_startup_gate": {
+      "passed": 30
+    },
+    "tests.test_storage_hybridization": {
+      "passed": 4
+    },
+    "tests.test_storage_hybridization_factory": {
+      "passed": 9
+    },
+    "tests.test_storage_hybridization_lifecycle": {
+      "passed": 7
+    },
+    "tests.test_streamlit_app": {
+      "passed": 42
+    },
+    "tests.test_structure_physical": {
+      "passed": 14
+    },
+    "tests.test_subagent_logging": {
+      "passed": 8
+    },
+    "tests.test_subprocess_manager": {
+      "passed": 5
+    },
+    "tests.test_table_registry": {
+      "passed": 52
+    },
+    "tests.test_table_utils": {
+      "passed": 7
+    },
+    "tests.test_terminal_tool_print_hook": {
+      "passed": 9
+    },
+    "tests.test_text_splitter": {
+      "passed": 9
+    },
+    "tests.test_text_utils": {
+      "passed": 24
+    },
+    "tests.test_tools_appeals_analyzer": {
+      "passed": 3
+    },
+    "tests.test_tools_ior_analyzer": {
+      "passed": 8
+    },
+    "tests.test_tools_osiris": {
+      "passed": 29
+    },
+    "tests.test_tools_project_loader": {
+      "passed": 20
+    },
+    "tests.test_transcription_service": {
+      "passed": 11
+    },
+    "tests.test_unified_event_logging_contract": {
+      "passed": 16
+    },
+    "tests.test_unified_event_logging_lifecycle": {
+      "passed": 3
+    },
+    "tests.test_unified_event_logging_pipeline": {
+      "passed": 1615,
+      "skipped": 2
+    },
+    "tests.test_user_stop_signal": {
+      "passed": 5
+    },
+    "tests.test_user_stop_signal_priority": {
+      "passed": 19
+    },
+    "tests.test_utils_db": {
+      "passed": 51
+    },
+    "tests.test_utils_session_file_store": {
+      "passed": 47
+    },
+    "tests.test_vector_search_tool": {
+      "passed": 28
+    },
+    "tests.test_windows_terminal": {
+      "passed": 3
+    },
+    "workspace.skills.audit_analyzer.tests.test_audit_analyzer_behavior": {
+      "passed": 28,
+      "failed": 1
+    },
+    "workspace.skills.audit_analyzer.tests.test_audit_analyzer_edge_cases": {
+      "passed": 25
+    },
+    "workspace.skills.audit_analyzer.tests.test_audit_analyzer_predefined": {
+      "passed": 42
+    },
+    "workspace.skills.audit_formulation_strengthener.tests.test_architecture": {
+      "passed": 4
+    },
+    "workspace.skills.audit_formulation_strengthener.tests.test_cli": {
+      "passed": 28
+    },
+    "workspace.skills.audit_formulation_strengthener.tests.test_helpers": {
+      "passed": 13
+    },
+    "workspace.skills.audit_formulation_strengthener.tests.test_mode_analyze": {
+      "passed": 9
+    },
+    "workspace.skills.audit_formulation_strengthener.tests.test_mode_search": {
+      "passed": 12
+    },
+    "workspace.skills.audit_formulation_strengthener.tests.test_mode_synthesize": {
+      "passed": 15
+    },
+    "workspace.skills.audit_formulation_strengthener.tests.test_paths": {
+      "passed": 15
+    }
+  },
+  "skips": [
+    {
+      "name": "tests.integration.test_worker_pool_real_bot::test_real_single_bot_e2e",
+      "reason": "live e2e: set NANOBOT_LIVE_E2E=1"
+    },
+    {
+      "name": "tests.integration.test_worker_pool_real_bot::test_real_multi_worker_e2e",
+      "reason": "live e2e: set NANOBOT_LIVE_E2E=1"
+    },
+    {
+      "name": "tests.integration.test_worker_pool_real_bot::test_real_kill9_heal",
+      "reason": "live e2e: set NANOBOT_LIVE_E2E=1"
+    },
+    {
+      "name": "tests.test_appeals_production_contracts.RetrievalTests::test_algorithm_matches_reference_notebook",
+      "reason": "Local reference archive is not distributed with the repository"
+    },
+    {
+      "name": "tests.test_application_context.TestWarnIfPublishPathOnNfs::test_warns_on_nfs_path",
+      "reason": "/proc/mounts отсутствует на Windows"
+    },
+    {
+      "name": "tests.test_context_compaction.TestPatchCompactionTracking::test_placeholder",
+      "reason": "patch_compaction_tracking удалён в 0.3.5; см. ISSUE-NB035-3"
+    },
+    {
+      "name": "tests.test_diagnose_media_v22_vs_v23::test_v220_behavior_for_missing_file",
+      "reason": "v2.2.0 без _embed_media_for_db"
+    },
+    {
+      "name": "tests.test_docs_consistency::test_markdown_relative_links_resolve",
+      "reason": "Out of scope for 0.3.5 upgrade — broken links in docs/README.md and openspec/specs/COMPONENTS.md (legacy spec paths)"
+    },
+    {
+      "name": "tests.test_gateway_live_media_e2e::test_live_gateway_media_scenarios[single_markdown_file]",
+      "reason": "Live e2e выключен. Задайте NANOBOT_LIVE_E2E=1, чтобы гонять реальный gateway + живую БД + живой LLM."
+    },
+    {
+      "name": "tests.test_gateway_live_media_e2e::test_live_gateway_media_scenarios[two_files_md_and_py]",
+      "reason": "Live e2e выключен. Задайте NANOBOT_LIVE_E2E=1, чтобы гонять реальный gateway + живую БД + живой LLM."
+    },
+    {
+      "name": "tests.test_gateway_live_media_e2e::test_live_gateway_media_scenarios[file_in_subfolder]",
+      "reason": "Live e2e выключен. Задайте NANOBOT_LIVE_E2E=1, чтобы гонять реальный gateway + живую БД + живой LLM."
+    },
+    {
+      "name": "tests.test_gateway_live_media_e2e::test_live_gateway_media_scenarios[html_report_with_text_reply]",
+      "reason": "Live e2e выключен. Задайте NANOBOT_LIVE_E2E=1, чтобы гонять реальный gateway + живую БД + живой LLM."
+    },
+    {
+      "name": "tests.test_gateway_live_media_e2e::test_live_gateway_media_scenarios[edit_and_reattach]",
+      "reason": "Live e2e выключен. Задайте NANOBOT_LIVE_E2E=1, чтобы гонять реальный gateway + живую БД + живой LLM."
+    },
+    {
+      "name": "tests.test_gateway_live_media_e2e::test_live_gateway_media_scenarios[json_config_with_text_reply]",
+      "reason": "Live e2e выключен. Задайте NANOBOT_LIVE_E2E=1, чтобы гонять реальный gateway + живую БД + живой LLM."
+    },
+    {
+      "name": "tests.test_history_search_tool.TestUserIsolation::test_all_scope_filters_by_user_id_alice",
+      "reason": "Out of scope for 0.3.5 upgrade, tracked in ISSUE-NB035-4"
+    },
+    {
+      "name": "tests.test_history_search_tool.TestUserIsolation::test_all_scope_excludes_other_users",
+      "reason": "Out of scope for 0.3.5 upgrade, tracked in ISSUE-NB035-4"
+    },
+    {
+      "name": "tests.test_history_search_tool.TestUserIsolation::test_all_scope_missing_user_returns_error",
+      "reason": "Out of scope for 0.3.5 upgrade, tracked in ISSUE-NB035-4"
+    },
+    {
+      "name": "tests.test_history_search_tool.TestUserIsolation::test_current_scope_filters_by_session_id",
+      "reason": "Out of scope for 0.3.5 upgrade, tracked in ISSUE-NB035-4"
+    },
+    {
+      "name": "tests.test_history_search_tool.TestUserIsolation::test_current_scope_missing_session_returns_error",
+      "reason": "Out of scope for 0.3.5 upgrade, tracked in ISSUE-NB035-4"
+    },
+    {
+      "name": "tests.test_history_search_tool.TestUserIsolation::test_response_does_not_leak_user_id",
+      "reason": "Out of scope for 0.3.5 upgrade, tracked in ISSUE-NB035-4"
+    },
+    {
+      "name": "tests.test_history_search_tool.TestUserIsolation::test_current_scope_does_not_compare_user_id",
+      "reason": "Out of scope for 0.3.5 upgrade, tracked in ISSUE-NB035-4"
+    },
+    {
+      "name": "tests.test_history_search_tool.TestUserIsolation::test_invalid_session_scope_returns_error",
+      "reason": "Out of scope for 0.3.5 upgrade, tracked in ISSUE-NB035-4"
+    },
+    {
+      "name": "tests.test_history_search_tool.TestGeneratedSqlGuard::test_scope_current_uses_session_id_predicate",
+      "reason": "Out of scope for 0.3.5 upgrade, tracked in ISSUE-NB035-4"
+    },
+    {
+      "name": "tests.test_history_search_tool.TestGeneratedSqlGuard::test_scope_all_uses_user_id_predicate",
+      "reason": "Out of scope for 0.3.5 upgrade, tracked in ISSUE-NB035-4"
+    },
+    {
+      "name": "tests.test_history_search_tool.TestGeneratedSqlGuard::test_scope_all_missing_user_does_not_call_fetch",
+      "reason": "Out of scope for 0.3.5 upgrade, tracked in ISSUE-NB035-4"
+    },
+    {
+      "name": "tests.test_history_search_tool.TestGeneratedSqlGuard::test_scope_current_missing_session_does_not_call_fetch",
+      "reason": "Out of scope for 0.3.5 upgrade, tracked in ISSUE-NB035-4"
+    },
+    {
+      "name": "tests.test_history_search_tool.TestGeneratedSqlGuard::test_no_unscoped_or_session_id_pattern",
+      "reason": "Out of scope for 0.3.5 upgrade, tracked in ISSUE-NB035-4"
+    },
+    {
+      "name": "tests.test_history_search_tool.TestGeneratedSqlGuard::test_tool_schema_has_no_user_id_parameter",
+      "reason": "Out of scope for 0.3.5 upgrade, tracked in ISSUE-NB035-4"
+    },
+    {
+      "name": "tests.test_history_search_tool.TestSnapshotConsistency::test_pagination_not_snapshot_consistent",
+      "reason": "Out of scope for 0.3.5 upgrade, tracked in ISSUE-NB035-4"
+    },
+    {
+      "name": "tests.test_profile_lifecycle::test_gateway_prod_smoke_selects_prod_tables",
+      "reason": "Out of scope for 0.3.5 upgrade, tracked in ISSUE-NB035-4"
+    },
+    {
+      "name": "tests.test_profile_lifecycle::test_gateway_test_smoke_selects_test_tables",
+      "reason": "Out of scope for 0.3.5 upgrade, tracked in ISSUE-NB035-4"
+    },
+    {
+      "name": "tests.test_profile_lifecycle::test_gateway_profile_comes_only_from_cli",
+      "reason": "Out of scope for 0.3.5 upgrade, tracked in ISSUE-NB035-4"
+    },
+    {
+      "name": "tests.test_profile_lifecycle::test_cli_agent_test_smoke_selects_test_tables",
+      "reason": "Out of scope for 0.3.5 upgrade, tracked in ISSUE-NB035-4"
+    },
+    {
+      "name": "tests.test_profile_lifecycle::test_settings_access_in_utility_fails_fast",
+      "reason": "SETTINGS уже инициализированы в этом pytest-сеансе"
+    },
+    {
+      "name": "tests.test_unified_event_logging_pipeline.TestNoProductionDirectWriters::test_no_insert_into_logging_table[tests\\\\test_hooks_database_logging.py]",
+      "reason": "cannot parse D:\\audit-dev\\audit_nanobot_finalize\\tests\\test_hooks_database_logging.py"
+    },
+    {
+      "name": "tests.test_unified_event_logging_pipeline.TestNoDeletedModuleImports::test_no_deleted_module_import[tests\\\\test_hooks_database_logging.py]",
+      "reason": "cannot parse D:\\audit-dev\\audit_nanobot_finalize\\tests\\test_hooks_database_logging.py"
+    }
+  ]
+}

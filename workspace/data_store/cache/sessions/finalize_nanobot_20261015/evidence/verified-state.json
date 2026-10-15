@@ -1,0 +1,12 @@
+{
+  "code_sha": "b8fac7ab920964eed8bbb1d88ded3fd28dd1fb9d",
+  "report": "INTEGRATION_REPORT.md",
+  "status": "PARTIALLY READY",
+  "final_source_branches": {
+    "feature/d6_ior": "063080d4c5e0813e4674b8f307c9ee9fbd4173ed",
+    "feature/d5_followup": "fac3da334f199d0e0d127b8aa2c831b4d4eef8a2",
+    "feature/d3_crm": "e4a3fda782b1eda63ff4f5205b22a6765c850abc",
+    "feature/osiris": "4fa10d27da83ac9b9ac9b588dfc0cae0c5c4b24a"
+  },
+  "origin_unchanged": true
+}
