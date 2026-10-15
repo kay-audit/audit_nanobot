@@ -188,6 +188,13 @@ def canonical_project_tools() -> list[ToolSpec]:
             description="шаблон с правильным паттерном (disabled by config — служебный)",
             config_key=None,
         ),
+        ToolSpec(
+            name="osiris",
+            module="osiris",
+            required=False,
+            description="управление зарегистрированными GPU-сервисами OSIRIS",
+            config_key="tools.osiris.enable",
+        ),
     ]
 
 

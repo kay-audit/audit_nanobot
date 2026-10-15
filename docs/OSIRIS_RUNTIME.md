@@ -172,6 +172,8 @@ APPEALS_OSIRIS_PIP_INDEX_URL/TRUSTED_HOST задают внутренний ин
 
 workspace/tools/osiris.py регистрируется обычным project_tool_loader. Конфигурация
 читается из ctx._settings_ref.tools.osiris; встроенный ToolsConfig её не содержит.
+`canonical_project_tools()` объявляет `osiris` как опциональный инструмент с
+ключом `tools.osiris.enable`, поэтому startup inventory узнаёт его при включении.
 
 ```json
 {

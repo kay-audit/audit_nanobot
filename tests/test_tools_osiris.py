@@ -45,6 +45,17 @@ def test_metadata_and_settings_reference():
     assert 'image' not in instance.parameters['properties']
 
 
+def test_native_osiris_is_known_to_startup_inventory():
+    from lib.services.runtime_inventory import canonical_project_tools, diff_project_tools
+
+    specs = [spec for spec in canonical_project_tools() if spec.name == 'osiris']
+    assert len(specs) == 1
+    assert specs[0].module == 'osiris'
+    assert specs[0].config_key == 'tools.osiris.enable'
+    assert not specs[0].required
+    assert 'osiris' not in diff_project_tools(['osiris'], [])['unexpected']
+
+
 @pytest.mark.asyncio
 async def test_invoke_uses_real_session_and_thread(tool):
     loop_thread=threading.get_ident()
