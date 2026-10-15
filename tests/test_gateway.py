@@ -248,6 +248,7 @@ class TestMain:
         fake_project_tools_result = ProjectToolsLoadResult(detail="")
         with patch("sys.argv", ["gateway.py", "--profile=test"]), \
              patch("lib.lifecycle.gateway_runner.GatewayRunner") as MockRunner, \
+             patch("workspace.utils.appeals_structural_cache.prepare_gateway_structural_cache"), \
              patch.object(RuntimePatcher, "apply_all", return_value=fake_report), \
              patch(
                  "lib.services.project_tool_loader.register_project_tools",
