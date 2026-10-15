@@ -53,6 +53,21 @@ def _conn_dsn() -> str:
     return dsn
 
 
+def _upsert_row(cur, row: dict, key: str) -> None:
+    values = (row["km_id"], row.get("doc_reg_num"), row["problem"], row["assignment_"],
+              row["poruch_status"], row.get("close_fact"), row.get("actions"), row.get("block_unit"), key)
+    cur.execute(
+        "UPDATE public.t_fu_poruch_data SET km_id=%s, doc_reg_num=%s, problem=%s, "
+        "assignment_=%s, poruch_status=%s, close_fact=%s, actions=%s, block_unit=%s, "
+        "updated_at=now() WHERE poruch_key=%s", values)
+    if cur.rowcount == 0:
+        cur.execute(
+            "INSERT INTO public.t_fu_poruch_data "
+            "(km_id, doc_reg_num, problem, assignment_, poruch_status, close_fact, "
+            "actions, block_unit, poruch_key, updated_at) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,now())", values)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--truncate", action="store_true",
@@ -75,22 +90,10 @@ def main() -> int:
             print("TRUNCATE: OK")
 
         upserted = 0
+        cur.execute("LOCK TABLE public.t_fu_poruch_data IN SHARE ROW EXCLUSIVE MODE")
         for r in rows:
             key = _poruch_key(r)
-            cur.execute(
-                "INSERT INTO public.t_fu_poruch_data "
-                "(km_id, doc_reg_num, problem, assignment_, poruch_status, "
-                " close_fact, actions, block_unit, poruch_key, updated_at) "
-                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s, now()) "
-                "ON CONFLICT (poruch_key) DO UPDATE SET "
-                "km_id=EXCLUDED.km_id, doc_reg_num=EXCLUDED.doc_reg_num, "
-                "problem=EXCLUDED.problem, assignment_=EXCLUDED.assignment_, "
-                "poruch_status=EXCLUDED.poruch_status, close_fact=EXCLUDED.close_fact, "
-                "actions=EXCLUDED.actions, block_unit=EXCLUDED.block_unit, "
-                "updated_at=now()",
-                (r["km_id"], r.get("doc_reg_num"), r["problem"],
-                 r["assignment_"], r["poruch_status"], r.get("close_fact"),
-                 r.get("actions"), r.get("block_unit"), key))
+            _upsert_row(cur, r, key)
             upserted += 1
         conn.commit()
         cur.execute("SELECT count(*) FROM public.t_fu_poruch_data")

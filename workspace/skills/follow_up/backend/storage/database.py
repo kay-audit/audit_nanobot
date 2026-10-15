@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime
@@ -272,8 +273,9 @@ def init_db() -> None:
         # Ключевой фикс для NFS (DataLab): vfs=unix-none в URI полностью отключает
         # fcntl/posix блокировки, из-за которых SQLite зависала намертво.
         # Так как сервер работает в 1 процесс, нам эти блокировки не нужны.
+        vfs = "&vfs=unix-none" if os.name == "posix" else ""
         return sqlite3.connect(
-            f"file:{db_path}?mode=rwc&vfs=unix-none",
+            f"{db_path.resolve().as_uri()}?mode=rwc{vfs}",
             uri=True,
             check_same_thread=False,
             timeout=30.0

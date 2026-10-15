@@ -22,6 +22,42 @@ if str(SKILL_ROOT / "backend") not in sys.path:
 
 from unittest.mock import patch
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def skill_backend_path(monkeypatch):
+    monkeypatch.syspath_prepend(str(SKILL_ROOT))
+
+
+@pytest.mark.parametrize('module_name', ['tools.seed_follow_up_data', 'tools.seed_follow_up_extended'])
+def test_seed_upsert_inserts_and_updates_one_row(module_name):
+    import importlib
+    import sqlite3
+
+    seed = importlib.import_module(module_name)
+    connection = sqlite3.connect(':memory:')
+    connection.execute("ATTACH DATABASE ':memory:' AS public")
+    connection.execute('CREATE TABLE public.t_fu_poruch_data (km_id TEXT, doc_reg_num TEXT, '
+                       'problem TEXT, assignment_ TEXT, poruch_status TEXT, close_fact TEXT, '
+                       'actions TEXT, block_unit TEXT, poruch_key TEXT PRIMARY KEY, updated_at TEXT)')
+
+    class Cursor:
+        rowcount = 0
+
+        def execute(self, sql, values):
+            result = connection.execute(sql.replace('%s', '?').replace('now()', 'CURRENT_TIMESTAMP'), values)
+            self.rowcount = result.rowcount
+
+    row = {'km_id': '99-12345', 'problem': 'исходное', 'assignment_': 'поручение', 'poruch_status': 'новое'}
+    try:
+        seed._upsert_row(Cursor(), row, 'synthetic-key')
+        seed._upsert_row(Cursor(), dict(row, problem='обновлено'), 'synthetic-key')
+        assert connection.execute('SELECT km_id, problem FROM public.t_fu_poruch_data').fetchall() == [
+            ('99-12345', 'обновлено')]
+    finally:
+        connection.close()
+
 
 def _fixture_rows():
     return [
