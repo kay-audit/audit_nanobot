@@ -366,14 +366,56 @@ def apply_preset_column_filter(df: pd.DataFrame, rename_dict: dict) -> pd.DataFr
         return out
     return df
 
-MAIN_REPORT_COLUMNS = ('incdnt_id', 'incdnt_sid', 'incdnt_entry_dt', 'incdnt_status_name', 'org_struct_id', 'org_struct_lvl_3_name', 'funct_block_lvl_3_name', 'risk_profile_id', 'risk_profile_name', 'incdnt_sum', 'recovery_rub_amt_aggr', 'incdnt_full_descr_txt', 'incdnt_summary_descr_txt', 'incdnt_type_lvl_1_name', 'incdnt_type_lvl_2_name', 'process_lvl_3_name', 'process_lvl_4_name', 'incdnt_autoreg_flag', 'incdnt_detection_dt', 'incdnt_start_dt', 'incdnt_source_name', 'src_type_lvl_1_name', 'src_type_lvl_2_name', 'incdnt_detection_person_name')
+from preset_analysis.report_columns import (
+    MAIN_REPORT_COLUMNS, main_projection, ordered_main_columns, DELETION_ACTION_PREDICATE,
+)
 
-def main_projection(alias=""):
-    return ", ".join((alias + "." if alias else "") + c for c in MAIN_REPORT_COLUMNS)
+CYRILLIC_RENAME.update({
+    'org_struct_lvl_4_name': 'Орг. структура — уровень 4',
+    'funct_block_lvl_4_name': 'Функциональный блок — уровень 4',
+    'incdnt_status_code': 'Код текущего статуса события',
+    'created_at': 'Дата создания записи витрины',
+    'incdnt_status_code_at_action': 'Код статуса на момент действия',
+    'fi_busn_area_id': 'Ключ бизнес-области финансового последствия',
+    'fi_org_struct_id': 'Ключ оргструктуры финансового последствия',
+})
+
+
+def prepare_report_export(df, preset):
+    """Preserve SQL order and all actual fields; normalize IDs before translating names."""
+    if preset == 'credit_no_way_collect_debt':
+        return prepare_df_for_excel(aggregate_by_incident_id(df).rename(columns=CYRILLIC_RENAME))
+    source = df.copy()
+    if preset in {'ior_hypothesis', 'ior_period_pao_sberbank'}:
+        key = find_column(source, ('incdnt_id', 'incdnt_sid'))
+        if key:
+            source = source.drop_duplicates(subset=[key], keep='first')
+    detail_keys = {'financial_consequences_ior': ('fin_impact_sid', 'fin_impact_rub_amt'),
+                   'vozmeshenie_ior': ('recovery_sid', 'recovery_rub_amt'),
+                   'ior_nonfinancial_consequences': ('nonfin_impact_sid', None)}
+    if preset in detail_keys:
+        sid, amount = detail_keys[preset]
+        source = deduplicate_detail_entities(source, find_column(source, ('incdnt_sid', 'incdnt_id')),
+                                             find_column(source, (sid,)), find_column(source, (amount,)) if amount else None)
+    # prepare_df_for_excel intentionally puts identifiers/descriptions first.
+    order = list(source.columns)
+    source = prepare_df_for_excel(source)[order]
+    names = dict(CYRILLIC_RENAME)
+    names.update({c: label for c, label in FINANCIAL_RENAME.items() if c.startswith(('fin_', 'fi_'))})
+    names.update({c: label for c, label in VOZMESHENIE_RENAME.items() if c.startswith('recovery_')})
+    names.update({'fin_impact_reg_dt': 'Дата регистрации финансового последствия в учёте',
+                  'recovery_reg_dt': 'Дата регистрации возмещения в учёте',
+                  'fin_impact_docum_num': 'Номер документа финансового последствия',
+                  'recovery_doc_num': 'Номер документа возмещения'})
+    labels = [names.get(c, 'Атрибут ИОР: ' + c) for c in order]
+    if len(set(labels)) != len(labels):
+        raise ValueError('Duplicate Excel column labels in D6 report')
+    source.columns = labels
+    return source
 
 # Точные JOIN-запросы пресетов согласно спецификациям ior_assistant.
 # Физические имена поступают только из backend-specific table registry.
-def build_preset_sql_queries(tables: Mapping[str, str]) -> dict[str, str]:
+def build_preset_sql_queries(tables: Mapping[str, str], main_columns=None) -> dict[str, str]:
     required = {"ior", "status", "recovery", "financial_impact", "nonfinancial_impact"}
     missing = sorted(required.difference(tables))
     if missing:
@@ -381,8 +423,8 @@ def build_preset_sql_queries(tables: Mapping[str, str]) -> dict[str, str]:
 
     queries = {
     "financial_consequences_ior": f"""
-        SELECT {main_projection("ior")},
-               fi.fin_impact_id, fi.fin_impact_sid, fi.fin_impact_type_name, fi.fin_impact_kind_name, fi.fin_impact_monitoring_flag, 
+        SELECT {main_projection("ior", main_columns, 'financial_consequences_ior')},
+               CAST(fi.fin_impact_id AS VARCHAR) AS fin_impact_id, fi.fin_impact_sid, fi.fin_impact_type_name, fi.fin_impact_kind_name, fi.fin_impact_monitoring_flag,
                fi.fin_impact_crncy_code, fi.fin_impact_local_crncy_code, fi.fin_impact_detection_dt, 
                fi.fin_impact_creation_dttm, fi.fin_impact_reg_dt, fi.fin_impact_account_num, 
                fi.fin_impact_docum_num, fi.fi_busn_area_id, fi.fi_org_struct_id,
@@ -392,8 +434,8 @@ def build_preset_sql_queries(tables: Mapping[str, str]) -> dict[str, str]:
         ORDER BY ior.incdnt_entry_dt DESC
     """,
     "deleted_ior": f"""
-        SELECT {main_projection("ior")},
-               st.incdnt_status_name_at_action, st.incdnt_status_code, st.stts_chng_action_code, 
+        SELECT {main_projection("ior", main_columns, 'deleted_ior')},
+               st.incdnt_status_name_at_action, st.incdnt_status_code AS incdnt_status_code_at_action, st.stts_chng_action_code,
                st.stts_chng_action_name, st.stts_chng_comment_txt, st.stts_chng_action_dttm, st.stts_chng_user_num
         FROM {tables['ior']} AS ior
         LEFT JOIN (
@@ -401,13 +443,13 @@ def build_preset_sql_queries(tables: Mapping[str, str]) -> dict[str, str]:
                    incdnt_status_code, stts_chng_action_code, stts_chng_action_name, 
                    stts_chng_comment_txt, stts_chng_action_dttm, stts_chng_user_num
             FROM {tables['status']}
-            WHERE UPPER(stts_chng_action_name) = 'УДАЛИТЬ'
+            WHERE {DELETION_ACTION_PREDICATE}
         ) AS st ON ior.incdnt_id = st.st_incdnt_id
-        WHERE UPPER(ior.incdnt_status_name) = 'УДАЛЁН'
+        WHERE UPPER(ior.incdnt_status_name) IN ('УДАЛЁН', 'УДАЛЕН')
         ORDER BY ior.incdnt_entry_dt DESC
     """,
     "vozmeshenie_ior": f"""
-        SELECT {main_projection("ior")},
+        SELECT {main_projection("ior", main_columns, 'vozmeshenie_ior')},
                r.recovery_sid, r.recovery_type_name, r.recovery_crncy_code, r.recovery_local_crncy_code, 
                r.recovery_src_account_num, r.recovery_doc_num, r.recovery_creation_dttm, r.recovery_reg_dt, 
                r.recovery_ccy_amt, r.recovery_local_ccy_amt, r.recovery_rub_amt
@@ -416,20 +458,20 @@ def build_preset_sql_queries(tables: Mapping[str, str]) -> dict[str, str]:
         ORDER BY ior.incdnt_entry_dt DESC
     """,
     "ior_nonfinancial_consequences": f"""
-        SELECT {main_projection("ior")},
+        SELECT {main_projection("ior", main_columns, 'ior_nonfinancial_consequences')},
                nfi.nonfin_impact_sid, nfi.nonfin_impact_kind_name, nfi.nonfin_impact_influence_class_name
         FROM {tables['ior']} AS ior
         INNER JOIN {tables['nonfinancial_impact']} AS nfi ON ior.incdnt_id = nfi.incdnt_id
         ORDER BY ior.incdnt_entry_dt DESC
     """,
     "ior_period_pao_sberbank": f"""
-        SELECT {main_projection()} FROM {tables['ior']}
+        SELECT {main_projection("", main_columns, 'ior_period_pao_sberbank')} FROM {tables['ior']}
         WHERE SUBSTR(UPPER(org_struct_id), 1, 4) IN ('SBR_', 'EXT_', 'GRC_', 'MON_', 'BPS_')
         ORDER BY incdnt_entry_dt DESC
     """,
     "report_period_specific_ior": f"""
-        SELECT {main_projection("ior")},
-               fi.fin_impact_id, fi.fin_impact_sid, fi.fin_impact_type_name, fi.fin_impact_kind_name, fi.fin_impact_monitoring_flag, 
+        SELECT {main_projection("ior", main_columns, 'report_period_specific_ior')},
+               CAST(fi.fin_impact_id AS VARCHAR) AS fin_impact_id, fi.fin_impact_sid, fi.fin_impact_type_name, fi.fin_impact_kind_name, fi.fin_impact_monitoring_flag,
                fi.fin_impact_crncy_code, fi.fin_impact_local_crncy_code, fi.fin_impact_detection_dt, 
                fi.fin_impact_creation_dttm, fi.fin_impact_reg_dt, fi.fin_impact_account_num, 
                fi.fin_impact_docum_num, fi.fi_busn_area_id, fi.fi_org_struct_id,
@@ -443,7 +485,7 @@ def build_preset_sql_queries(tables: Mapping[str, str]) -> dict[str, str]:
         ORDER BY ior.incdnt_entry_dt DESC
     """,
     "ior_hypothesis": f"""
-        SELECT {main_projection()} FROM {tables['ior']}
+        SELECT {main_projection("", main_columns, 'ior_hypothesis')} FROM {tables['ior']}
         ORDER BY incdnt_entry_dt DESC
     """
     }
@@ -451,7 +493,7 @@ def build_preset_sql_queries(tables: Mapping[str, str]) -> dict[str, str]:
     # only for registries which explicitly provide that physical table.
     if tables.get("credits"):
         queries["credit_no_way_collect_debt"] = f"""
-            SELECT {main_projection("ior")}, c.credit_agr_num, c.credit_debt_rub_amt
+            SELECT {main_projection("ior", main_columns, 'credit_no_way_collect_debt')}, c.credit_agr_num, c.credit_debt_rub_amt
             FROM {tables['ior']} AS ior
             LEFT JOIN {tables['credits']} AS c ON ior.incdnt_id = c.incdnt_id
             ORDER BY ior.incdnt_entry_dt DESC
@@ -486,8 +528,8 @@ from utils.resolve.request_outcome import ClarificationRequired
 def detect_preset_from_prompt(user_prompt):
     return resolve_preset(None, user_prompt) if user_prompt else None
 
-def resolve_preset_for_request(preset_name, user_prompt):
-    return resolve_preset(preset_name, user_prompt)
+def resolve_preset_for_request(preset_name, user_prompt, *, trusted_preset=True):
+    return resolve_preset(preset_name, user_prompt, trusted_preset=trusted_preset)
 
 
 def build_dynamic_sql_from_prompt(
@@ -495,6 +537,7 @@ def build_dynamic_sql_from_prompt(
     table_name: Optional[str] = None,
     preset_name: Optional[str] = None,
     tables: Optional[Mapping[str, str]] = None,
+    main_columns=None,
 ) -> str:
     """
     Динамическая сборка сложных нетиповых SQL-запросов для произвольных вопросов аудитора
@@ -507,7 +550,7 @@ def build_dynamic_sql_from_prompt(
     main_table = registry["ior"]
     is_local_backend = registry.get("ior") == DUCKDB_TABLES["ior"]
 
-    plan = build_plan(preset_name, user_prompt)
+    plan = build_plan(preset_name, user_prompt, trusted_preset=True)
     preset = plan.preset
     where_clauses = plan.predicates()
     financial_thresholds = plan.money if preset == "financial_consequences_ior" else []
@@ -515,8 +558,8 @@ def build_dynamic_sql_from_prompt(
     if preset == "deleted_ior":
         stts_table = registry["status"]
         return f"""
-            SELECT {main_projection("ior")},
-                   st.incdnt_status_name_at_action, st.incdnt_status_code, st.stts_chng_action_code, 
+            SELECT {main_projection("ior", main_columns, 'deleted_ior')},
+                   st.incdnt_status_name_at_action, st.incdnt_status_code AS incdnt_status_code_at_action, st.stts_chng_action_code,
                    st.stts_chng_action_name, st.stts_chng_comment_txt, st.stts_chng_action_dttm, st.stts_chng_user_num
             FROM {main_table} AS ior
             LEFT JOIN (
@@ -524,7 +567,7 @@ def build_dynamic_sql_from_prompt(
                        incdnt_status_code, stts_chng_action_code, stts_chng_action_name, 
                        stts_chng_comment_txt, stts_chng_action_dttm, stts_chng_user_num
                 FROM {stts_table}
-                WHERE UPPER(stts_chng_action_name) = 'УДАЛИТЬ'
+                WHERE {DELETION_ACTION_PREDICATE}
             ) AS st ON ior.incdnt_id = st.st_incdnt_id
             {where_str}
             ORDER BY ior.incdnt_entry_dt DESC
@@ -536,7 +579,7 @@ def build_dynamic_sql_from_prompt(
             where_clauses.append(f"ior.incdnt_id IN (SELECT incdnt_id FROM {rec_table} GROUP BY incdnt_id HAVING {having})")
             where_str = " WHERE " + " AND ".join(where_clauses)
         return f"""
-            SELECT {main_projection("ior")},
+            SELECT {main_projection("ior", main_columns, 'vozmeshenie_ior')},
                    r.recovery_sid, r.recovery_type_name, r.recovery_crncy_code, r.recovery_local_crncy_code, 
                    r.recovery_src_account_num, r.recovery_doc_num, r.recovery_creation_dttm, r.recovery_reg_dt, 
                    r.recovery_ccy_amt, r.recovery_local_ccy_amt, r.recovery_rub_amt
@@ -548,7 +591,7 @@ def build_dynamic_sql_from_prompt(
     if preset == "ior_nonfinancial_consequences":
         nfi_table = registry["nonfinancial_impact"]
         return f"""
-            SELECT {main_projection("ior")},
+            SELECT {main_projection("ior", main_columns, 'ior_nonfinancial_consequences')},
                    nfi.nonfin_impact_sid, nfi.nonfin_impact_kind_name, nfi.nonfin_impact_influence_class_name
             FROM {main_table} AS ior
             INNER JOIN {nfi_table} AS nfi ON ior.incdnt_id = nfi.incdnt_id
@@ -569,8 +612,8 @@ def build_dynamic_sql_from_prompt(
             ) AS fin_scope ON ior.incdnt_id = fin_scope.fin_scope_incdnt_id
             """
         return f"""
-            SELECT {main_projection("ior")},
-                   fi.fin_impact_sid, fi.fin_impact_type_name, fi.fin_impact_kind_name, 
+            SELECT {main_projection("ior", main_columns, 'financial_consequences_ior')},
+                   CAST(fi.fin_impact_id AS VARCHAR) AS fin_impact_id, fi.fin_impact_sid, fi.fin_impact_type_name, fi.fin_impact_kind_name,
                    fi.fin_impact_monitoring_flag, fi.fin_impact_crncy_code, fi.fin_impact_local_crncy_code, 
                    fi.fin_impact_detection_dt, fi.fin_impact_creation_dttm, fi.fin_impact_reg_dt, 
                    fi.fin_impact_account_num, fi.fin_impact_docum_num, fi.fi_busn_area_id, fi.fi_org_struct_id, 
@@ -585,8 +628,8 @@ def build_dynamic_sql_from_prompt(
         fin_table = registry["financial_impact"]
         rec_table = registry["recovery"]
         return f"""
-            SELECT {main_projection("ior")},
-                   fi.fin_impact_id, fi.fin_impact_sid, fi.fin_impact_type_name,
+            SELECT {main_projection("ior", main_columns, 'report_period_specific_ior')},
+                   CAST(fi.fin_impact_id AS VARCHAR) AS fin_impact_id, fi.fin_impact_sid, fi.fin_impact_type_name,
                    fi.fin_impact_kind_name, fi.fin_impact_monitoring_flag,
                    fi.fin_impact_crncy_code, fi.fin_impact_local_crncy_code,
                    fi.fin_impact_detection_dt, fi.fin_impact_creation_dttm,
@@ -608,8 +651,8 @@ def build_dynamic_sql_from_prompt(
         credit_table=registry.get('credits')
         if not credit_table:
             raise RuntimeError("Preset credit_no_way_collect_debt is not available: its physical source table is not configured")
-        return f"SELECT {main_projection('ior')}, c.credit_agr_num, c.credit_debt_rub_amt FROM {main_table} AS ior LEFT JOIN {credit_table} AS c ON ior.incdnt_id = c.incdnt_id {where_str} ORDER BY ior.incdnt_entry_dt DESC"
-    return f"SELECT {main_projection()} FROM {main_table}{where_str} ORDER BY incdnt_entry_dt DESC"
+        return f"SELECT {main_projection('ior', main_columns, 'credit_no_way_collect_debt')}, c.credit_agr_num, c.credit_debt_rub_amt FROM {main_table} AS ior LEFT JOIN {credit_table} AS c ON ior.incdnt_id = c.incdnt_id {where_str} ORDER BY ior.incdnt_entry_dt DESC"
+    return f"SELECT {main_projection('', main_columns, 'ior_hypothesis')} FROM {main_table}{where_str} ORDER BY incdnt_entry_dt DESC"
 
 
 def format_excel_inspection_markdown(
@@ -773,15 +816,17 @@ async def run_ior_report(
     preset_name: Optional[str],
     session_id: str,
     user_prompt: str = "",
-    filters: Optional[dict] = None
+    filters: Optional[dict] = None,
+    *, trusted_preset: bool = True,
 ) -> str:
     """Главная точка входа выгрузки ИОР с поддержкой пресетов БЗ, динамических сложных запросов и BGE-M3 индекса."""
-    logger.info(f"[ior_reports] 🚀 Starting run_ior_report | preset_name='{preset_name}' | session_id='{session_id}' | prompt='{user_prompt}'")
+    logger.info("[ior_reports] incoming_preset=%s mode=request", preset_name)
     from analysis_mode.parser import try_parse_analysis_request
     from analysis_mode.models import AnalysisRequestError
 
     structured_request = try_parse_analysis_request(user_prompt)
     if structured_request is not None:
+        logger.info("[ior_reports] mode=structured_analysis routing_reason=canonical_envelope selected_source=structured_analysis_runner")
         if preset_name or filters:
             raise AnalysisRequestError(
                 "Конфликт режимов: структурированный анализ нельзя совмещать "
@@ -794,6 +839,7 @@ async def run_ior_report(
     xlsx_path: Optional[Path] = None
 
     if explicit_followup(user_prompt):
+        logger.info("[ior_reports] mode=followup routing_reason=explicit_previous_selection selected_source=session_extract")
         if not session_data:
             return "В этой сессии ещё нет выгрузки. Сначала выполните запрос по ИОР."
         if session_data["df"].empty:
@@ -803,7 +849,7 @@ async def run_ior_report(
             return "Поиск в последней выгрузке недоступен или совпадений не найдено. Повторите поиск позже либо выполните новую выгрузку."
         return answer_follow_up_with_qwen(user_query=user_prompt, descriptions=matches)
     try:
-        plan = build_plan(preset_name, user_prompt)
+        plan = build_plan(preset_name, user_prompt, trusted_preset=trusted_preset)
     except ClarificationRequired as outcome:
         return str(outcome)
     preset = plan.preset
@@ -830,7 +876,25 @@ async def run_ior_report(
     else:
         store = get_data_store()
         table_registry = getattr(store, "tables", GREENPLUM_TABLES)
-        preset_queries = build_preset_sql_queries(table_registry)
+        # Schema only: no data and no fallback to a different backend/source.
+        schema_columns = tuple(store.query_sql(f"SELECT * FROM {table_registry['ior']} WHERE 1=0").columns)
+        main_columns = ordered_main_columns(schema_columns)
+        missing = sorted(set(MAIN_REPORT_COLUMNS).difference(main_columns))
+        if missing:
+            logger.warning("[ior_reports] schema_missing_main_columns=%s", missing)
+        preset_queries = build_preset_sql_queries(table_registry, main_columns)
+        logger.info("[ior_reports] incoming_preset=%s resolved_preset=%s routing_reason=%s mode=preset effective_filters=%s selected_source=%s",
+                    preset_name, preset, plan.routing_reason,
+                    {'categories': sorted({h['category'] for h in plan.hits}),
+                     'period_intervals': plan.period.intervals if plan.period else [],
+                     'status': plan.status, 'money_filters': len(plan.money), 'pao': plan.pao},
+                    {key: table_registry[key] for key in {
+                        'financial_consequences_ior': ('ior', 'financial_impact'),
+                        'vozmeshenie_ior': ('ior', 'recovery'),
+                        'deleted_ior': ('ior', 'status'),
+                        'ior_nonfinancial_consequences': ('ior', 'nonfinancial_impact'),
+                        'report_period_specific_ior': ('ior', 'financial_impact', 'recovery'),
+                    }.get(preset, ('ior',))})
 
         # Источник доступен, если строки физически дошли до сюда: любая
         # ошибка GP/доступности поднимается наверх и не маскируется
@@ -852,14 +916,13 @@ async def run_ior_report(
             return result
 
         def _run_dynamic() -> Any:
-            logger.info(f"[ior_reports] Executing targeted dynamic SQL query for prompt: '{user_prompt}' (has_filters=True)")
+            logger.info("[ior_reports] Executing filtered business query")
             dynamic_sql = build_dynamic_sql_from_prompt(
                 user_prompt,
                 preset_name=preset,
                 tables=table_registry,
+                main_columns=main_columns,
             )
-            where_debug = re.search(r"\bWHERE\b(.+?)(?:\bORDER\s+BY\b|$)", dynamic_sql, re.IGNORECASE | re.DOTALL)
-            logger.debug("[ior_reports] generated WHERE predicates: %s", where_debug.group(1).strip() if where_debug else "<none>")
             result = store.query_sql(dynamic_sql)
             attempts.append(f"динамический запрос: {len(result)} строк")
             return result
@@ -879,15 +942,10 @@ async def run_ior_report(
                 )
             df = preset_df
 
-        if df.empty:
-            for wider_preset in plan_widening_presets(preset, has_filters):
-                wider_df = _run_preset(wider_preset)
-                if wider_df is not None and not wider_df.empty:
-                    break
-
         # Вторичная точная фильтрация DataFrame по периоду при необходимости (если SQL не отфильтровал)
         if not df.empty and period:
-            date_col = next((c for c in df.columns if str(c).lower() in (period.column, "incdnt_entry_dt", "incdnt_start_dt", "дата ввода (событие)")), None)
+            actual_columns = {str(c).lower(): c for c in df.columns}
+            date_col = next((actual_columns[c] for c in (period.column, "incdnt_entry_dt", "incdnt_start_dt", "дата ввода (событие)") if c in actual_columns), None)
             if date_col:
                 dt_series = pd.to_datetime(df[date_col], errors='coerce')
                 mask = pd.Series(False, index=df.index)
@@ -917,42 +975,7 @@ async def run_ior_report(
             )
 
         if not df.empty:
-            detail_presets = {"vozmeshenie_ior", "financial_consequences_ior", "ior_nonfinancial_consequences", "report_period_specific_ior", "deleted_ior"}
-            if preset not in detail_presets:
-                df_export = aggregate_by_incident_id(df)
-            else:
-                df_export = df
-
-            detail_keys = {
-                "vozmeshenie_ior": ("recovery_sid", "recovery_rub_amt"),
-                "financial_consequences_ior": ("fin_impact_sid", "fin_impact_rub_amt"),
-                "ior_nonfinancial_consequences": ("nonfin_impact_sid", None),
-            }
-            if preset in detail_keys:
-                entity_col, amount_col = detail_keys[preset]
-                incident_col = find_column(df_export, ("incdnt_sid", "incdnt_id", "идентификатор события"))
-                entity_actual = find_column(df_export, (entity_col,))
-                amount_actual = find_column(df_export, (amount_col,)) if amount_col else None
-                df_export = deduplicate_detail_entities(df_export, incident_col, entity_actual, amount_actual)
-
-            low_prompt = user_prompt.lower()
-            is_vozmeshenie = preset == "vozmeshenie_ior"
-            is_financial = preset == "financial_consequences_ior"
-
-            if is_vozmeshenie:
-                df_export = apply_preset_column_filter(df_export, VOZMESHENIE_RENAME)
-            elif is_financial:
-                df_export = apply_preset_column_filter(df_export, FINANCIAL_RENAME)
-            else:
-                rename_map = {}
-                for col in df_export.columns:
-                    col_lower = str(col).strip().lower()
-                    if col_lower in CYRILLIC_RENAME:
-                        rename_map[col] = CYRILLIC_RENAME[col_lower]
-                if rename_map:
-                    df_export = df_export.rename(columns=rename_map)
-
-            df_export = prepare_df_for_excel(df_export)
+            df_export = prepare_report_export(df, preset)
 
             output_dir = output_directory(Path("workspace/data_store/generated_files"))
             output_dir.mkdir(parents=True, exist_ok=True)
@@ -964,25 +987,9 @@ async def run_ior_report(
                 # 1. Сначала сохраняем CSV (гарантированный вывод)
                 df_export.to_csv(csv_path, index=False, encoding="utf-8")
 
-                # 2. Сохраняем Excel с защитой от ошибок версии xlsxwriter
-                try:
-                    with pd.ExcelWriter(xlsx_path, engine="openpyxl") as writer:
-                        df_export.to_excel(writer, index=False)
-                        force_literal_excel_cells(writer.sheets["Sheet1"])
-                except Exception:
-                    try:
-                        with pd.ExcelWriter(xlsx_path, engine="openpyxl") as writer:
-                            df_export.to_excel(writer, index=False)
-                            force_literal_excel_cells(writer.sheets["Sheet1"])
-                    except Exception:
-                        import openpyxl
-                        wb = openpyxl.Workbook()
-                        ws = wb.active
-                        ws.append([str(c) for c in df_export.columns])
-                        for row in df_export.values.tolist():
-                            ws.append([str(v) if (v is not None and not pd.isna(v)) else "" for v in row])
-                        force_literal_excel_cells(ws)
-                        wb.save(xlsx_path)
+                # Shared atomic writer verifies the workbook before delivery.
+                from utils.dataframe_ops import _write_xlsx_safe
+                _write_xlsx_safe(df_export, xlsx_path, 'Sheet1', format_columns=False)
                 logger.info(f"[ior_reports] Generated export files for query/preset '{preset}': {xlsx_path}")
                 register_artifact(xlsx_path)
             except Exception as export_err:

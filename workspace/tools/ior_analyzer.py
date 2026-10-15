@@ -203,6 +203,7 @@ class IORAnalyzerTool(Tool):
             output = workspace / "data_store" / "cache" / "sessions" / safe_session_key(resolved_session) / "results"
             with artifact_scope(output, paths):
                 report = await runner(
+                    trusted_preset=False,
                     preset_name=preset,
                     session_id=resolved_session,
                     user_prompt=prompt,

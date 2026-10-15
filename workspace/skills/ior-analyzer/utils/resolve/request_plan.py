@@ -14,10 +14,10 @@ def subjects(prompt):
     if re.search(r'возмещ|возврат|компенсац|взыскан',t): result.append('vozmeshenie_ior')
     if re.search(r'удал|причин\w*\s+удален|отменен|отменил|аннулир',t): result.append('deleted_ior')
     if re.search(r'нефинанс|качествен|репутац|прерыван',t): result.append('ior_nonfinancial_consequences')
-    if re.search(r'(?<!не)финансов\w*\s+последств|потер|убыт|ущерб',t) and not re.search(r'нефинанс',t): result.append('financial_consequences_ior')
+    if re.search(r'(?<!не)финансов\w*(?:\s+и\s+нефинансов\w*)?\s+последств|вид\w*\s+(?:финансов\w*\s+)?потер|детал\w*\s+(?:финансов\w*\s+)?(?:потер|последств)',t): result.append('financial_consequences_ior')
     return list(dict.fromkeys(result))
 
-def resolve_preset(preset,prompt):
+def resolve_preset(preset,prompt, *, trusted_preset=False):
     preset=preset.removesuffix('_v2') if preset else None
     t=(prompt or '').lower().replace('ё','е')
     if re.search(r'потер\w*\s+третьих\s+лиц|(?:прям\w*|косвен\w*|нереализ\w*|кредитн\w*|третьих\s+лиц)\s+(?:финансов\w*\s+)?(?:потер|ущерб|последств)',t):
@@ -34,10 +34,13 @@ def resolve_preset(preset,prompt):
     selected=subjects(tail) if tail else []
     if len(found)>1 and len(selected)!=1:
         raise ClarificationRequired('Запрос одновременно относится к нескольким видам анализа. Какой анализ нужно выполнить: '+', '.join({'vozmeshenie_ior':'возмещения','deleted_ior':'удалённые ИОР','financial_consequences_ior':'финансовые последствия','ior_nonfinancial_consequences':'нефинансовые последствия'}[s] for s in found)+'?')
-    resolved=(selected[0] if len(selected)==1 else found[0] if found else preset)
+    allowed={'financial_consequences_ior','deleted_ior','vozmeshenie_ior','ior_nonfinancial_consequences','ior_period_pao_sberbank','report_period_specific_ior','ior_hypothesis','credit_no_way_collect_debt'}
+    if trusted_preset and preset and preset not in allowed:
+        raise ClarificationRequired('Указан неизвестный вид анализа.')
+    resolved = preset if trusted_preset and preset else (selected[0] if len(selected)==1 else found[0] if found else None)
     eves=list(dict.fromkeys(re.findall(r'\bEVE[-_\s]?(\d+)\b',prompt or '',re.I)))
-    if not resolved or (resolved=='report_period_specific_ior' and found):
-        resolved='report_period_specific_ior' if eves else ('ior_period_pao_sberbank' if 'сбербанк' in t else 'ior_hypothesis')
+    if not resolved or (resolved=='report_period_specific_ior' and found and not trusted_preset):
+        resolved='report_period_specific_ior' if eves else 'ior_hypothesis'
     if resolved=='report_period_specific_ior':
         if not eves:
             return 'ior_hypothesis'
@@ -58,6 +61,7 @@ class RequestPlan:
     money: list = field(default_factory=list)
     status: str = ''
     pao: bool = False
+    routing_reason: str = "query_intent"
 
     def context(self,prompt):
         categories={}
@@ -88,8 +92,8 @@ class RequestPlan:
             clauses.append('UPPER(incdnt_status_name) IN ('+values+')')
         return clauses
 
-def build_plan(preset,prompt):
-    resolved=resolve_preset(preset,prompt)
+def build_plan(preset,prompt, *, trusted_preset=False):
+    resolved=resolve_preset(preset,prompt, trusted_preset=trusted_preset)
     period=parse_period(prompt)
     hits=ground_query(prompt)
     if resolved=='report_period_specific_ior' and 'уточнение:' in prompt.lower():
@@ -106,7 +110,8 @@ def build_plan(preset,prompt):
     status='deleted' if resolved=='deleted_ior' else statuses
     if re.search(r'не\s*закрыт|незакрыт',low):
         raise ClarificationRequired('Укажите нужные статусы ИОР явно: например «Черновик» или «Исследование».')
-    return RequestPlan(resolved,period,hits,money,status,'пао сбербанк' in low or resolved=='ior_period_pao_sberbank')
+    return RequestPlan(resolved,period,hits,money,status,'пао сбербанк' in low or resolved=='ior_period_pao_sberbank',
+                       'trusted_explicit_preset' if trusted_preset and preset else 'query_intent' if subjects(prompt) or money or any(h['category']=='eve' for h in hits) else 'general_default')
 
 def explicit_followup(prompt):
     return bool(re.search(r'\b(?:в|из)\s+(?:этой|полученной|прошлой|последней)\s+(?:выборк[еи]|выгрузк[еи])\b|\bсреди\s+выгруженных\s+выше\b|\bв\s+предыдущем\s+отч[её]те\b|\b(?:среди|из)\s+этих\s+иор\b',prompt.lower()))
