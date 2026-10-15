@@ -155,7 +155,7 @@ def wait(profile, session_id, rid, op, *, consumer_id="python", timeout_sec=1800
                 heartbeat = profile.read_heartbeat()
                 if not profile.heartbeat_live(heartbeat) or heartbeat.get("status") in {"stopped", "idle_stopping"}:
                     recovered = True
-                    ensure_ready(profile, timeout=min(remaining, profile.startup_wait_timeout_sec))
+                    ensure_ready(profile, timeout=min(remaining, timeout_sec, profile.startup_wait_timeout_sec))
             time.sleep(min(client.POLL_SEC, remaining))
     finally:
         cleanup(profile, session_id, rid, keep_artifacts=complete)
