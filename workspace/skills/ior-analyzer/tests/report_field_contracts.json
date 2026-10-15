@@ -1,0 +1,4004 @@
+{
+  "financial_consequences_ior": [
+    {
+      "technical_name": "incdnt_id",
+      "source": "main",
+      "source_column": "incdnt_id",
+      "excel_label": "Идентификационный ключ инцидента операционного риска",
+      "order": 1,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_sid",
+      "source": "main",
+      "source_column": "incdnt_sid",
+      "excel_label": "Идентификатор события",
+      "order": 2,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_status_name",
+      "source": "main",
+      "source_column": "incdnt_status_name",
+      "excel_label": "Статус события",
+      "order": 3,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_autoreg_flag",
+      "source": "main",
+      "source_column": "incdnt_autoreg_flag",
+      "excel_label": "Признак авторегистрации инцидента",
+      "order": 4,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_detection_person_name",
+      "source": "main",
+      "source_column": "incdnt_detection_person_name",
+      "excel_label": "Кем выявлено событие",
+      "order": 5,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_source_name",
+      "source": "main",
+      "source_column": "incdnt_source_name",
+      "excel_label": "Название источника",
+      "order": 6,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "src_type_lvl_1_name",
+      "source": "main",
+      "source_column": "src_type_lvl_1_name",
+      "excel_label": "Тип источника инцидента (уровень 1)",
+      "order": 7,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "src_type_lvl_2_name",
+      "source": "main",
+      "source_column": "src_type_lvl_2_name",
+      "excel_label": "Тип источника инцидента (уровень 2)",
+      "order": 8,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_type_lvl_1_name",
+      "source": "main",
+      "source_column": "incdnt_type_lvl_1_name",
+      "excel_label": "Тип события – уровень 1",
+      "order": 9,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_type_lvl_2_name",
+      "source": "main",
+      "source_column": "incdnt_type_lvl_2_name",
+      "excel_label": "Тип события – уровень 2",
+      "order": 10,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_detection_dt",
+      "source": "main",
+      "source_column": "incdnt_detection_dt",
+      "excel_label": "Дата обнаружения (Событие)",
+      "order": 11,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_start_dt",
+      "source": "main",
+      "source_column": "incdnt_start_dt",
+      "excel_label": "Дата начала инцидента операционного риска",
+      "order": 12,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_entry_dt",
+      "source": "main",
+      "source_column": "incdnt_entry_dt",
+      "excel_label": "Дата ввода (Событие)",
+      "order": 13,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_first_validated_dttm",
+      "source": "main",
+      "source_column": "incdnt_first_validated_dttm",
+      "excel_label": "Дата первого подтверждения",
+      "order": 14,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_last_validate_dttm",
+      "source": "main",
+      "source_column": "incdnt_last_validate_dttm",
+      "excel_label": "Дата последнего подтверждения",
+      "order": 15,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "risk_profile_id",
+      "source": "main",
+      "source_column": "risk_profile_id",
+      "excel_label": "Идентификатор профиля риска",
+      "order": 16,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "risk_profile_name",
+      "source": "main",
+      "source_column": "risk_profile_name",
+      "excel_label": "Наименование профиля риска",
+      "order": 17,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_client_type_name",
+      "source": "main",
+      "source_column": "incdnt_client_type_name",
+      "excel_label": "Тип клиента",
+      "order": 18,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_mistake_cnt",
+      "source": "main",
+      "source_column": "incdnt_mistake_cnt",
+      "excel_label": "Количество ошибок",
+      "order": 19,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_appl_num",
+      "source": "main",
+      "source_column": "incdnt_appl_num",
+      "excel_label": "Номер заявки",
+      "order": 20,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_agr_num",
+      "source": "main",
+      "source_column": "incdnt_agr_num",
+      "excel_label": "Номер договора",
+      "order": 21,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_agr_sid",
+      "source": "main",
+      "source_column": "incdnt_agr_sid",
+      "excel_label": "Идентификатор договора",
+      "order": 22,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_summary_descr_txt",
+      "source": "main",
+      "source_column": "incdnt_summary_descr_txt",
+      "excel_label": "Предварительное описание",
+      "order": 23,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_full_descr_txt",
+      "source": "main",
+      "source_column": "incdnt_full_descr_txt",
+      "excel_label": "Подробное описание",
+      "order": 24,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_id",
+      "source": "main",
+      "source_column": "org_struct_id",
+      "excel_label": "Идентификатор оргструктуры",
+      "order": 25,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_2_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_2_name",
+      "excel_label": "Орг. структура – уровень 2 (Терр. структура / Департамент ДЗО)",
+      "order": 26,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_3_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_3_name",
+      "excel_label": "Орг. структура – уровень 3 (Блок / ТБ / ПЦП)",
+      "order": 27,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_4_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_4_name",
+      "excel_label": "Орг. структура — уровень 4",
+      "order": 28,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_5_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_5_name",
+      "excel_label": "Орг. структура – уровень 5",
+      "order": 29,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_6_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_6_name",
+      "excel_label": "Орг. структура – уровень 6",
+      "order": 30,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_7_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_7_name",
+      "excel_label": "Орг. структура – уровень 7",
+      "order": 31,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_8_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_8_name",
+      "excel_label": "Орг. структура – уровень 8",
+      "order": 32,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_9_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_9_name",
+      "excel_label": "Орг. структура – уровень 9",
+      "order": 33,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_10_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_10_name",
+      "excel_label": "Орг. структура – уровень 10",
+      "order": 34,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "funct_block_id",
+      "source": "main",
+      "source_column": "funct_block_id",
+      "excel_label": "Идентификатор функционального блока",
+      "order": 35,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "funct_block_lvl_2_name",
+      "source": "main",
+      "source_column": "funct_block_lvl_2_name",
+      "excel_label": "Функциональный блок – уровень 2",
+      "order": 36,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "funct_block_lvl_3_name",
+      "source": "main",
+      "source_column": "funct_block_lvl_3_name",
+      "excel_label": "Функциональный блок – уровень 3",
+      "order": 37,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "funct_block_lvl_4_name",
+      "source": "main",
+      "source_column": "funct_block_lvl_4_name",
+      "excel_label": "Функциональный блок — уровень 4",
+      "order": 38,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "process_lvl_1_name",
+      "source": "main",
+      "source_column": "process_lvl_1_name",
+      "excel_label": "Процесс – уровень 1",
+      "order": 39,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "process_lvl_2_name",
+      "source": "main",
+      "source_column": "process_lvl_2_name",
+      "excel_label": "Процесс – уровень 2",
+      "order": 40,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "process_lvl_3_name",
+      "source": "main",
+      "source_column": "process_lvl_3_name",
+      "excel_label": "Процесс – уровень 3",
+      "order": 41,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "process_lvl_4_name",
+      "source": "main",
+      "source_column": "process_lvl_4_name",
+      "excel_label": "Процесс – уровень 4 (Наименование процесса)",
+      "order": 42,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "clntpth_lvl_4_name",
+      "source": "main",
+      "source_column": "clntpth_lvl_4_name",
+      "excel_label": "Клиентский путь – уровень 4",
+      "order": 43,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_security_risk_flag",
+      "source": "main",
+      "source_column": "incdnt_security_risk_flag",
+      "excel_label": "Связь с ИБ-риском",
+      "order": 44,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_infrmtn_sys_risk_flag",
+      "source": "main",
+      "source_column": "incdnt_infrmtn_sys_risk_flag",
+      "excel_label": "Связь с риском информационных систем",
+      "order": 45,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_behavior_risk_flag",
+      "source": "main",
+      "source_column": "incdnt_behavior_risk_flag",
+      "excel_label": "Связь с поведенческим риском",
+      "order": 46,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_model_risk_flag",
+      "source": "main",
+      "source_column": "incdnt_model_risk_flag",
+      "excel_label": "Связь с модельным риском",
+      "order": 47,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "fin_impact_id",
+      "source": "financial_impact",
+      "source_column": "fin_impact_id",
+      "excel_label": "Идентификатор фин. последствия (ключ)",
+      "order": 48,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "fin_impact_sid",
+      "source": "financial_impact",
+      "source_column": "fin_impact_sid",
+      "excel_label": "Идентификатор фин. последствия (бизнес)",
+      "order": 49,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "fin_impact_type_name",
+      "source": "financial_impact",
+      "source_column": "fin_impact_type_name",
+      "excel_label": "Тип финансового последствия",
+      "order": 50,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "fin_impact_kind_name",
+      "source": "financial_impact",
+      "source_column": "fin_impact_kind_name",
+      "excel_label": "Вид финансового последствия",
+      "order": 51,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "fin_impact_monitoring_flag",
+      "source": "financial_impact",
+      "source_column": "fin_impact_monitoring_flag",
+      "excel_label": "Требует мониторинга (Последствие)",
+      "order": 52,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "fin_impact_crncy_code",
+      "source": "financial_impact",
+      "source_column": "fin_impact_crncy_code",
+      "excel_label": "Код валюты последствия",
+      "order": 53,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "fin_impact_local_crncy_code",
+      "source": "financial_impact",
+      "source_column": "fin_impact_local_crncy_code",
+      "excel_label": "Код локальной валюты последствия",
+      "order": 54,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "fin_impact_detection_dt",
+      "source": "financial_impact",
+      "source_column": "fin_impact_detection_dt",
+      "excel_label": "Дата обнаружения (Последствие)",
+      "order": 55,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "fin_impact_creation_dttm",
+      "source": "financial_impact",
+      "source_column": "fin_impact_creation_dttm",
+      "excel_label": "Дата создания (Последствие)",
+      "order": 56,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "fin_impact_reg_dt",
+      "source": "financial_impact",
+      "source_column": "fin_impact_reg_dt",
+      "excel_label": "Дата регистрации финансового последствия в учёте",
+      "order": 57,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "fin_impact_account_num",
+      "source": "financial_impact",
+      "source_column": "fin_impact_account_num",
+      "excel_label": "Аналитический счёт отражения в учёте",
+      "order": 58,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "fin_impact_docum_num",
+      "source": "financial_impact",
+      "source_column": "fin_impact_docum_num",
+      "excel_label": "Номер документа финансового последствия",
+      "order": 59,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "fi_busn_area_id",
+      "source": "financial_impact",
+      "source_column": "fi_busn_area_id",
+      "excel_label": "Идентификатор бизнес-области финансового последствия",
+      "order": 60,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "fi_org_struct_id",
+      "source": "financial_impact",
+      "source_column": "fi_org_struct_id",
+      "excel_label": "Идентификатор оргструктуры финансового последствия",
+      "order": 61,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "fin_impact_ccy_amt",
+      "source": "financial_impact",
+      "source_column": "fin_impact_ccy_amt",
+      "excel_label": "Сумма последствия (в валюте)",
+      "order": 62,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "fin_impact_local_ccy_amt",
+      "source": "financial_impact",
+      "source_column": "fin_impact_local_ccy_amt",
+      "excel_label": "Сумма последствия (в локальной валюте)",
+      "order": 63,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "fin_impact_rub_amt",
+      "source": "financial_impact",
+      "source_column": "fin_impact_rub_amt",
+      "excel_label": "Сумма последствия (руб.)",
+      "order": 64,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    }
+  ],
+  "deleted_ior": [
+    {
+      "technical_name": "incdnt_id",
+      "source": "main",
+      "source_column": "incdnt_id",
+      "excel_label": "Идентификационный ключ инцидента операционного риска",
+      "order": 1,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_sid",
+      "source": "main",
+      "source_column": "incdnt_sid",
+      "excel_label": "Идентификатор события",
+      "order": 2,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_status_name",
+      "source": "main",
+      "source_column": "incdnt_status_name",
+      "excel_label": "Статус события",
+      "order": 3,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_autoreg_flag",
+      "source": "main",
+      "source_column": "incdnt_autoreg_flag",
+      "excel_label": "Признак авторегистрации инцидента",
+      "order": 4,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_detection_person_name",
+      "source": "main",
+      "source_column": "incdnt_detection_person_name",
+      "excel_label": "Кем выявлено событие",
+      "order": 5,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_source_name",
+      "source": "main",
+      "source_column": "incdnt_source_name",
+      "excel_label": "Название источника",
+      "order": 6,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "src_type_lvl_1_name",
+      "source": "main",
+      "source_column": "src_type_lvl_1_name",
+      "excel_label": "Тип источника инцидента (уровень 1)",
+      "order": 7,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "src_type_lvl_2_name",
+      "source": "main",
+      "source_column": "src_type_lvl_2_name",
+      "excel_label": "Тип источника инцидента (уровень 2)",
+      "order": 8,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_type_lvl_1_name",
+      "source": "main",
+      "source_column": "incdnt_type_lvl_1_name",
+      "excel_label": "Тип события – уровень 1",
+      "order": 9,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_type_lvl_2_name",
+      "source": "main",
+      "source_column": "incdnt_type_lvl_2_name",
+      "excel_label": "Тип события – уровень 2",
+      "order": 10,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_detection_dt",
+      "source": "main",
+      "source_column": "incdnt_detection_dt",
+      "excel_label": "Дата обнаружения (Событие)",
+      "order": 11,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_start_dt",
+      "source": "main",
+      "source_column": "incdnt_start_dt",
+      "excel_label": "Дата начала инцидента операционного риска",
+      "order": 12,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_entry_dt",
+      "source": "main",
+      "source_column": "incdnt_entry_dt",
+      "excel_label": "Дата ввода (Событие)",
+      "order": 13,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_first_validated_dttm",
+      "source": "main",
+      "source_column": "incdnt_first_validated_dttm",
+      "excel_label": "Дата первого подтверждения",
+      "order": 14,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_last_validate_dttm",
+      "source": "main",
+      "source_column": "incdnt_last_validate_dttm",
+      "excel_label": "Дата последнего подтверждения",
+      "order": 15,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "risk_profile_id",
+      "source": "main",
+      "source_column": "risk_profile_id",
+      "excel_label": "Идентификатор профиля риска",
+      "order": 16,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "risk_profile_name",
+      "source": "main",
+      "source_column": "risk_profile_name",
+      "excel_label": "Наименование профиля риска",
+      "order": 17,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_client_type_name",
+      "source": "main",
+      "source_column": "incdnt_client_type_name",
+      "excel_label": "Тип клиента",
+      "order": 18,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_mistake_cnt",
+      "source": "main",
+      "source_column": "incdnt_mistake_cnt",
+      "excel_label": "Количество ошибок",
+      "order": 19,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_appl_num",
+      "source": "main",
+      "source_column": "incdnt_appl_num",
+      "excel_label": "Номер заявки",
+      "order": 20,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_agr_num",
+      "source": "main",
+      "source_column": "incdnt_agr_num",
+      "excel_label": "Номер договора",
+      "order": 21,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_agr_sid",
+      "source": "main",
+      "source_column": "incdnt_agr_sid",
+      "excel_label": "Идентификатор договора",
+      "order": 22,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_summary_descr_txt",
+      "source": "main",
+      "source_column": "incdnt_summary_descr_txt",
+      "excel_label": "Предварительное описание",
+      "order": 23,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_full_descr_txt",
+      "source": "main",
+      "source_column": "incdnt_full_descr_txt",
+      "excel_label": "Подробное описание",
+      "order": 24,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_id",
+      "source": "main",
+      "source_column": "org_struct_id",
+      "excel_label": "Идентификатор оргструктуры",
+      "order": 25,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_2_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_2_name",
+      "excel_label": "Орг. структура – уровень 2 (Терр. структура / Департамент ДЗО)",
+      "order": 26,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_3_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_3_name",
+      "excel_label": "Орг. структура – уровень 3 (Блок / ТБ / ПЦП)",
+      "order": 27,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_4_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_4_name",
+      "excel_label": "Орг. структура — уровень 4",
+      "order": 28,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_5_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_5_name",
+      "excel_label": "Орг. структура – уровень 5",
+      "order": 29,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_6_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_6_name",
+      "excel_label": "Орг. структура – уровень 6",
+      "order": 30,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_7_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_7_name",
+      "excel_label": "Орг. структура – уровень 7",
+      "order": 31,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_8_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_8_name",
+      "excel_label": "Орг. структура – уровень 8",
+      "order": 32,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_9_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_9_name",
+      "excel_label": "Орг. структура – уровень 9",
+      "order": 33,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_10_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_10_name",
+      "excel_label": "Орг. структура – уровень 10",
+      "order": 34,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "funct_block_id",
+      "source": "main",
+      "source_column": "funct_block_id",
+      "excel_label": "Идентификатор функционального блока",
+      "order": 35,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "funct_block_lvl_2_name",
+      "source": "main",
+      "source_column": "funct_block_lvl_2_name",
+      "excel_label": "Функциональный блок – уровень 2",
+      "order": 36,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "funct_block_lvl_3_name",
+      "source": "main",
+      "source_column": "funct_block_lvl_3_name",
+      "excel_label": "Функциональный блок – уровень 3",
+      "order": 37,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "funct_block_lvl_4_name",
+      "source": "main",
+      "source_column": "funct_block_lvl_4_name",
+      "excel_label": "Функциональный блок — уровень 4",
+      "order": 38,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "process_lvl_1_name",
+      "source": "main",
+      "source_column": "process_lvl_1_name",
+      "excel_label": "Процесс – уровень 1",
+      "order": 39,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "process_lvl_2_name",
+      "source": "main",
+      "source_column": "process_lvl_2_name",
+      "excel_label": "Процесс – уровень 2",
+      "order": 40,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "process_lvl_3_name",
+      "source": "main",
+      "source_column": "process_lvl_3_name",
+      "excel_label": "Процесс – уровень 3",
+      "order": 41,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "process_lvl_4_name",
+      "source": "main",
+      "source_column": "process_lvl_4_name",
+      "excel_label": "Процесс – уровень 4 (Наименование процесса)",
+      "order": 42,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "clntpth_lvl_4_name",
+      "source": "main",
+      "source_column": "clntpth_lvl_4_name",
+      "excel_label": "Клиентский путь – уровень 4",
+      "order": 43,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_security_risk_flag",
+      "source": "main",
+      "source_column": "incdnt_security_risk_flag",
+      "excel_label": "Связь с ИБ-риском",
+      "order": 44,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_infrmtn_sys_risk_flag",
+      "source": "main",
+      "source_column": "incdnt_infrmtn_sys_risk_flag",
+      "excel_label": "Связь с риском информационных систем",
+      "order": 45,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_behavior_risk_flag",
+      "source": "main",
+      "source_column": "incdnt_behavior_risk_flag",
+      "excel_label": "Связь с поведенческим риском",
+      "order": 46,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_model_risk_flag",
+      "source": "main",
+      "source_column": "incdnt_model_risk_flag",
+      "excel_label": "Связь с модельным риском",
+      "order": 47,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_sum",
+      "source": "main",
+      "source_column": "incdnt_sum",
+      "excel_label": "Общая сумма всех последствий (руб.)",
+      "order": 48,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_drct_dmg_sum",
+      "source": "main",
+      "source_column": "incdnt_drct_dmg_sum",
+      "excel_label": "Прямая потеря – итого (руб.)",
+      "order": 49,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_drct_dmg_cred_rub_amt",
+      "source": "main",
+      "source_column": "incdnt_drct_dmg_cred_rub_amt",
+      "excel_label": "Прямая потеря – с кредитным риском (руб.)",
+      "order": 50,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_drct_dmg_noncred_rub_amt",
+      "source": "main",
+      "source_column": "incdnt_drct_dmg_noncred_rub_amt",
+      "excel_label": "Прямая потеря – без кредитного риска (руб.)",
+      "order": 51,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_indrct_dmg_sum",
+      "source": "main",
+      "source_column": "incdnt_indrct_dmg_sum",
+      "excel_label": "Косвенная потеря – итого (руб.)",
+      "order": 52,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_indrct_dmg_cred_rub_amt",
+      "source": "main",
+      "source_column": "incdnt_indrct_dmg_cred_rub_amt",
+      "excel_label": "Косвенная потеря – с кредитным риском (руб.)",
+      "order": 53,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_indrct_dmg_noncred_rub_amt",
+      "source": "main",
+      "source_column": "incdnt_indrct_dmg_noncred_rub_amt",
+      "excel_label": "Косвенная потеря – без кредитного риска (руб.)",
+      "order": 54,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_unrlzd_dmg_sum",
+      "source": "main",
+      "source_column": "incdnt_unrlzd_dmg_sum",
+      "excel_label": "Нереализовавшаяся потеря – итого (руб.)",
+      "order": 55,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_unrlzd_dmg_cred_rub_amt",
+      "source": "main",
+      "source_column": "incdnt_unrlzd_dmg_cred_rub_amt",
+      "excel_label": "Нереализовавшаяся потеря – с кредитным риском (руб.)",
+      "order": 56,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_unrlzd_dmg_noncred_rub_amt",
+      "source": "main",
+      "source_column": "incdnt_unrlzd_dmg_noncred_rub_amt",
+      "excel_label": "Нереализовавшаяся потеря – без кредитного риска (руб.)",
+      "order": 57,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_thrd_prt_sum",
+      "source": "main",
+      "source_column": "incdnt_thrd_prt_sum",
+      "excel_label": "Потеря третьих лиц – итого (руб.)",
+      "order": 58,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_thrd_prt_cred_rub_amt",
+      "source": "main",
+      "source_column": "incdnt_thrd_prt_cred_rub_amt",
+      "excel_label": "Потеря третьих лиц – с кредитным риском (руб.)",
+      "order": 59,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_thrd_prt_noncred_rub_amt",
+      "source": "main",
+      "source_column": "incdnt_thrd_prt_noncred_rub_amt",
+      "excel_label": "Потеря третьих лиц – без кредитного риска (руб.)",
+      "order": 60,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_gain_sum",
+      "source": "main",
+      "source_column": "incdnt_gain_sum",
+      "excel_label": "Прибыль – итого (руб.)",
+      "order": 61,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_gain_cred_rub_amt",
+      "source": "main",
+      "source_column": "incdnt_gain_cred_rub_amt",
+      "excel_label": "Прибыль – с кредитным риском (руб.)",
+      "order": 62,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_gain_noncred_rub_amt",
+      "source": "main",
+      "source_column": "incdnt_gain_noncred_rub_amt",
+      "excel_label": "Прибыль – без кредитного риска (руб.)",
+      "order": 63,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "recovery_rub_amt_aggr",
+      "source": "main",
+      "source_column": "recovery_rub_amt_aggr",
+      "excel_label": "Возмещение – итого по инциденту (руб.)",
+      "order": 64,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_status_name_at_action",
+      "source": "status",
+      "source_column": "incdnt_status_name",
+      "excel_label": "Статус на момент действия",
+      "order": 65,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_status_code_at_action",
+      "source": "status",
+      "source_column": "incdnt_status_code",
+      "excel_label": "Код статуса на момент действия",
+      "order": 66,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "stts_chng_action_code",
+      "source": "status",
+      "source_column": "stts_chng_action_code",
+      "excel_label": "Код действия изменения статуса",
+      "order": 67,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "stts_chng_action_name",
+      "source": "status",
+      "source_column": "stts_chng_action_name",
+      "excel_label": "Действие изменения статуса",
+      "order": 68,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "stts_chng_comment_txt",
+      "source": "status",
+      "source_column": "stts_chng_comment_txt",
+      "excel_label": "Комментарий при удалении",
+      "order": 69,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "stts_chng_action_dttm",
+      "source": "status",
+      "source_column": "stts_chng_action_dttm",
+      "excel_label": "Дата и время действия",
+      "order": 70,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "stts_chng_user_num",
+      "source": "status",
+      "source_column": "stts_chng_user_num",
+      "excel_label": "Табельный номер сотрудника",
+      "order": 71,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    }
+  ],
+  "vozmeshenie_ior": [
+    {
+      "technical_name": "incdnt_id",
+      "source": "main",
+      "source_column": "incdnt_id",
+      "excel_label": "Идентификационный ключ инцидента операционного риска",
+      "order": 1,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_sid",
+      "source": "main",
+      "source_column": "incdnt_sid",
+      "excel_label": "Идентификатор события",
+      "order": 2,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_status_name",
+      "source": "main",
+      "source_column": "incdnt_status_name",
+      "excel_label": "Статус события",
+      "order": 3,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_autoreg_flag",
+      "source": "main",
+      "source_column": "incdnt_autoreg_flag",
+      "excel_label": "Признак авторегистрации инцидента",
+      "order": 4,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_detection_person_name",
+      "source": "main",
+      "source_column": "incdnt_detection_person_name",
+      "excel_label": "Кем выявлено событие",
+      "order": 5,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_source_name",
+      "source": "main",
+      "source_column": "incdnt_source_name",
+      "excel_label": "Название источника",
+      "order": 6,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "src_type_lvl_1_name",
+      "source": "main",
+      "source_column": "src_type_lvl_1_name",
+      "excel_label": "Тип источника инцидента (уровень 1)",
+      "order": 7,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "src_type_lvl_2_name",
+      "source": "main",
+      "source_column": "src_type_lvl_2_name",
+      "excel_label": "Тип источника инцидента (уровень 2)",
+      "order": 8,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_type_lvl_1_name",
+      "source": "main",
+      "source_column": "incdnt_type_lvl_1_name",
+      "excel_label": "Тип события – уровень 1",
+      "order": 9,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_type_lvl_2_name",
+      "source": "main",
+      "source_column": "incdnt_type_lvl_2_name",
+      "excel_label": "Тип события – уровень 2",
+      "order": 10,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_detection_dt",
+      "source": "main",
+      "source_column": "incdnt_detection_dt",
+      "excel_label": "Дата обнаружения (Событие)",
+      "order": 11,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_start_dt",
+      "source": "main",
+      "source_column": "incdnt_start_dt",
+      "excel_label": "Дата начала инцидента операционного риска",
+      "order": 12,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_entry_dt",
+      "source": "main",
+      "source_column": "incdnt_entry_dt",
+      "excel_label": "Дата ввода (Событие)",
+      "order": 13,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_first_validated_dttm",
+      "source": "main",
+      "source_column": "incdnt_first_validated_dttm",
+      "excel_label": "Дата первого подтверждения",
+      "order": 14,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_last_validate_dttm",
+      "source": "main",
+      "source_column": "incdnt_last_validate_dttm",
+      "excel_label": "Дата последнего подтверждения",
+      "order": 15,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "risk_profile_id",
+      "source": "main",
+      "source_column": "risk_profile_id",
+      "excel_label": "Идентификатор профиля риска",
+      "order": 16,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "risk_profile_name",
+      "source": "main",
+      "source_column": "risk_profile_name",
+      "excel_label": "Наименование профиля риска",
+      "order": 17,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_client_type_name",
+      "source": "main",
+      "source_column": "incdnt_client_type_name",
+      "excel_label": "Тип клиента",
+      "order": 18,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_mistake_cnt",
+      "source": "main",
+      "source_column": "incdnt_mistake_cnt",
+      "excel_label": "Количество ошибок",
+      "order": 19,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_appl_num",
+      "source": "main",
+      "source_column": "incdnt_appl_num",
+      "excel_label": "Номер заявки",
+      "order": 20,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_agr_num",
+      "source": "main",
+      "source_column": "incdnt_agr_num",
+      "excel_label": "Номер договора",
+      "order": 21,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_agr_sid",
+      "source": "main",
+      "source_column": "incdnt_agr_sid",
+      "excel_label": "Идентификатор договора",
+      "order": 22,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_summary_descr_txt",
+      "source": "main",
+      "source_column": "incdnt_summary_descr_txt",
+      "excel_label": "Предварительное описание",
+      "order": 23,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_full_descr_txt",
+      "source": "main",
+      "source_column": "incdnt_full_descr_txt",
+      "excel_label": "Подробное описание",
+      "order": 24,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_id",
+      "source": "main",
+      "source_column": "org_struct_id",
+      "excel_label": "Идентификатор оргструктуры",
+      "order": 25,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_2_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_2_name",
+      "excel_label": "Орг. структура – уровень 2 (Терр. структура / Департамент ДЗО)",
+      "order": 26,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_3_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_3_name",
+      "excel_label": "Орг. структура – уровень 3 (Блок / ТБ / ПЦП)",
+      "order": 27,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_4_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_4_name",
+      "excel_label": "Орг. структура — уровень 4",
+      "order": 28,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_5_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_5_name",
+      "excel_label": "Орг. структура – уровень 5",
+      "order": 29,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_6_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_6_name",
+      "excel_label": "Орг. структура – уровень 6",
+      "order": 30,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_7_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_7_name",
+      "excel_label": "Орг. структура – уровень 7",
+      "order": 31,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_8_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_8_name",
+      "excel_label": "Орг. структура – уровень 8",
+      "order": 32,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_9_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_9_name",
+      "excel_label": "Орг. структура – уровень 9",
+      "order": 33,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_10_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_10_name",
+      "excel_label": "Орг. структура – уровень 10",
+      "order": 34,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "funct_block_id",
+      "source": "main",
+      "source_column": "funct_block_id",
+      "excel_label": "Идентификатор функционального блока",
+      "order": 35,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "funct_block_lvl_2_name",
+      "source": "main",
+      "source_column": "funct_block_lvl_2_name",
+      "excel_label": "Функциональный блок – уровень 2",
+      "order": 36,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "funct_block_lvl_3_name",
+      "source": "main",
+      "source_column": "funct_block_lvl_3_name",
+      "excel_label": "Функциональный блок – уровень 3",
+      "order": 37,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "funct_block_lvl_4_name",
+      "source": "main",
+      "source_column": "funct_block_lvl_4_name",
+      "excel_label": "Функциональный блок — уровень 4",
+      "order": 38,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "process_lvl_1_name",
+      "source": "main",
+      "source_column": "process_lvl_1_name",
+      "excel_label": "Процесс – уровень 1",
+      "order": 39,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "process_lvl_2_name",
+      "source": "main",
+      "source_column": "process_lvl_2_name",
+      "excel_label": "Процесс – уровень 2",
+      "order": 40,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "process_lvl_3_name",
+      "source": "main",
+      "source_column": "process_lvl_3_name",
+      "excel_label": "Процесс – уровень 3",
+      "order": 41,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "process_lvl_4_name",
+      "source": "main",
+      "source_column": "process_lvl_4_name",
+      "excel_label": "Процесс – уровень 4 (Наименование процесса)",
+      "order": 42,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "clntpth_lvl_4_name",
+      "source": "main",
+      "source_column": "clntpth_lvl_4_name",
+      "excel_label": "Клиентский путь – уровень 4",
+      "order": 43,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_security_risk_flag",
+      "source": "main",
+      "source_column": "incdnt_security_risk_flag",
+      "excel_label": "Связь с ИБ-риском",
+      "order": 44,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_infrmtn_sys_risk_flag",
+      "source": "main",
+      "source_column": "incdnt_infrmtn_sys_risk_flag",
+      "excel_label": "Связь с риском информационных систем",
+      "order": 45,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_behavior_risk_flag",
+      "source": "main",
+      "source_column": "incdnt_behavior_risk_flag",
+      "excel_label": "Связь с поведенческим риском",
+      "order": 46,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_model_risk_flag",
+      "source": "main",
+      "source_column": "incdnt_model_risk_flag",
+      "excel_label": "Связь с модельным риском",
+      "order": 47,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "recovery_sid",
+      "source": "recovery",
+      "source_column": "recovery_sid",
+      "excel_label": "Идентификатор возмещения",
+      "order": 48,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "recovery_type_name",
+      "source": "recovery",
+      "source_column": "recovery_type_name",
+      "excel_label": "Тип возмещения",
+      "order": 49,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "recovery_crncy_code",
+      "source": "recovery",
+      "source_column": "recovery_crncy_code",
+      "excel_label": "Код валюты возмещения",
+      "order": 50,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "recovery_local_crncy_code",
+      "source": "recovery",
+      "source_column": "recovery_local_crncy_code",
+      "excel_label": "Код локальной валюты возмещения",
+      "order": 51,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "recovery_src_account_num",
+      "source": "recovery",
+      "source_column": "recovery_src_account_num",
+      "excel_label": "Номер счёта — источник перевода",
+      "order": 52,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "recovery_doc_num",
+      "source": "recovery",
+      "source_column": "recovery_doc_num",
+      "excel_label": "Номер документа возмещения",
+      "order": 53,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "recovery_creation_dttm",
+      "source": "recovery",
+      "source_column": "recovery_creation_dttm",
+      "excel_label": "Дата создания возмещения",
+      "order": 54,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "recovery_reg_dt",
+      "source": "recovery",
+      "source_column": "recovery_reg_dt",
+      "excel_label": "Дата регистрации возмещения в учёте",
+      "order": 55,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "recovery_ccy_amt",
+      "source": "recovery",
+      "source_column": "recovery_ccy_amt",
+      "excel_label": "Сумма возмещения (в валюте)",
+      "order": 56,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "recovery_local_ccy_amt",
+      "source": "recovery",
+      "source_column": "recovery_local_ccy_amt",
+      "excel_label": "Сумма возмещения (в локальной валюте)",
+      "order": 57,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "recovery_rub_amt",
+      "source": "recovery",
+      "source_column": "recovery_rub_amt",
+      "excel_label": "Сумма возмещения (руб.)",
+      "order": 58,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    }
+  ],
+  "ior_nonfinancial_consequences": [
+    {
+      "technical_name": "incdnt_id",
+      "source": "main",
+      "source_column": "incdnt_id",
+      "excel_label": "Идентификационный ключ инцидента операционного риска",
+      "order": 1,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_sid",
+      "source": "main",
+      "source_column": "incdnt_sid",
+      "excel_label": "Идентификатор события",
+      "order": 2,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_status_name",
+      "source": "main",
+      "source_column": "incdnt_status_name",
+      "excel_label": "Статус события",
+      "order": 3,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_autoreg_flag",
+      "source": "main",
+      "source_column": "incdnt_autoreg_flag",
+      "excel_label": "Признак авторегистрации инцидента",
+      "order": 4,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_detection_person_name",
+      "source": "main",
+      "source_column": "incdnt_detection_person_name",
+      "excel_label": "Кем выявлено событие",
+      "order": 5,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_source_name",
+      "source": "main",
+      "source_column": "incdnt_source_name",
+      "excel_label": "Название источника",
+      "order": 6,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "src_type_lvl_1_name",
+      "source": "main",
+      "source_column": "src_type_lvl_1_name",
+      "excel_label": "Тип источника инцидента (уровень 1)",
+      "order": 7,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "src_type_lvl_2_name",
+      "source": "main",
+      "source_column": "src_type_lvl_2_name",
+      "excel_label": "Тип источника инцидента (уровень 2)",
+      "order": 8,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_type_lvl_1_name",
+      "source": "main",
+      "source_column": "incdnt_type_lvl_1_name",
+      "excel_label": "Тип события – уровень 1",
+      "order": 9,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_type_lvl_2_name",
+      "source": "main",
+      "source_column": "incdnt_type_lvl_2_name",
+      "excel_label": "Тип события – уровень 2",
+      "order": 10,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_detection_dt",
+      "source": "main",
+      "source_column": "incdnt_detection_dt",
+      "excel_label": "Дата обнаружения (Событие)",
+      "order": 11,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_start_dt",
+      "source": "main",
+      "source_column": "incdnt_start_dt",
+      "excel_label": "Дата начала инцидента операционного риска",
+      "order": 12,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_entry_dt",
+      "source": "main",
+      "source_column": "incdnt_entry_dt",
+      "excel_label": "Дата ввода (Событие)",
+      "order": 13,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_first_validated_dttm",
+      "source": "main",
+      "source_column": "incdnt_first_validated_dttm",
+      "excel_label": "Дата первого подтверждения",
+      "order": 14,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_last_validate_dttm",
+      "source": "main",
+      "source_column": "incdnt_last_validate_dttm",
+      "excel_label": "Дата последнего подтверждения",
+      "order": 15,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "risk_profile_id",
+      "source": "main",
+      "source_column": "risk_profile_id",
+      "excel_label": "Идентификатор профиля риска",
+      "order": 16,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "risk_profile_name",
+      "source": "main",
+      "source_column": "risk_profile_name",
+      "excel_label": "Наименование профиля риска",
+      "order": 17,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_client_type_name",
+      "source": "main",
+      "source_column": "incdnt_client_type_name",
+      "excel_label": "Тип клиента",
+      "order": 18,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_mistake_cnt",
+      "source": "main",
+      "source_column": "incdnt_mistake_cnt",
+      "excel_label": "Количество ошибок",
+      "order": 19,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_appl_num",
+      "source": "main",
+      "source_column": "incdnt_appl_num",
+      "excel_label": "Номер заявки",
+      "order": 20,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_agr_num",
+      "source": "main",
+      "source_column": "incdnt_agr_num",
+      "excel_label": "Номер договора",
+      "order": 21,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_agr_sid",
+      "source": "main",
+      "source_column": "incdnt_agr_sid",
+      "excel_label": "Идентификатор договора",
+      "order": 22,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_summary_descr_txt",
+      "source": "main",
+      "source_column": "incdnt_summary_descr_txt",
+      "excel_label": "Предварительное описание",
+      "order": 23,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_full_descr_txt",
+      "source": "main",
+      "source_column": "incdnt_full_descr_txt",
+      "excel_label": "Подробное описание",
+      "order": 24,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_id",
+      "source": "main",
+      "source_column": "org_struct_id",
+      "excel_label": "Идентификатор оргструктуры",
+      "order": 25,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_2_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_2_name",
+      "excel_label": "Орг. структура – уровень 2 (Терр. структура / Департамент ДЗО)",
+      "order": 26,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_3_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_3_name",
+      "excel_label": "Орг. структура – уровень 3 (Блок / ТБ / ПЦП)",
+      "order": 27,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_4_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_4_name",
+      "excel_label": "Орг. структура — уровень 4",
+      "order": 28,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_5_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_5_name",
+      "excel_label": "Орг. структура – уровень 5",
+      "order": 29,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_6_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_6_name",
+      "excel_label": "Орг. структура – уровень 6",
+      "order": 30,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_7_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_7_name",
+      "excel_label": "Орг. структура – уровень 7",
+      "order": 31,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_8_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_8_name",
+      "excel_label": "Орг. структура – уровень 8",
+      "order": 32,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_9_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_9_name",
+      "excel_label": "Орг. структура – уровень 9",
+      "order": 33,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_10_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_10_name",
+      "excel_label": "Орг. структура – уровень 10",
+      "order": 34,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "funct_block_id",
+      "source": "main",
+      "source_column": "funct_block_id",
+      "excel_label": "Идентификатор функционального блока",
+      "order": 35,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "funct_block_lvl_2_name",
+      "source": "main",
+      "source_column": "funct_block_lvl_2_name",
+      "excel_label": "Функциональный блок – уровень 2",
+      "order": 36,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "funct_block_lvl_3_name",
+      "source": "main",
+      "source_column": "funct_block_lvl_3_name",
+      "excel_label": "Функциональный блок – уровень 3",
+      "order": 37,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "funct_block_lvl_4_name",
+      "source": "main",
+      "source_column": "funct_block_lvl_4_name",
+      "excel_label": "Функциональный блок — уровень 4",
+      "order": 38,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "process_lvl_1_name",
+      "source": "main",
+      "source_column": "process_lvl_1_name",
+      "excel_label": "Процесс – уровень 1",
+      "order": 39,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "process_lvl_2_name",
+      "source": "main",
+      "source_column": "process_lvl_2_name",
+      "excel_label": "Процесс – уровень 2",
+      "order": 40,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "process_lvl_3_name",
+      "source": "main",
+      "source_column": "process_lvl_3_name",
+      "excel_label": "Процесс – уровень 3",
+      "order": 41,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "process_lvl_4_name",
+      "source": "main",
+      "source_column": "process_lvl_4_name",
+      "excel_label": "Процесс – уровень 4 (Наименование процесса)",
+      "order": 42,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "clntpth_lvl_4_name",
+      "source": "main",
+      "source_column": "clntpth_lvl_4_name",
+      "excel_label": "Клиентский путь – уровень 4",
+      "order": 43,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_security_risk_flag",
+      "source": "main",
+      "source_column": "incdnt_security_risk_flag",
+      "excel_label": "Связь с ИБ-риском",
+      "order": 44,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_infrmtn_sys_risk_flag",
+      "source": "main",
+      "source_column": "incdnt_infrmtn_sys_risk_flag",
+      "excel_label": "Связь с риском информационных систем",
+      "order": 45,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_behavior_risk_flag",
+      "source": "main",
+      "source_column": "incdnt_behavior_risk_flag",
+      "excel_label": "Связь с поведенческим риском",
+      "order": 46,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_model_risk_flag",
+      "source": "main",
+      "source_column": "incdnt_model_risk_flag",
+      "excel_label": "Связь с модельным риском",
+      "order": 47,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "nonfin_impact_sid",
+      "source": "nonfinancial_impact",
+      "source_column": "nonfin_impact_sid",
+      "excel_label": "SID нефинансового последствия",
+      "order": 48,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "nonfin_impact_kind_name",
+      "source": "nonfinancial_impact",
+      "source_column": "nonfin_impact_kind_name",
+      "excel_label": "Вид нефинансового последствия",
+      "order": 49,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "nonfin_impact_influence_class_name",
+      "source": "nonfinancial_impact",
+      "source_column": "nonfin_impact_influence_class_name",
+      "excel_label": "Класс влияния нефинансового последствия",
+      "order": 50,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    }
+  ],
+  "report_period_specific_ior": [
+    {
+      "technical_name": "incdnt_id",
+      "source": "main",
+      "source_column": "incdnt_id",
+      "excel_label": "Идентификационный ключ инцидента операционного риска",
+      "order": 1,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_sid",
+      "source": "main",
+      "source_column": "incdnt_sid",
+      "excel_label": "Идентификатор события",
+      "order": 2,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_status_name",
+      "source": "main",
+      "source_column": "incdnt_status_name",
+      "excel_label": "Статус события",
+      "order": 3,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_autoreg_flag",
+      "source": "main",
+      "source_column": "incdnt_autoreg_flag",
+      "excel_label": "Признак авторегистрации инцидента",
+      "order": 4,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_detection_person_name",
+      "source": "main",
+      "source_column": "incdnt_detection_person_name",
+      "excel_label": "Кем выявлено событие",
+      "order": 5,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_source_name",
+      "source": "main",
+      "source_column": "incdnt_source_name",
+      "excel_label": "Название источника",
+      "order": 6,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "src_type_lvl_1_name",
+      "source": "main",
+      "source_column": "src_type_lvl_1_name",
+      "excel_label": "Тип источника инцидента (уровень 1)",
+      "order": 7,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "src_type_lvl_2_name",
+      "source": "main",
+      "source_column": "src_type_lvl_2_name",
+      "excel_label": "Тип источника инцидента (уровень 2)",
+      "order": 8,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_type_lvl_1_name",
+      "source": "main",
+      "source_column": "incdnt_type_lvl_1_name",
+      "excel_label": "Тип события – уровень 1",
+      "order": 9,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_type_lvl_2_name",
+      "source": "main",
+      "source_column": "incdnt_type_lvl_2_name",
+      "excel_label": "Тип события – уровень 2",
+      "order": 10,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_detection_dt",
+      "source": "main",
+      "source_column": "incdnt_detection_dt",
+      "excel_label": "Дата обнаружения (Событие)",
+      "order": 11,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_start_dt",
+      "source": "main",
+      "source_column": "incdnt_start_dt",
+      "excel_label": "Дата начала инцидента операционного риска",
+      "order": 12,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_entry_dt",
+      "source": "main",
+      "source_column": "incdnt_entry_dt",
+      "excel_label": "Дата ввода (Событие)",
+      "order": 13,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_first_validated_dttm",
+      "source": "main",
+      "source_column": "incdnt_first_validated_dttm",
+      "excel_label": "Дата первого подтверждения",
+      "order": 14,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_last_validate_dttm",
+      "source": "main",
+      "source_column": "incdnt_last_validate_dttm",
+      "excel_label": "Дата последнего подтверждения",
+      "order": 15,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "risk_profile_id",
+      "source": "main",
+      "source_column": "risk_profile_id",
+      "excel_label": "Идентификатор профиля риска",
+      "order": 16,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "risk_profile_name",
+      "source": "main",
+      "source_column": "risk_profile_name",
+      "excel_label": "Наименование профиля риска",
+      "order": 17,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_client_type_name",
+      "source": "main",
+      "source_column": "incdnt_client_type_name",
+      "excel_label": "Тип клиента",
+      "order": 18,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_mistake_cnt",
+      "source": "main",
+      "source_column": "incdnt_mistake_cnt",
+      "excel_label": "Количество ошибок",
+      "order": 19,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_appl_num",
+      "source": "main",
+      "source_column": "incdnt_appl_num",
+      "excel_label": "Номер заявки",
+      "order": 20,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_agr_num",
+      "source": "main",
+      "source_column": "incdnt_agr_num",
+      "excel_label": "Номер договора",
+      "order": 21,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_agr_sid",
+      "source": "main",
+      "source_column": "incdnt_agr_sid",
+      "excel_label": "Идентификатор договора",
+      "order": 22,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_summary_descr_txt",
+      "source": "main",
+      "source_column": "incdnt_summary_descr_txt",
+      "excel_label": "Предварительное описание",
+      "order": 23,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_full_descr_txt",
+      "source": "main",
+      "source_column": "incdnt_full_descr_txt",
+      "excel_label": "Подробное описание",
+      "order": 24,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_id",
+      "source": "main",
+      "source_column": "org_struct_id",
+      "excel_label": "Идентификатор оргструктуры",
+      "order": 25,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_2_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_2_name",
+      "excel_label": "Орг. структура – уровень 2 (Терр. структура / Департамент ДЗО)",
+      "order": 26,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_3_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_3_name",
+      "excel_label": "Орг. структура – уровень 3 (Блок / ТБ / ПЦП)",
+      "order": 27,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_4_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_4_name",
+      "excel_label": "Орг. структура — уровень 4",
+      "order": 28,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_5_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_5_name",
+      "excel_label": "Орг. структура – уровень 5",
+      "order": 29,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_6_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_6_name",
+      "excel_label": "Орг. структура – уровень 6",
+      "order": 30,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_7_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_7_name",
+      "excel_label": "Орг. структура – уровень 7",
+      "order": 31,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_8_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_8_name",
+      "excel_label": "Орг. структура – уровень 8",
+      "order": 32,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_9_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_9_name",
+      "excel_label": "Орг. структура – уровень 9",
+      "order": 33,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_10_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_10_name",
+      "excel_label": "Орг. структура – уровень 10",
+      "order": 34,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "funct_block_id",
+      "source": "main",
+      "source_column": "funct_block_id",
+      "excel_label": "Идентификатор функционального блока",
+      "order": 35,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "funct_block_lvl_2_name",
+      "source": "main",
+      "source_column": "funct_block_lvl_2_name",
+      "excel_label": "Функциональный блок – уровень 2",
+      "order": 36,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "funct_block_lvl_3_name",
+      "source": "main",
+      "source_column": "funct_block_lvl_3_name",
+      "excel_label": "Функциональный блок – уровень 3",
+      "order": 37,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "funct_block_lvl_4_name",
+      "source": "main",
+      "source_column": "funct_block_lvl_4_name",
+      "excel_label": "Функциональный блок — уровень 4",
+      "order": 38,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "process_lvl_1_name",
+      "source": "main",
+      "source_column": "process_lvl_1_name",
+      "excel_label": "Процесс – уровень 1",
+      "order": 39,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "process_lvl_2_name",
+      "source": "main",
+      "source_column": "process_lvl_2_name",
+      "excel_label": "Процесс – уровень 2",
+      "order": 40,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "process_lvl_3_name",
+      "source": "main",
+      "source_column": "process_lvl_3_name",
+      "excel_label": "Процесс – уровень 3",
+      "order": 41,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "process_lvl_4_name",
+      "source": "main",
+      "source_column": "process_lvl_4_name",
+      "excel_label": "Процесс – уровень 4 (Наименование процесса)",
+      "order": 42,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "clntpth_lvl_4_name",
+      "source": "main",
+      "source_column": "clntpth_lvl_4_name",
+      "excel_label": "Клиентский путь – уровень 4",
+      "order": 43,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_security_risk_flag",
+      "source": "main",
+      "source_column": "incdnt_security_risk_flag",
+      "excel_label": "Связь с ИБ-риском",
+      "order": 44,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_infrmtn_sys_risk_flag",
+      "source": "main",
+      "source_column": "incdnt_infrmtn_sys_risk_flag",
+      "excel_label": "Связь с риском информационных систем",
+      "order": 45,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_behavior_risk_flag",
+      "source": "main",
+      "source_column": "incdnt_behavior_risk_flag",
+      "excel_label": "Связь с поведенческим риском",
+      "order": 46,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_model_risk_flag",
+      "source": "main",
+      "source_column": "incdnt_model_risk_flag",
+      "excel_label": "Связь с модельным риском",
+      "order": 47,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_sum",
+      "source": "main",
+      "source_column": "incdnt_sum",
+      "excel_label": "Общая сумма всех последствий (руб.)",
+      "order": 48,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_drct_dmg_sum",
+      "source": "main",
+      "source_column": "incdnt_drct_dmg_sum",
+      "excel_label": "Прямая потеря – итого (руб.)",
+      "order": 49,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_drct_dmg_cred_rub_amt",
+      "source": "main",
+      "source_column": "incdnt_drct_dmg_cred_rub_amt",
+      "excel_label": "Прямая потеря – с кредитным риском (руб.)",
+      "order": 50,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_drct_dmg_noncred_rub_amt",
+      "source": "main",
+      "source_column": "incdnt_drct_dmg_noncred_rub_amt",
+      "excel_label": "Прямая потеря – без кредитного риска (руб.)",
+      "order": 51,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_indrct_dmg_sum",
+      "source": "main",
+      "source_column": "incdnt_indrct_dmg_sum",
+      "excel_label": "Косвенная потеря – итого (руб.)",
+      "order": 52,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_indrct_dmg_cred_rub_amt",
+      "source": "main",
+      "source_column": "incdnt_indrct_dmg_cred_rub_amt",
+      "excel_label": "Косвенная потеря – с кредитным риском (руб.)",
+      "order": 53,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_indrct_dmg_noncred_rub_amt",
+      "source": "main",
+      "source_column": "incdnt_indrct_dmg_noncred_rub_amt",
+      "excel_label": "Косвенная потеря – без кредитного риска (руб.)",
+      "order": 54,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_unrlzd_dmg_sum",
+      "source": "main",
+      "source_column": "incdnt_unrlzd_dmg_sum",
+      "excel_label": "Нереализовавшаяся потеря – итого (руб.)",
+      "order": 55,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_unrlzd_dmg_cred_rub_amt",
+      "source": "main",
+      "source_column": "incdnt_unrlzd_dmg_cred_rub_amt",
+      "excel_label": "Нереализовавшаяся потеря – с кредитным риском (руб.)",
+      "order": 56,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_unrlzd_dmg_noncred_rub_amt",
+      "source": "main",
+      "source_column": "incdnt_unrlzd_dmg_noncred_rub_amt",
+      "excel_label": "Нереализовавшаяся потеря – без кредитного риска (руб.)",
+      "order": 57,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_thrd_prt_sum",
+      "source": "main",
+      "source_column": "incdnt_thrd_prt_sum",
+      "excel_label": "Потеря третьих лиц – итого (руб.)",
+      "order": 58,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_thrd_prt_cred_rub_amt",
+      "source": "main",
+      "source_column": "incdnt_thrd_prt_cred_rub_amt",
+      "excel_label": "Потеря третьих лиц – с кредитным риском (руб.)",
+      "order": 59,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_thrd_prt_noncred_rub_amt",
+      "source": "main",
+      "source_column": "incdnt_thrd_prt_noncred_rub_amt",
+      "excel_label": "Потеря третьих лиц – без кредитного риска (руб.)",
+      "order": 60,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_gain_sum",
+      "source": "main",
+      "source_column": "incdnt_gain_sum",
+      "excel_label": "Прибыль – итого (руб.)",
+      "order": 61,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_gain_cred_rub_amt",
+      "source": "main",
+      "source_column": "incdnt_gain_cred_rub_amt",
+      "excel_label": "Прибыль – с кредитным риском (руб.)",
+      "order": 62,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_gain_noncred_rub_amt",
+      "source": "main",
+      "source_column": "incdnt_gain_noncred_rub_amt",
+      "excel_label": "Прибыль – без кредитного риска (руб.)",
+      "order": 63,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "recovery_rub_amt_aggr",
+      "source": "main",
+      "source_column": "recovery_rub_amt_aggr",
+      "excel_label": "Возмещение – итого по инциденту (руб.)",
+      "order": 64,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "fin_impact_id",
+      "source": "financial_impact",
+      "source_column": "fin_impact_id",
+      "excel_label": "Идентификатор фин. последствия (ключ)",
+      "order": 65,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "fin_impact_sid",
+      "source": "financial_impact",
+      "source_column": "fin_impact_sid",
+      "excel_label": "Идентификатор фин. последствия (бизнес)",
+      "order": 66,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "fin_impact_type_name",
+      "source": "financial_impact",
+      "source_column": "fin_impact_type_name",
+      "excel_label": "Тип финансового последствия",
+      "order": 67,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "fin_impact_kind_name",
+      "source": "financial_impact",
+      "source_column": "fin_impact_kind_name",
+      "excel_label": "Вид финансового последствия",
+      "order": 68,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "fin_impact_monitoring_flag",
+      "source": "financial_impact",
+      "source_column": "fin_impact_monitoring_flag",
+      "excel_label": "Требует мониторинга (Последствие)",
+      "order": 69,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "fin_impact_crncy_code",
+      "source": "financial_impact",
+      "source_column": "fin_impact_crncy_code",
+      "excel_label": "Код валюты последствия",
+      "order": 70,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "fin_impact_local_crncy_code",
+      "source": "financial_impact",
+      "source_column": "fin_impact_local_crncy_code",
+      "excel_label": "Код локальной валюты последствия",
+      "order": 71,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "fin_impact_detection_dt",
+      "source": "financial_impact",
+      "source_column": "fin_impact_detection_dt",
+      "excel_label": "Дата обнаружения (Последствие)",
+      "order": 72,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "fin_impact_creation_dttm",
+      "source": "financial_impact",
+      "source_column": "fin_impact_creation_dttm",
+      "excel_label": "Дата создания (Последствие)",
+      "order": 73,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "fin_impact_reg_dt",
+      "source": "financial_impact",
+      "source_column": "fin_impact_reg_dt",
+      "excel_label": "Дата регистрации финансового последствия в учёте",
+      "order": 74,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "fin_impact_account_num",
+      "source": "financial_impact",
+      "source_column": "fin_impact_account_num",
+      "excel_label": "Аналитический счёт отражения в учёте",
+      "order": 75,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "fin_impact_docum_num",
+      "source": "financial_impact",
+      "source_column": "fin_impact_docum_num",
+      "excel_label": "Номер документа финансового последствия",
+      "order": 76,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "fi_busn_area_id",
+      "source": "financial_impact",
+      "source_column": "fi_busn_area_id",
+      "excel_label": "Идентификатор бизнес-области финансового последствия",
+      "order": 77,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "fi_org_struct_id",
+      "source": "financial_impact",
+      "source_column": "fi_org_struct_id",
+      "excel_label": "Идентификатор оргструктуры финансового последствия",
+      "order": 78,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "fin_impact_ccy_amt",
+      "source": "financial_impact",
+      "source_column": "fin_impact_ccy_amt",
+      "excel_label": "Сумма последствия (в валюте)",
+      "order": 79,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "fin_impact_local_ccy_amt",
+      "source": "financial_impact",
+      "source_column": "fin_impact_local_ccy_amt",
+      "excel_label": "Сумма последствия (в локальной валюте)",
+      "order": 80,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "fin_impact_rub_amt",
+      "source": "financial_impact",
+      "source_column": "fin_impact_rub_amt",
+      "excel_label": "Сумма последствия (руб.)",
+      "order": 81,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "recovery_sid",
+      "source": "recovery",
+      "source_column": "recovery_sid",
+      "excel_label": "Идентификатор возмещения",
+      "order": 82,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "recovery_type_name",
+      "source": "recovery",
+      "source_column": "recovery_type_name",
+      "excel_label": "Тип возмещения",
+      "order": 83,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "recovery_crncy_code",
+      "source": "recovery",
+      "source_column": "recovery_crncy_code",
+      "excel_label": "Код валюты возмещения",
+      "order": 84,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "recovery_local_crncy_code",
+      "source": "recovery",
+      "source_column": "recovery_local_crncy_code",
+      "excel_label": "Код локальной валюты возмещения",
+      "order": 85,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "recovery_src_account_num",
+      "source": "recovery",
+      "source_column": "recovery_src_account_num",
+      "excel_label": "Номер счёта — источник перевода",
+      "order": 86,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "recovery_doc_num",
+      "source": "recovery",
+      "source_column": "recovery_doc_num",
+      "excel_label": "Номер документа возмещения",
+      "order": 87,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "recovery_creation_dttm",
+      "source": "recovery",
+      "source_column": "recovery_creation_dttm",
+      "excel_label": "Дата создания возмещения",
+      "order": 88,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "recovery_reg_dt",
+      "source": "recovery",
+      "source_column": "recovery_reg_dt",
+      "excel_label": "Дата регистрации возмещения в учёте",
+      "order": 89,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "recovery_ccy_amt",
+      "source": "recovery",
+      "source_column": "recovery_ccy_amt",
+      "excel_label": "Сумма возмещения (в валюте)",
+      "order": 90,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "recovery_local_ccy_amt",
+      "source": "recovery",
+      "source_column": "recovery_local_ccy_amt",
+      "excel_label": "Сумма возмещения (в локальной валюте)",
+      "order": 91,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "recovery_rub_amt",
+      "source": "recovery",
+      "source_column": "recovery_rub_amt",
+      "excel_label": "Сумма возмещения (руб.)",
+      "order": 92,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    }
+  ],
+  "ior_hypothesis": [
+    {
+      "technical_name": "incdnt_id",
+      "source": "main",
+      "source_column": "incdnt_id",
+      "excel_label": "Идентификационный ключ инцидента операционного риска",
+      "order": 1,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_sid",
+      "source": "main",
+      "source_column": "incdnt_sid",
+      "excel_label": "Идентификатор события",
+      "order": 2,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_status_name",
+      "source": "main",
+      "source_column": "incdnt_status_name",
+      "excel_label": "Статус события",
+      "order": 3,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_autoreg_flag",
+      "source": "main",
+      "source_column": "incdnt_autoreg_flag",
+      "excel_label": "Признак авторегистрации инцидента",
+      "order": 4,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_detection_person_name",
+      "source": "main",
+      "source_column": "incdnt_detection_person_name",
+      "excel_label": "Кем выявлено событие",
+      "order": 5,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_source_name",
+      "source": "main",
+      "source_column": "incdnt_source_name",
+      "excel_label": "Название источника",
+      "order": 6,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "src_type_lvl_1_name",
+      "source": "main",
+      "source_column": "src_type_lvl_1_name",
+      "excel_label": "Тип источника инцидента (уровень 1)",
+      "order": 7,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "src_type_lvl_2_name",
+      "source": "main",
+      "source_column": "src_type_lvl_2_name",
+      "excel_label": "Тип источника инцидента (уровень 2)",
+      "order": 8,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_type_lvl_1_name",
+      "source": "main",
+      "source_column": "incdnt_type_lvl_1_name",
+      "excel_label": "Тип события – уровень 1",
+      "order": 9,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_type_lvl_2_name",
+      "source": "main",
+      "source_column": "incdnt_type_lvl_2_name",
+      "excel_label": "Тип события – уровень 2",
+      "order": 10,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_detection_dt",
+      "source": "main",
+      "source_column": "incdnt_detection_dt",
+      "excel_label": "Дата обнаружения (Событие)",
+      "order": 11,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_start_dt",
+      "source": "main",
+      "source_column": "incdnt_start_dt",
+      "excel_label": "Дата начала инцидента операционного риска",
+      "order": 12,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_entry_dt",
+      "source": "main",
+      "source_column": "incdnt_entry_dt",
+      "excel_label": "Дата ввода (Событие)",
+      "order": 13,
+      "required": true,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_first_validated_dttm",
+      "source": "main",
+      "source_column": "incdnt_first_validated_dttm",
+      "excel_label": "Дата первого подтверждения",
+      "order": 14,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_last_validate_dttm",
+      "source": "main",
+      "source_column": "incdnt_last_validate_dttm",
+      "excel_label": "Дата последнего подтверждения",
+      "order": 15,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "risk_profile_id",
+      "source": "main",
+      "source_column": "risk_profile_id",
+      "excel_label": "Идентификатор профиля риска",
+      "order": 16,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "risk_profile_name",
+      "source": "main",
+      "source_column": "risk_profile_name",
+      "excel_label": "Наименование профиля риска",
+      "order": 17,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_client_type_name",
+      "source": "main",
+      "source_column": "incdnt_client_type_name",
+      "excel_label": "Тип клиента",
+      "order": 18,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_mistake_cnt",
+      "source": "main",
+      "source_column": "incdnt_mistake_cnt",
+      "excel_label": "Количество ошибок",
+      "order": 19,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_appl_num",
+      "source": "main",
+      "source_column": "incdnt_appl_num",
+      "excel_label": "Номер заявки",
+      "order": 20,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_agr_num",
+      "source": "main",
+      "source_column": "incdnt_agr_num",
+      "excel_label": "Номер договора",
+      "order": 21,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_agr_sid",
+      "source": "main",
+      "source_column": "incdnt_agr_sid",
+      "excel_label": "Идентификатор договора",
+      "order": 22,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_summary_descr_txt",
+      "source": "main",
+      "source_column": "incdnt_summary_descr_txt",
+      "excel_label": "Предварительное описание",
+      "order": 23,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_full_descr_txt",
+      "source": "main",
+      "source_column": "incdnt_full_descr_txt",
+      "excel_label": "Подробное описание",
+      "order": 24,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_id",
+      "source": "main",
+      "source_column": "org_struct_id",
+      "excel_label": "Идентификатор оргструктуры",
+      "order": 25,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_2_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_2_name",
+      "excel_label": "Орг. структура – уровень 2 (Терр. структура / Департамент ДЗО)",
+      "order": 26,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_3_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_3_name",
+      "excel_label": "Орг. структура – уровень 3 (Блок / ТБ / ПЦП)",
+      "order": 27,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_4_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_4_name",
+      "excel_label": "Орг. структура — уровень 4",
+      "order": 28,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_5_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_5_name",
+      "excel_label": "Орг. структура – уровень 5",
+      "order": 29,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_6_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_6_name",
+      "excel_label": "Орг. структура – уровень 6",
+      "order": 30,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_7_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_7_name",
+      "excel_label": "Орг. структура – уровень 7",
+      "order": 31,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_8_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_8_name",
+      "excel_label": "Орг. структура – уровень 8",
+      "order": 32,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_9_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_9_name",
+      "excel_label": "Орг. структура – уровень 9",
+      "order": 33,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "org_struct_lvl_10_name",
+      "source": "main",
+      "source_column": "org_struct_lvl_10_name",
+      "excel_label": "Орг. структура – уровень 10",
+      "order": 34,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "funct_block_id",
+      "source": "main",
+      "source_column": "funct_block_id",
+      "excel_label": "Идентификатор функционального блока",
+      "order": 35,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "funct_block_lvl_2_name",
+      "source": "main",
+      "source_column": "funct_block_lvl_2_name",
+      "excel_label": "Функциональный блок – уровень 2",
+      "order": 36,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "funct_block_lvl_3_name",
+      "source": "main",
+      "source_column": "funct_block_lvl_3_name",
+      "excel_label": "Функциональный блок – уровень 3",
+      "order": 37,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "funct_block_lvl_4_name",
+      "source": "main",
+      "source_column": "funct_block_lvl_4_name",
+      "excel_label": "Функциональный блок — уровень 4",
+      "order": 38,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "process_lvl_1_name",
+      "source": "main",
+      "source_column": "process_lvl_1_name",
+      "excel_label": "Процесс – уровень 1",
+      "order": 39,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "process_lvl_2_name",
+      "source": "main",
+      "source_column": "process_lvl_2_name",
+      "excel_label": "Процесс – уровень 2",
+      "order": 40,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "process_lvl_3_name",
+      "source": "main",
+      "source_column": "process_lvl_3_name",
+      "excel_label": "Процесс – уровень 3",
+      "order": 41,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "process_lvl_4_name",
+      "source": "main",
+      "source_column": "process_lvl_4_name",
+      "excel_label": "Процесс – уровень 4 (Наименование процесса)",
+      "order": 42,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "clntpth_lvl_4_name",
+      "source": "main",
+      "source_column": "clntpth_lvl_4_name",
+      "excel_label": "Клиентский путь – уровень 4",
+      "order": 43,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_security_risk_flag",
+      "source": "main",
+      "source_column": "incdnt_security_risk_flag",
+      "excel_label": "Связь с ИБ-риском",
+      "order": 44,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_infrmtn_sys_risk_flag",
+      "source": "main",
+      "source_column": "incdnt_infrmtn_sys_risk_flag",
+      "excel_label": "Связь с риском информационных систем",
+      "order": 45,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_behavior_risk_flag",
+      "source": "main",
+      "source_column": "incdnt_behavior_risk_flag",
+      "excel_label": "Связь с поведенческим риском",
+      "order": 46,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_model_risk_flag",
+      "source": "main",
+      "source_column": "incdnt_model_risk_flag",
+      "excel_label": "Связь с модельным риском",
+      "order": 47,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_sum",
+      "source": "main",
+      "source_column": "incdnt_sum",
+      "excel_label": "Общая сумма всех последствий (руб.)",
+      "order": 48,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_drct_dmg_sum",
+      "source": "main",
+      "source_column": "incdnt_drct_dmg_sum",
+      "excel_label": "Прямая потеря – итого (руб.)",
+      "order": 49,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_drct_dmg_cred_rub_amt",
+      "source": "main",
+      "source_column": "incdnt_drct_dmg_cred_rub_amt",
+      "excel_label": "Прямая потеря – с кредитным риском (руб.)",
+      "order": 50,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_drct_dmg_noncred_rub_amt",
+      "source": "main",
+      "source_column": "incdnt_drct_dmg_noncred_rub_amt",
+      "excel_label": "Прямая потеря – без кредитного риска (руб.)",
+      "order": 51,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_indrct_dmg_sum",
+      "source": "main",
+      "source_column": "incdnt_indrct_dmg_sum",
+      "excel_label": "Косвенная потеря – итого (руб.)",
+      "order": 52,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_indrct_dmg_cred_rub_amt",
+      "source": "main",
+      "source_column": "incdnt_indrct_dmg_cred_rub_amt",
+      "excel_label": "Косвенная потеря – с кредитным риском (руб.)",
+      "order": 53,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_indrct_dmg_noncred_rub_amt",
+      "source": "main",
+      "source_column": "incdnt_indrct_dmg_noncred_rub_amt",
+      "excel_label": "Косвенная потеря – без кредитного риска (руб.)",
+      "order": 54,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_unrlzd_dmg_sum",
+      "source": "main",
+      "source_column": "incdnt_unrlzd_dmg_sum",
+      "excel_label": "Нереализовавшаяся потеря – итого (руб.)",
+      "order": 55,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_unrlzd_dmg_cred_rub_amt",
+      "source": "main",
+      "source_column": "incdnt_unrlzd_dmg_cred_rub_amt",
+      "excel_label": "Нереализовавшаяся потеря – с кредитным риском (руб.)",
+      "order": 56,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_unrlzd_dmg_noncred_rub_amt",
+      "source": "main",
+      "source_column": "incdnt_unrlzd_dmg_noncred_rub_amt",
+      "excel_label": "Нереализовавшаяся потеря – без кредитного риска (руб.)",
+      "order": 57,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_thrd_prt_sum",
+      "source": "main",
+      "source_column": "incdnt_thrd_prt_sum",
+      "excel_label": "Потеря третьих лиц – итого (руб.)",
+      "order": 58,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_thrd_prt_cred_rub_amt",
+      "source": "main",
+      "source_column": "incdnt_thrd_prt_cred_rub_amt",
+      "excel_label": "Потеря третьих лиц – с кредитным риском (руб.)",
+      "order": 59,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_thrd_prt_noncred_rub_amt",
+      "source": "main",
+      "source_column": "incdnt_thrd_prt_noncred_rub_amt",
+      "excel_label": "Потеря третьих лиц – без кредитного риска (руб.)",
+      "order": 60,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_gain_sum",
+      "source": "main",
+      "source_column": "incdnt_gain_sum",
+      "excel_label": "Прибыль – итого (руб.)",
+      "order": 61,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_gain_cred_rub_amt",
+      "source": "main",
+      "source_column": "incdnt_gain_cred_rub_amt",
+      "excel_label": "Прибыль – с кредитным риском (руб.)",
+      "order": 62,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "incdnt_gain_noncred_rub_amt",
+      "source": "main",
+      "source_column": "incdnt_gain_noncred_rub_amt",
+      "excel_label": "Прибыль – без кредитного риска (руб.)",
+      "order": 63,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    },
+    {
+      "technical_name": "recovery_rub_amt_aggr",
+      "source": "main",
+      "source_column": "recovery_rub_amt_aggr",
+      "excel_label": "Возмещение – итого по инциденту (руб.)",
+      "order": 64,
+      "required": false,
+      "present_repository_schema": true,
+      "live_cache_schema": "unavailable_empty_local_cache"
+    }
+  ]
+}

@@ -538,7 +538,7 @@ class RunReportRoutingRegressionTests(unittest.IsolatedAsyncioTestCase):
 
             def query_sql(self, sql):
                 self.queries.append(sql)
-                return pd.DataFrame()
+                return pd.DataFrame(columns=["incdnt_id", "incdnt_sid", "incdnt_status_name", "incdnt_entry_dt"])
 
         cases = [
             ("vozmeshenie_ior", "за 2025 год", "incident_recovery"),
@@ -557,7 +557,7 @@ class RunReportRoutingRegressionTests(unittest.IsolatedAsyncioTestCase):
                 result = await run_ior_report(preset, "routing-test", prompt)
                 self.assertTrue(result.endswith("ok"))
                 self.assertIn("Источник данных доступен", result)
-            self.assertIn(sql_marker, store.queries[0])
+            self.assertIn(sql_marker, store.queries[1])
             self.assertEqual(narrative.await_args.kwargs["preset_name"], preset)
 
     async def test_run_report_corrects_false_tool_dossier_for_drp(self):
@@ -569,7 +569,7 @@ class RunReportRoutingRegressionTests(unittest.IsolatedAsyncioTestCase):
 
             def query_sql(self, sql):
                 self.queries.append(sql)
-                return pd.DataFrame()
+                return pd.DataFrame(columns=["incdnt_id", "incdnt_sid", "incdnt_status_name", "incdnt_entry_dt"])
 
         store = Store()
         narrative = AsyncMock(return_value="ok")

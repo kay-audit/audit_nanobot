@@ -91,6 +91,7 @@ async def test_execute_delegates_to_skill_runner(monkeypatch):
 
     assert result == "готовый отчёт"
     assert captured == {
+        "trusted_preset": False,
         "preset_name": "financial_consequences_ior",
         "session_id": "pg:42",
         "user_prompt": "Покажи потери",

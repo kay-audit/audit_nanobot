@@ -51,52 +51,11 @@ def test_empty_prompt_is_safe():
     assert planner.has_comparative_threshold("") is False
 
 
-# --- plan_widening_presets ----------------------------------------------
+# Empty business populations must never be silently expanded.
+import pytest
 
-def test_wrong_preset_widens_to_base_vitrine():
-    """deleted_ior дал ноль строк — идём к базовой витрине инцидентов."""
-    assert planner.plan_widening_presets("deleted_ior", has_filters=True) == [
-        "deleted_ior",
-        "ior_hypothesis",
-    ]
-
-
-def test_financial_preset_widens_to_base_vitrine():
-    assert planner.plan_widening_presets(
-        "financial_consequences_ior", has_filters=True
-    ) == [
-        "financial_consequences_ior",
-        "ior_hypothesis",
-    ]
-
-
-def test_base_preset_without_filters_has_nothing_to_widen():
-    """Пресетный запрос базы уже выполнялся и дал ноль — повтор не нужен."""
-    assert planner.plan_widening_presets("ior_hypothesis", has_filters=False) == []
-
-
-def test_base_preset_after_dynamic_query_retries_without_llm_where():
-    """Регрессия живого прогона: LLM-WHERE обнулил выборку, но готовый
-    запрос пресета по базе НЕ выполнялся — без него агент заключал,
-    что данных нет."""
-    assert planner.plan_widening_presets("ior_hypothesis", has_filters=True) == [
-        "ior_hypothesis"
-    ]
-
-
-def test_unknown_preset_still_reaches_base():
-    """Пресет без физической таблицы не должен блокировать базовый источник."""
-    steps = planner.plan_widening_presets("no_such_preset", has_filters=True)
-    assert steps[-1] == "ior_hypothesis"
-
-
-def test_base_never_repeated():
-    for preset in (
-        "deleted_ior",
-        "vozmeshenie_ior",
-        "report_period_specific_ior",
-        "ior_hypothesis",
-    ):
-        for has_filters in (True, False):
-            steps = planner.plan_widening_presets(preset, has_filters)
-            assert steps.count(planner.BASE_PRESET) <= 1, (preset, has_filters)
+@pytest.mark.parametrize('preset', ['deleted_ior', 'financial_consequences_ior',
+                                   'vozmeshenie_ior', 'ior_hypothesis', 'unknown'])
+@pytest.mark.parametrize('has_filters', [True, False])
+def test_empty_population_never_widens(preset, has_filters):
+    assert planner.plan_widening_presets(preset, has_filters) == []

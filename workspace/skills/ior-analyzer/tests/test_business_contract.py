@@ -419,7 +419,7 @@ class FlowTests(unittest.IsolatedAsyncioTestCase):
     async def test_empty_selection_keeps_filters_and_reports_available_source(self):
         from types import SimpleNamespace
         store = SimpleNamespace(tables=DUCKDB_TABLES, backend_name='fixture')
-        store.query_sql = unittest.mock.Mock(side_effect=[frame().iloc[:0], frame()])
+        store.query_sql = unittest.mock.Mock(side_effect=[frame().iloc[:0], frame().iloc[:0]])
         with patch.object(ground,'load_catalog',return_value=CAT), \
              patch.object(reports,'get_session_extract',return_value=None), \
              patch.object(reports,'get_data_store',return_value=store), \
@@ -430,7 +430,7 @@ class FlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(narrative.call_args.args[1].empty)
         self.assertEqual(narrative.call_args.kwargs['preset_name'],'ior_hypothesis')
         self.assertTrue(get_session_extract('empty-filter')['df'].empty)
-        self.assertIn('2020-01-01',store.query_sql.call_args_list[0].args[0])
+        self.assertIn('2020-01-01',store.query_sql.call_args_list[1].args[0])
         index.assert_not_called()
 
     async def test_empty_source_notice_survives_llm_failure(self):

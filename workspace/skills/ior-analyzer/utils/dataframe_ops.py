@@ -715,7 +715,7 @@ async def export_excel(ctx, df_id: str,
     )
 
 
-def _normalize_df_for_excel(df):
+def _normalize_df_for_excel(df, *, format_columns=True):
     """Готовит DataFrame для записи в xlsx — Spark/Hive часто отдаёт типы,
     которые openpyxl/xlsxwriter не пишут корректно:
       * decimal.Decimal -> float (openpyxl пишет Decimal как str "1234.5",
@@ -759,12 +759,12 @@ def _normalize_df_for_excel(df):
                         s_cleaned = s_cleaned.str.replace(",", ".", regex=False)
                         numeric_ser = pd.to_numeric(s_cleaned, errors="coerce")
                         if numeric_ser.notna().sum() >= ser.notna().sum() * 0.5:
-                            out[col] = numeric_ser.fillna(0.0)
+                            out[col] = numeric_ser
                     except Exception:
                         pass
 
     # Стандартизация названий колонок в результирующем Excel
-    return format_df_with_cyrillic(out)
+    return format_df_with_cyrillic(out) if format_columns else out
 
 
 CYRILLIC_RENAME = {
@@ -1072,10 +1072,10 @@ def prepare_df_for_excel(df: pd.DataFrame) -> pd.DataFrame:
     df = df[ordered]
     for col in df.columns:
         col_str = str(col).lower().strip()
-        if any(kw in col_str for kw in ("id", "sid", "key", "ключ", "код", "идентификатор")) and not any(kw in col_str for kw in ("sum", "amt", "loss", "сумма", "потер", "руб", "cnt", "count", "кол-во", "колво")):
+        if any(kw in col_str for kw in ("id", "sid", "key", "ключ", "код", "идентификатор", "_num")) and not any(kw in col_str for kw in ("sum", "amt", "loss", "сумма", "потер", "руб", "cnt", "count", "кол-во", "колво")):
             def _clean_id(val):
                 if pd.isna(val) or val is None:
-                    return ""
+                    return None
                 if isinstance(val, float):
                     if val.is_integer():
                         return str(int(val))
@@ -1087,7 +1087,7 @@ def prepare_df_for_excel(df: pd.DataFrame) -> pd.DataFrame:
                     val_s = val_s[:-2]
                 return val_s
 
-            df[col] = df[col].apply(_clean_id).astype(str)
+            df[col] = df[col].apply(_clean_id)
     return df
 
 
@@ -1141,7 +1141,7 @@ def aggregate_by_incident_id(df: pd.DataFrame) -> pd.DataFrame:
 
 
 
-def _write_xlsx_safe(df, path, sheet_name):
+def _write_xlsx_safe(df, path, sheet_name, *, format_columns=True):
     """Atomic write с fsync и verify:
     1. Нормализуем типы (Decimal -> float, tz-aware -> naive)
     2. Пишем во временный *.tmp файл — engine xlsxwriter (надёжнее
@@ -1159,16 +1159,20 @@ def _write_xlsx_safe(df, path, sheet_name):
     tmp = path.with_suffix(path.suffix + ".tmp")
 
     # 1. Нормализация
-    df_safe = _normalize_df_for_excel(df)
+    df_safe = _normalize_df_for_excel(df, format_columns=format_columns)
 
     # 2. Запись в .tmp через xlsxwriter (надёжнее openpyxl на Decimal/NaT)
     try:
         df_safe.to_excel(tmp, sheet_name=sheet_name, index=False,
-                         engine="xlsxwriter")
+                         engine="xlsxwriter", engine_kwargs={"options": {
+                             "strings_to_formulas": False, "strings_to_urls": False,
+                         }})
     except ImportError:
         # xlsxwriter не установлен - fallback в openpyxl
-        df_safe.to_excel(tmp, sheet_name=sheet_name, index=False,
-                         engine="openpyxl")
+        from utils.excel_literal import force_literal_excel_cells
+        with pd.ExcelWriter(tmp, engine="openpyxl") as writer:
+            df_safe.to_excel(writer, sheet_name=sheet_name, index=False)
+            force_literal_excel_cells(writer.sheets[sheet_name])
 
     # 3. fsync файла + директории — на NFS это критично
     try:
