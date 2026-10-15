@@ -19,7 +19,7 @@ integration:
     sha: e4a3fda782b1eda63ff4f5205b22a6765c850abc
     manifest: workspace/data_store/cache/sessions/finalize_nanobot_20261015/evidence/feature-d3_crm.yaml
   - branch: feature/osiris
-    sha: e85154bb57ab0539e6d0fab4483472337c1196ff
+    sha: 4fa10d27da83ac9b9ac9b588dfc0cae0c5c4b24a
     manifest: workspace/data_store/cache/sessions/finalize_nanobot_20261015/evidence/feature-osiris.yaml
 requires:
   nanobot_version: '>=2.5.4'
