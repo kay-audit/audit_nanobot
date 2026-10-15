@@ -119,7 +119,7 @@ def wait_result(profile: ServiceProfile, session_id, request_id, request_type,
                 if not profile.heartbeat_live(heartbeat) or heartbeat.get("status") in {"stopped", "idle_stopping"}:
                     recovered = True
                     logger.warning("Osiris worker lost during request %s; one restart attempt", request_id)
-                    ensure_ready(profile, timeout=min(profile.startup_wait_timeout_sec,
+                    ensure_ready(profile, timeout=min(profile.startup_wait_timeout_sec, timeout_sec,
                                                        max(.001, deadline - time.monotonic())))
             time.sleep(min(POLL_SEC, max(0, deadline - time.monotonic())))
     finally:

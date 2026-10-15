@@ -34,6 +34,23 @@ def echo(payload,context):
     return {'payload':payload,'session':context.session_id,'consumer':context.consumer_id}
 
 
+def test_json_recovery_budget_never_exceeds_request_timeout(profile, monkeypatch):
+    profile = replace(profile, startup_wait_timeout_sec=10)
+    rid = json_transport.submit(profile, 'session', 'echo', {'bounded': True})
+    monkeypatch.setattr(ServiceProfile, 'read_heartbeat', lambda self: {'status': 'stopped'})
+    monkeypatch.setattr(json_transport.time, 'monotonic', lambda: 12345.0)
+    monkeypatch.setattr(json_transport.time, 'sleep', lambda seconds: None)
+
+    def recover(actual, *, timeout):
+        assert 0 < timeout <= .2
+        process_json_request(actual, actual.nfs_root / 'inbox' / f'{rid}.json',
+                             HandlerRegistry().register('echo', echo))
+
+    monkeypatch.setattr(json_transport, 'ensure_ready', recover)
+    result = json_transport.wait(profile, 'session', rid, 'echo', timeout_sec=.2)
+    assert result.value['payload'] == {'bounded': True}
+
+
 def roundtrip(profile,payload,*,session='session',consumer='first',handlers=None,**kwargs):
     rid=json_transport.submit(profile,session,'echo',payload,consumer_id=consumer,**kwargs)
     process_json_request(profile,profile.nfs_root/'inbox'/f'{rid}.json',handlers or HandlerRegistry().register('echo',echo))

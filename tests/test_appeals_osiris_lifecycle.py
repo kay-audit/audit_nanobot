@@ -376,6 +376,8 @@ class TransportRecoveryTests(unittest.TestCase):
             client._atomic_pickle({"request_id": request_id, "request_type": "retrieve", "result": ["ok"]},
                                   dirs["output"] / f"{request_id}.pkl")
         with patch.object(ServiceProfile, "read_heartbeat", return_value={"status": "stopped"}), \
+                patch.object(client.time, "monotonic", return_value=12345.0), \
+                patch.object(client.time, "sleep"), \
                 patch.object(client, "ensure_ready", side_effect=recover) as start:
             result = client.wait_result(self.profile, "session", request_id, "retrieve", .2, auto_recover=True)
         self.assertEqual(result, ["ok"])
