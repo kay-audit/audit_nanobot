@@ -366,3 +366,13 @@ def test_wrong_session_cleanup_and_wait_cannot_remove_another_request(shared):
         if transport=='legacy':
             with pytest.raises(OsirisRequestError): client.wait_result(p,'stranger',rid,'echo')
             assert (p.nfs_root/'inbox'/(rid+'.json')).exists()
+
+
+@pytest.mark.parametrize('listed',[[{'unrecognized_id':'job'}],['other-component-job']])
+def test_unknown_sdk_discovery_or_foreign_job_never_creates_second_job(shared,listed):
+    deployment,profiles=shared
+    sdk=FakeSDK(deployment.profile,{})
+    sdk.list=lambda:listed
+    sdk.state=lambda name:'Running'
+    with pytest.raises(OsirisUnavailableError): lifecycle.ensure_ready(profiles[0],sdk,timeout=.03)
+    assert not sdk.shared.get('creates')

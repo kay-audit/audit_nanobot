@@ -172,6 +172,8 @@ def discover(profile: ServiceProfile, osiris):
     if not isinstance(listed, (dict, list, tuple, set)):
         return actual, "unknown", listed
     names = _names(listed)
+    if listed and not names and not isinstance(listed, dict):
+        return actual, "unknown", "SDK returned nonempty jobs without recognizable names"
     if isinstance(listed, dict) and listed and not names:
         if not any(key in listed and listed[key] == [] for key in ("jobs", "items", "data", "results")):
             return actual, "unknown", listed
@@ -402,6 +404,8 @@ def ensure_ready(profile: ServiceProfile, osiris=None, *, timeout: float | None 
                    for legacy in deployment.legacy_job_names):
                 if query_state(sdk, name)[0] not in TERMINAL:
                     raise OsirisUnavailableError("Legacy GPU job exists; operator must retire it before shared deployment")
+            if not _matches(deployment.profile, name) and query_state(sdk, name)[0] not in TERMINAL:
+                raise OsirisUnavailableError("Another GPU job exists or has unknown state; inspect it before shared startup")
         result = ensure_ready(deployment.profile, sdk, timeout=timeout)
         if not profile.heartbeat_ready(profile.read_heartbeat()):
             raise OsirisUnavailableError("Shared worker does not advertise the logical service capabilities")
