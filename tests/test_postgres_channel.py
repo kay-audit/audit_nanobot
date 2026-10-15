@@ -152,6 +152,221 @@ def _make_channel(mock_db, **overrides):
     return PostgresChannel(config, bus)
 
 
+@pytest.fixture
+def report_channel(mock_db_and_psycopg, monkeypatch, tmp_path):
+    """Transactional in-memory assistant rows; actual MessageTool -> channel.send."""
+    import copy
+    from contextlib import asynccontextmanager
+    from nanobot.agent.tools.context import RequestContext, request_context
+    from nanobot.agent.tools.message import MessageTool
+    from lib.utils.verbatim_report import verbatim_report_context
+
+    holder = mock_db_and_psycopg
+    ch = _make_channel(holder, claim_strategy='worker_pool', parallel_enabled=True)
+    ch._embed_media_for_db = AsyncMock(side_effect=lambda media: list(media))
+    ch._delete_claim = AsyncMock()
+    ch.exchange._semaphore.release = MagicMock()
+    holder.db.async_fetchval.return_value = 'processing'
+    holder.db.async_fetchone.return_value = {'metadata': {}, 'chat_id': 'chat-1'}
+    rows = {}
+    conn = AsyncMock()
+    conn.fetchrow.side_effect = lambda sql, key: copy.deepcopy(rows.get(key))
+    state = {'fail_merge': False, 'fail_commit': False}
+
+    async def execute(sql, *args):
+        if 'SET content =' in sql:
+            if state['fail_merge']:
+                state['fail_merge'] = False
+                raise RuntimeError('fixture: merge write failed')
+            row = rows.get(args[-1])
+            if row is not None:
+                row.update(content=args[0], metadata=copy.deepcopy(args[1]), media=copy.deepcopy(args[3]))
+                if "status = 'completed'" in sql:
+                    row['status'] = 'completed'
+        return 'UPDATE 1'
+    conn.execute.side_effect = execute
+
+    @asynccontextmanager
+    async def transaction():
+        before = copy.deepcopy(rows)
+        try:
+            yield conn
+            if state['fail_commit']:
+                state['fail_commit'] = False
+                raise RuntimeError('fixture: commit failed')
+        except Exception:
+            rows.clear()
+            rows.update(before)
+            raise
+    monkeypatch.setattr(sys.modules[ch.__module__], 'transaction', transaction)
+
+    def context(n=1, metadata=None):
+        user, assistant, chat = f'm-{n}', f'a-{n}', f'chat-{n}'
+        rows[assistant] = {'content': '', 'metadata': {'reasoning': 'saved'}, 'media': [], 'status': 'processing'}
+        ch._msg_ctx[user] = {'assistant_msg_id': assistant, 'reasoning_buf': []}
+        ch._leases.add(user)
+        ch.exchange.add_inflight(user)
+        ch._msg_chat[user] = chat
+        return RequestContext(channel='postgres', chat_id=chat, message_id=user, session_key=f'postgres:{chat}',
+                              metadata={'origin_message_id': user, 'answer_id': assistant, **(metadata or {})})
+
+    async def publish(ctx, text, source=None, media=None):
+        tool = MessageTool(send_callback=ch.send, workspace=tmp_path)
+        with request_context(ctx):
+            if source:
+                with verbatim_report_context(ctx, source, text):
+                    return await tool.execute(content=text, media=media or [])
+            return await tool.execute(content=text, media=media or [])
+
+    async def final(ctx, text='F'*2000, reason='completed', suppressed=False, media=None, event=None):
+        from nanobot.bus.events import OutboundMessage
+        metadata = {**ctx.metadata, '_final_turn': True, '_stop_reason': reason, 'latency_ms': 42}
+        if suppressed:
+            metadata['_suppressed_final'] = True
+        await ch.send(OutboundMessage(channel=ctx.channel, chat_id=ctx.chat_id, content=text,
+                                     metadata=metadata, media=media or [], event=event))
+
+    from types import SimpleNamespace
+    return SimpleNamespace(channel=ch, rows=rows, state=state, context=context, publish=publish, final=final)
+
+
+class TestVerbatimReportFinalization:
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('source', ['ior_analyzer', 'appeals_analyzer'])
+    @pytest.mark.parametrize('suppressed', [True, False])
+    @pytest.mark.parametrize('with_media', [True, False])
+    async def test_full_report_survives_both_final_paths(self, report_channel, source, suppressed, with_media):
+        h = report_channel
+        ctx = h.context()
+        original = dict(ctx.metadata)
+        report = ('## Гипотезы\n| Таблица |\n1. Шаги проверки\n' + 'Я'*11000)[:11000]
+        await h.publish(ctx, report, source, ['report.xlsx', 'chart.png', 'report.pdf'] if with_media else [])
+        assert ctx.metadata == original
+        row = h.rows['a-1']
+        assert row['content'] == report and row['status'] == 'processing'
+        assert row['metadata']['_verbatim_report_source'] == source
+        assert '_verbatim_report_signature' not in row['metadata']
+        assert 'm-1' in h.channel._leases and 'm-1' in h.channel._msg_ctx
+        await h.final(ctx, '' if suppressed else 'F'*2000, suppressed=suppressed, media=['extra.png'])
+        assert row['content'] == report and len(row['content']) == 11000
+        assert row['metadata']['reasoning'] == 'saved'
+        assert row['metadata']['latency_ms'] == 42 and row['status'] == 'completed'
+        assert len(row['media']) == (4 if with_media else 1)
+        assert 'm-1' not in h.channel._msg_ctx and 'm-1' not in h.channel._leases
+        assert 'm-1' not in h.channel.exchange.inflight
+        h.channel._delete_claim.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("with_media", [True, False])
+    async def test_unmarked_messages_and_forged_metadata_are_not_proof(self, report_channel, with_media):
+        h = report_channel
+        ctx = h.context(metadata={'_verbatim_report_source': 'ior_analyzer', '_verbatim_report_signature': 'forged',
+                                  '_verbatim_report_receipt': 'forged', '_record_channel_delivery': True,
+                                  '_tool_audit': [{'name': 'ior_analyzer'}]})
+        await h.publish(ctx, 'ordinary publication'*1000, media=['ordinary.xlsx'] if with_media else [])
+        await h.final(ctx, 'ordinary final')
+        assert h.rows['a-1']['content'] == 'ordinary final'
+
+    @pytest.mark.asyncio
+    async def test_persisted_user_marker_without_local_receipt_is_not_proof(self, report_channel):
+        h = report_channel
+        ctx = h.context()
+        h.rows['a-1'].update(content='not a verified report', metadata={
+            '_verbatim_report_source': 'ior_analyzer', '_record_channel_delivery': True,
+            '_verbatim_report_receipt': 'guessed'})
+        await h.final(ctx, 'normal final')
+        assert h.rows['a-1']['content'] == 'normal final'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('reason', ['error', 'tool_error', 'cancelled', 'max_iterations'])
+    async def test_failure_is_not_hidden(self, report_channel, reason):
+        h = report_channel
+        ctx = h.context()
+        await h.publish(ctx, 'full report'*1000, 'ior_analyzer')
+        await h.final(ctx, 'Terminal failure', reason=reason)
+        assert h.rows['a-1']['content'] == 'Terminal failure'
+        assert h.rows['a-1']['metadata']['_stop_reason'] == reason
+
+    @pytest.mark.asyncio
+    async def test_multiple_reports_exclude_unrelated_publications(self, report_channel):
+        h = report_channel
+        ctx = h.context()
+        await h.publish(ctx, 'ordinary before')
+        await h.publish(ctx, 'D6 full', 'ior_analyzer')
+        await h.publish(ctx, 'ordinary after', media=['other.pdf'])
+        await h.publish(ctx, 'D3 full', 'appeals_analyzer')
+        await h.final(ctx)
+        assert h.rows['a-1']['content'] == 'D6 full\n\nD3 full'
+        assert len(h.rows['a-1']['media']) == 1
+
+    @pytest.mark.asyncio
+    async def test_concurrent_requests_do_not_share_receipts(self, report_channel):
+        import asyncio
+        h = report_channel
+        first, second = h.context(1), h.context(2)
+        await asyncio.gather(h.publish(first, 'D6 first', 'ior_analyzer'),
+                             h.publish(second, 'D3 second', 'appeals_analyzer'))
+        await asyncio.gather(h.final(first), h.final(second))
+        assert h.rows['a-1']['content'] == 'D6 first'
+        assert h.rows['a-2']['content'] == 'D3 second'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('failure', ['fail_merge', 'fail_commit'])
+    async def test_failed_database_delivery_has_no_receipt(self, report_channel, failure):
+        from lib.utils.verbatim_report import RECEIPT
+        h = report_channel
+        ctx = h.context()
+        h.state[failure] = True
+        await h.publish(ctx, 'not committed', 'ior_analyzer')
+        assert RECEIPT not in h.channel._msg_ctx['m-1']
+        await h.final(ctx, '', suppressed=True)
+        assert h.rows['a-1']['content'] == 'Не удалось сохранить опубликованный ответ. Повторите запрос.'
+
+    @pytest.mark.asyncio
+    async def test_streamed_final_does_not_destroy_committed_report(self, report_channel):
+        from nanobot.bus.outbound_events import StreamedResponseEvent
+        h = report_channel
+        ctx = h.context()
+        await h.publish(ctx, 'full report', 'ior_analyzer')
+        h.rows['a-1']['content'] = 'streamed summary'
+        await h.final(ctx, 'short summary', event=StreamedResponseEvent())
+        assert h.rows['a-1']['content'] == 'full report'
+
+    @pytest.mark.asyncio
+    async def test_empty_publication_is_not_authoritative(self, report_channel):
+        h = report_channel
+        ctx = h.context()
+        await h.publish(ctx, '', 'ior_analyzer')
+        await h.final(ctx, 'final answer')
+        assert h.rows['a-1']['content'] == 'final answer'
+
+    @pytest.mark.asyncio
+    async def test_signed_marker_cannot_be_replayed_into_another_request(self, report_channel):
+        from nanobot.agent.tools.context import current_request_context
+        from nanobot.bus.events import OutboundMessage
+        from lib.utils.verbatim_report import verbatim_report_context
+        h = report_channel
+        first, second = h.context(1), h.context(2)
+        with verbatim_report_context(first, 'ior_analyzer', 'signed text'):
+            forged = dict(current_request_context().metadata)
+        forged.update(second.metadata, message_id=second.message_id)
+        await h.channel.send(OutboundMessage(channel='postgres', chat_id=second.chat_id,
+                                             content='signed text', metadata=forged))
+        await h.final(second, 'second final')
+        assert h.rows['a-2']['content'] == 'second final'
+
+    @pytest.mark.asyncio
+    async def test_cancelled_user_drops_report_and_cleans_receipt(self, report_channel):
+        h = report_channel
+        ctx = h.context()
+        await h.publish(ctx, 'published report', 'ior_analyzer')
+        with patch.object(sys.modules[h.channel.__module__], 'fetchval', AsyncMock(return_value='cancelled')):
+            await h.final(ctx)
+        assert 'm-1' not in h.channel._msg_ctx
+        assert 'm-1' not in h.channel.exchange.inflight
+        h.channel._delete_claim.assert_awaited_once()
+
+
 class TestDecodeJsonb:
     def test_none(self, mock_db_and_psycopg):
         _, _decode_jsonb, _ = mock_db_and_psycopg

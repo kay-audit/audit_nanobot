@@ -1534,6 +1534,7 @@ class RuntimePatcher:
                 metadata = dict(result.metadata or {})
                 metadata[_FINAL_TURN] = True
                 result.metadata = metadata
+            result.metadata['_stop_reason'] = stop_reason
             session_key = _session_key_of(msg)
 
             # 1) Tool audit → result.metadata["_tool_audit"]
@@ -1624,7 +1625,7 @@ class RuntimePatcher:
 
         Обёртка снимает подавление только для обычных USER-оборотов: строит
         тот же синтетический ``OutboundMessage`` с ``_final_turn`` и
-        сохраняет ``final_content`` (пустой content канал сам подменяет на
+        не публикует ``final_content`` (пустой content канал подменяет на
         накопленный merge'ом, см. ``_finalize_turn``). SYSTEM-обороты и
         ``ephemeral`` остаются подавленными — доставлять им финал некуда.
 
@@ -1653,6 +1654,13 @@ class RuntimePatcher:
             if is_system or getattr(ctx, "ephemeral", False):
                 return await original(ctx)
 
+            from lib.utils.verbatim_report import SUCCESS_REASONS
+            stop_reason = getattr(ctx, 'stop_reason', None) or ''
+            if stop_reason not in SUCCESS_REASONS:
+                # Upstream can suppress even a terminal error after a successful send.
+                ctx.suppress_response = False
+                return await original(ctx)
+
             msg = getattr(getattr(ctx, "delivery", None), "delivery_message", None)
             if msg is None:
                 return await original(ctx)
@@ -1675,6 +1683,8 @@ class RuntimePatcher:
             )
             metadata = dict(getattr(msg, "metadata", None) or {})
             metadata[_FINAL_TURN] = True
+            metadata['_suppressed_final'] = True
+            metadata['_stop_reason'] = stop_reason
 
             latency_ms = getattr(ctx, "turn_latency_ms", None)
             if latency_ms is not None:
@@ -1685,11 +1695,11 @@ class RuntimePatcher:
             ctx.outbound = OutboundMessage(
                 channel=getattr(msg, "channel", None),
                 chat_id=getattr(msg, "chat_id", None),
-                content=getattr(ctx, "final_content", "") or "",
+                content="",
                 metadata=metadata,
             )
             logger.debug(
-                "prepare_outbound_suppressed: synthetic final turn for {}",
+                "prepare_outbound_suppressed: suppress_response=True lifecycle-only final for {}",
                 getattr(msg, "chat_id", None),
             )
             return None

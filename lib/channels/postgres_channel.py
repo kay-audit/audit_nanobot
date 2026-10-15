@@ -24,6 +24,11 @@
 
 from __future__ import annotations
 
+from lib.utils.verbatim_report import (
+    SOURCE as REPORT_SOURCE, SIGNATURE as REPORT_SIGNATURE, RECEIPT as REPORT_RECEIPT, SUCCESS_REASONS,
+    verified_source, delivery_metadata, receipt_for, next_receipt,
+)
+
 import asyncio
 import json
 import os
@@ -1581,7 +1586,7 @@ class PostgresChannel(BaseChannel):
         # ``CompactionEventSubscriber``: канал остаётся «тупым» транспортом
         # (SRP), а сервис-подписчик занимается бизнес-логикой компакции
         # (history-notice + agent_gateway_logs запись).
-        if msg.event is not None:
+        if msg.event is not None and not (meta.get(FINAL_TURN_KEY) or meta.get('_turn_end')):
             subscriber = getattr(self, "_compaction_event_subscriber", None)
             if subscriber is not None:
                 try:
@@ -1672,16 +1677,21 @@ class PostgresChannel(BaseChannel):
             )
             return
 
+        active_ctx = self._msg_ctx.get(msg_id) or {}
+        trusted_source = verified_source(msg, meta)
+        if active_ctx.get('assistant_msg_id') != assistant_msg_id:
+            trusted_source = None
+        pending_receipt = None
         db_media = await self._embed_media_for_db(msg.media or [])
         try:
             async with transaction() as conn:
                 row = await conn.fetchrow(
                     f"SELECT metadata, media, content FROM {self._fq_table} "
-                    f"WHERE id = %s",
+                    f"WHERE id = %s FOR UPDATE",
                     assistant_msg_id,
                 )
                 existing_meta = _decode_jsonb(row["metadata"]) if row else {}
-                existing_meta.update(meta)
+                existing_meta.update(delivery_metadata(meta))
 
                 existing_media = row["media"] if row else []
                 if isinstance(existing_media, str):
@@ -1696,12 +1706,22 @@ class PostgresChannel(BaseChannel):
                 existing_content = row["content"] if row else ""
                 if not isinstance(existing_content, str):
                     existing_content = ""
+                previous = receipt_for(active_ctx, assistant_msg_id, existing_meta)
                 if msg.content and msg.content != existing_content:
                     existing_content = (
                         f"{existing_content}\n\n{msg.content}" if existing_content
                         else msg.content
                     )
 
+                if row:
+                    pending_receipt = next_receipt(previous, assistant_msg_id, trusted_source, msg.content)
+                existing_meta.pop(REPORT_SOURCE, None)
+                existing_meta.pop(REPORT_SIGNATURE, None)
+                existing_meta.pop(REPORT_RECEIPT, None)
+                if pending_receipt:
+                    existing_meta[REPORT_SOURCE] = pending_receipt.reports[-1][0]
+                    existing_meta[REPORT_RECEIPT] = pending_receipt.receipt_id
+                    existing_meta['_record_channel_delivery'] = True
                 await conn.execute(
                     f"UPDATE {self._fq_table} "
                     f"SET content = %s, metadata = %s, buttons = %s, media = %s, "
@@ -1710,6 +1730,9 @@ class PostgresChannel(BaseChannel):
                     Json(msg.buttons or []), Json(merged_media),
                     assistant_msg_id,
                 )
+            # Receipt becomes authoritative only after the DB transaction commits.
+            if pending_receipt and self._msg_ctx.get(msg_id) is active_ctx:
+                active_ctx[REPORT_RECEIPT] = pending_receipt
         except Exception:
             self.logger.exception(
                 "Failed to merge tool delivery for msg_id={}", msg_id,
@@ -1848,7 +1871,10 @@ class PostgresChannel(BaseChannel):
                     assistant_msg_id,
                 )
                 existing_meta = _decode_jsonb(row["metadata"]) if row else {}
-                existing_meta.update(meta)
+                # Read persisted provenance BEFORE merging final, potentially inherited metadata.
+                saved_source = existing_meta.get(REPORT_SOURCE)
+                had_delivery = existing_meta.get('_record_channel_delivery') is True
+                existing_meta.update(delivery_metadata(meta))
                 existing_media = row["media"] if row else []
                 if isinstance(existing_media, str):
                     existing_media = json.loads(existing_media) if existing_media else []
@@ -1860,7 +1886,28 @@ class PostgresChannel(BaseChannel):
                     existing_content = ""
                 # Пустой final_content (синтетический _final_turn после
                 # message(...)) → берём накопленный merge'ом.
-                final_content = msg.content if msg.content else existing_content
+                receipt = receipt_for(ctx, assistant_msg_id, existing_meta)
+                stop_reason = meta.get('_stop_reason') or ''
+                successful = stop_reason in SUCCESS_REASONS
+                preserve = bool(receipt and had_delivery and saved_source == receipt.reports[-1][0] and successful)
+                if preserve:
+                    # Mixed turns retain only marked reports, not an unrelated tool publication.
+                    final_content = receipt.content
+                elif not successful:
+                    final_content = msg.content or 'Не удалось завершить запрос. Повторите запрос.'
+                elif meta.get('_suppressed_final') and not existing_content:
+                    final_content = 'Не удалось сохранить опубликованный ответ. Повторите запрос.'
+                else:
+                    final_content = msg.content if msg.content else existing_content
+                if receipt:
+                    final_media = list(existing_media)
+                    for item in db_media:
+                        if item not in final_media:
+                            final_media.append(item)
+                self.logger.info(
+                    'OUTBOUND FINAL DIAGNOSTIC: source={} preserved={} existing_chars={} incoming_chars={} selected_chars={} stop_reason={}',
+                    saved_source if receipt else None, preserve, len(existing_content), len(msg.content or ''), len(final_content), stop_reason,
+                )
                 await conn.execute(
                     f"UPDATE {self._fq_table} "
                     f"SET content = %s, metadata = %s, buttons = %s, "
