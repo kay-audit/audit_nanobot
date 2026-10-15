@@ -1,0 +1,15 @@
+{
+  "name": "ior-analyzer",
+  "version": "1.0.0",
+  "description": "Анализ инцидентов операционного риска (ИОР) - Парето, 3-сигма выбросы, генерация гипотез и отчётов.",
+  "presets": [
+    "deleted_ior",
+    "financial_consequences_ior",
+    "ior_nonfinancial_consequences",
+    "ior_hypothesis",
+    "ior_period_pao_sberbank",
+    "report_period_specific_ior",
+    "vozmeshenie_ior",
+    "credit_no_way_collect_debt"
+  ]
+}
