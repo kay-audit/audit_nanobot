@@ -693,12 +693,15 @@
     "osiris": {
       "enable": true,
       "allowed_services": [
-        "appeals"
+        "appeals",
+        "ior"
       ],
       "profile_files": [
-        "skills/appeals-analyzer/utils/osiris_config.py"
+        "skills/appeals-analyzer/utils/osiris_config.py",
+        "skills/ior-analyzer/utils/osiris_config.py"
       ],
       "allowed_operations": {
+        "ior": ["embed", "build_index", "search", "retrieve", "rerank"],
         "appeals": [
           "retrieve",
           "rerank",
