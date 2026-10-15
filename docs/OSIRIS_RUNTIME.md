@@ -246,6 +246,8 @@ Worker публикует stopped и завершает процесс; SDK crea
 одну NFS lock и повторный discovery, не создают второй job. Сервис после idle stop
 запускается следующим запросом. Во время ожидания результата доступна одна
 ограниченная попытка восстановления worker, в пределах request deadline.
+Legacy recovery дополнительно ограничен исходным request timeout: округление
+монотонного deadline не может увеличить переданный startup budget.
 Administrative stop отказывается с busy при accepted queue или active requests;
 метаданные удаляются только после подтверждённого terminal/not-found.
 
