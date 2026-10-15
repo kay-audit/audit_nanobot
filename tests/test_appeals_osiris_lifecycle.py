@@ -96,6 +96,12 @@ class LifecycleTests(unittest.TestCase):
         status.assert_called_once_with(self.profile)
         stop.assert_called_once_with(self.profile, timeout=120.0)
 
+    def test_operator_can_override_startup_timeout(self):
+        with patch.object(osiris_job, 'load_profile', return_value=self.profile), \
+                patch.object(osiris_job, 'ensure_ready', return_value='operator-test-job') as start:
+            self.assertEqual(osiris_job.main(['start', '--startup-timeout', '7']), 0)
+        start.assert_called_once_with(self.profile, timeout=7)
+
     def test_both_cli_start_calls_reuse_one_actual_job(self):
         self.sdk.create.side_effect = self.create_ready
         self.sdk.delete.side_effect = lambda name: self.states.__setitem__(name, 'Not found')

@@ -3,9 +3,17 @@ from __future__ import annotations
 
 import math
 import os
+import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
+
+
+def validate_create_job_name(name: str) -> None:
+    """Validate only a new physical create; legacy discovery keeps its old names."""
+    if not isinstance(name, str) or not re.fullmatch(r'[a-z0-9](?:[a-z0-9-]{0,22}[a-z0-9])?', name):
+        raise ValueError('Invalid OSIRIS job_name: use 1–24 lowercase letters/digits or hyphens, '
+                         'starting and ending with a letter/digit (for shared mode: nanobot-shared)')
 
 
 def _positive_env(name: str, default: float) -> float:
@@ -28,7 +36,7 @@ class ServiceProfile:
     protocol_version: int = 2
     heartbeat_max_age_sec: float = 12.0
     idle_timeout_sec: float = 28800.0
-    startup_wait_timeout_sec: float = 300.0
+    startup_wait_timeout_sec: float = 120.0
     retry_after_sec: float = 900.0
     allow_legacy_heartbeat_without_service_name: bool = False
     max_payload_bytes: int = 1048576
@@ -160,6 +168,6 @@ def physical_profile(profile: ServiceProfile) -> ServiceProfile:
 def common_timeout_settings():
     return {
         "idle_timeout_sec": _positive_env("OSIRIS_IDLE_TIMEOUT_SEC", 28800),
-        "startup_wait_timeout_sec": _positive_env("OSIRIS_START_WAIT_TIMEOUT_SEC", 300),
+        "startup_wait_timeout_sec": _positive_env("OSIRIS_START_WAIT_TIMEOUT_SEC", 120),
         "retry_after_sec": _positive_env("OSIRIS_RETRY_AFTER_SEC", 900),
     }

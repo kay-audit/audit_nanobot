@@ -1,0 +1,19 @@
+{
+  "deployment": {
+    "name": "nanobot_gpu",
+    "job_name": "nanobot-shared",
+    "image": "registry.ca.sbrf.ru/ci02684173/ci02697916/notebooks/python3.12/cuda12.4/d-04.000.00:d-04.000.00-geometric",
+    "pool": "common",
+    "worker_script": "${PROJECT_ROOT}/tools/osiris_shared_worker.py",
+    "nfs_root": "${PROJECT_ROOT}/workspace/data_store/osiris/shared",
+    "max_queue": 128
+  },
+  "services": {
+    "appeals": {
+      "skill_root": "workspace/skills/appeals-analyzer"
+    },
+    "ior": {
+      "skill_root": "workspace/skills/ior-analyzer"
+    }
+  }
+}
