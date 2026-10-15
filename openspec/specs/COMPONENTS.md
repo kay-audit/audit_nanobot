@@ -18,18 +18,18 @@
 | Категория | Всего | Complete | Partial | Draft | Missing |
 |-----------|-------|----------|---------|-------|---------|
 | architecture | 2 | 0 | 2 | 0 | 0 |
-| runtime | 8 | 0 | 8 | 0 | 0 |
+| runtime | 9 | 0 | 9 | 0 | 0 |
 | configuration | 1 | 0 | 1 | 0 | 0 |
 | data | 2 | 0 | 2 | 0 | 0 |
 | infrastructure | 1 | 0 | 1 | 0 | 0 |
 | storage | 3 | 0 | 3 | 0 | 0 |
 | skills | 1 | 0 | 1 | 0 | 0 |
-| tools | 1 | 0 | 1 | 0 | 0 |
+| tools | 2 | 0 | 2 | 0 | 0 |
 | logging | 1 | 0 | 1 | 0 | 0 |
 | upgrade | 1 | 0 | 1 | 0 | 0 |
 | documentation | 1 | 0 | 0 | 1 | 0 |
 | validation | 1 | 0 | 0 | 1 | 0 |
-| **Итого** | **23** | **0** | **21** | **2** | **0** |
+| **Итого** | **25** | **0** | **23** | **2** | **0** |
 
 `Complete` не установлен ни у одного компонента: для этого статуса нужны все
 обязательные разделы `component-model`, а русский шаблон применён пока к одной
@@ -56,6 +56,7 @@
 | RuntimeEventsSubscriber | `lib/services/runtime_events_subscriber.py:RuntimeEventsSubscriber` | [`runtime/runtime-events-subscription`](runtime/runtime-events-subscription/spec.md) | partial |
 | EntryPoints | `gateway.py`, `cli_agent.py`, `streamlit_app.py` | [`runtime/entrypoints`](runtime/entrypoints/spec.md) | partial |
 | StartupGate | `lib/services/startup_gate.py:StartupGate` | [`runtime/startup-vector-preload-gate`](runtime/startup-vector-preload-gate/spec.md) | partial |
+| OsirisRuntime | `workspace/utils/osiris_runtime/` | [`runtime/osiris`](runtime/osiris/spec.md) | partial |
 
 ### Configuration
 
@@ -107,6 +108,7 @@
 | Компонент | Реализация | Спецификация | Статус |
 |-----------|------------|--------------|--------|
 | HistorySearch | `workspace/tools/history_search_tool.py` | [`tools-history-search`](tools-history-search/spec.md) | partial |
+| OsirisTool | `workspace/tools/osiris.py:OsirisTool` | [`tools/osiris`](tools/osiris/spec.md) | partial |
 
 ### Logging
 

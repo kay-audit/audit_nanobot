@@ -3,6 +3,21 @@
 Tool signatures are provided automatically via function calling.
 This file documents non-obvious constraints and usage patterns.
 
+## osiris — Registered GPU Services
+
+- `status` показывает состояние зарегистрированного сервиса; `start` обеспечивает готовность.
+- `invoke` принимает `service`, `operation`, JSON `payload`, необязательные `query`
+  и `artifacts` (имя → относительный путь файла текущей сессии).
+- Используй только разрешённые capabilities. Не передавай image, worker path,
+  imports, команды, SDK kwargs или чужую session_id.
+- Сессия берётся из RequestContext. Крупный результат передаётся файлами,
+  не повторяй содержимое файла целиком в контексте.
+- `stop` запрещён обычной сессии; право задаёт оператор через конфигурацию.
+  Для общего worker не останавливай чужую активную обработку.
+- При startup failure сообщи пользователю ошибку и retry-after из результата.
+  Request timeout/worker error не выдавай за отсутствие GPU.
+- Интерфейс и примеры: `docs/OSIRIS_RUNTIME.md`.
+
 ## exec — Safety Limits
 
 - Commands have a configurable timeout (default 60s)

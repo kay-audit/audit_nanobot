@@ -275,6 +275,13 @@ def canonical_project_tools() -> list[ToolSpec]:
             description="Follow Up: забыть ход",
             config_key=None,
         ),
+        ToolSpec(
+            name="osiris",
+            module="osiris",
+            required=False,
+            description="управление зарегистрированными GPU-сервисами OSIRIS",
+            config_key="tools.osiris.enable",
+        ),
     ]
 
 

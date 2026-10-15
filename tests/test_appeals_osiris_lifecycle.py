@@ -96,6 +96,28 @@ class LifecycleTests(unittest.TestCase):
         status.assert_called_once_with(self.profile)
         stop.assert_called_once_with(self.profile, timeout=120.0)
 
+    def test_both_cli_start_calls_reuse_one_actual_job(self):
+        self.sdk.create.side_effect = self.create_ready
+        self.sdk.delete.side_effect = lambda name: self.states.__setitem__(name, 'Not found')
+        with patch.object(osiris_job, 'load_profile', return_value=self.profile), patch.object(lifecycle, 'import_osiris', return_value=self.sdk):
+            self.assertEqual(appeals_osiris_job.main(['start']), 0)
+            self.assertEqual(osiris_job.main(['start']), 0)
+            self.assertEqual(appeals_osiris_job.main(['status']), 0)
+            self.assertEqual(osiris_job.main(['stop']), 0)
+        self.sdk.create.assert_called_once()
+        params = self.sdk.create.call_args.kwargs
+        self.assertEqual((params['name'], params['pool'], params['num_gpus'], params['image'], params['script']),
+                         (self.profile.job_name, self.profile.pool, self.profile.num_gpus, self.profile.image, self.profile.worker_script))
+
+    def test_stale_active_job_waits_then_times_out_without_deletion(self):
+        name = self.existing()
+        self.heartbeat(timestamp=time.time()-100, status='busy', active_requests=1)
+        with patch.object(lifecycle, 'POLL_SEC', .005), self.assertRaises(TimeoutError):
+            lifecycle.ensure_ready(self.profile, self.sdk, timeout=.03)
+        self.sdk.delete.assert_not_called()
+        self.sdk.create.assert_not_called()
+        self.assertEqual(lifecycle._read_meta(self.profile)['job_name'], name)
+
     def test_imports_do_not_start_threads_or_sdk(self):
         code = """import sys, threading
 from pathlib import Path
@@ -349,14 +371,17 @@ class TransportRecoveryTests(unittest.TestCase):
     def test_worker_death_after_submit_gets_one_recovery_attempt(self):
         request_id = client.submit_request(self.profile, "session", "retrieve", "query", {})
         _, dirs = client.session_dirs(self.profile, "session")
-        def recover(profile):
+        def recover(profile, *, timeout):
+            self.assertLessEqual(timeout, .2)
             client._atomic_pickle({"request_id": request_id, "request_type": "retrieve", "result": ["ok"]},
                                   dirs["output"] / f"{request_id}.pkl")
         with patch.object(ServiceProfile, "read_heartbeat", return_value={"status": "stopped"}), \
                 patch.object(client, "ensure_ready", side_effect=recover) as start:
             result = client.wait_result(self.profile, "session", request_id, "retrieve", .2, auto_recover=True)
         self.assertEqual(result, ["ok"])
-        start.assert_called_once_with(self.profile)
+        start.assert_called_once()
+        self.assertEqual(start.call_args.args, (self.profile,))
+        self.assertLessEqual(start.call_args.kwargs["timeout"], .2)
 
     def test_request_timeout_is_distinct_and_cleans_manifest(self):
         request_id = client.submit_request(self.profile, "session", "retrieve", "query", {})

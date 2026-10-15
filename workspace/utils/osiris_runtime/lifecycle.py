@@ -14,7 +14,12 @@ from pathlib import Path
 from typing import Any
 
 from .config import ServiceProfile
-from .errors import OsirisStartupTimeoutError, OsirisUnavailableError
+from .errors import (
+    OsirisBusyError,
+    OsirisResourcesUnavailableError,
+    OsirisStartupTimeoutError,
+    OsirisUnavailableError,
+)
 
 TERMINAL = {"not_found", "finished", "failed", "stopped"}
 POLL_SEC = 1.0
@@ -231,6 +236,8 @@ def _process_alive(pid: int) -> bool:
 def _owner_gone(path: Path) -> bool:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            return False
         if data.get("host") != socket.gethostname() or not isinstance(data.get("pid"), int):
             return False
         return not _process_alive(data["pid"])
@@ -254,20 +261,39 @@ def lifecycle_lock(profile: ServiceProfile, deadline: float):
                     pass
                 continue
             if time.monotonic() >= deadline:
-                raise OsirisStartupTimeoutError("Osiris lifecycle lock remained occupied")
-            time.sleep(min(POLL_SEC, max(0, deadline - time.monotonic())))
+                raise OsirisStartupTimeoutError(
+                    "Osiris lifecycle lock remained occupied; verify its owner before recovery. "
+                    "Remote owners cannot be checked by local PID; lock age alone is not proof of death"
+                ) from None
+            time.sleep(min(POLL_SEC, .05, max(0, deadline - time.monotonic())))
     token = uuid.uuid4().hex
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             json.dump({"pid": os.getpid(), "host": socket.gethostname(),
                        "created_at": time.time(), "token": token}, handle)
+        try:
+            owner = json.loads(profile.metadata_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            owner = {}
+        if isinstance(owner, dict) and (
+            owner.get("service_name") not in (None, profile.service_name)
+            or owner.get("requested_name") not in (None, profile.job_name)
+        ):
+            raise OsirisUnavailableError("NFS namespace belongs to another Osiris service")
         yield
     finally:
-        try:
-            if json.loads(path.read_text(encoding="utf-8")).get("token") == token:
-                path.unlink(missing_ok=True)
-        except (OSError, ValueError):
-            pass
+        for attempt in range(5):
+            try:
+                owner = json.loads(path.read_text(encoding="utf-8"))
+                if isinstance(owner, dict) and owner.get("token") == token:
+                    path.unlink(missing_ok=True)
+                break
+            except PermissionError:
+                if attempt == 4:
+                    raise OsirisUnavailableError("Could not release owned Osiris lifecycle lock") from None
+                time.sleep(.02 * (attempt + 1))
+            except (OSError, ValueError):
+                break
 
 
 def _ready_for_job(profile: ServiceProfile, name: str | None, state: str, meta: dict) -> bool:
@@ -299,6 +325,9 @@ def _start_under_lock(profile: ServiceProfile, osiris):
                                script=profile.worker_script, restart=False, num_nodes=1,
                                num_gpus=profile.num_gpus, type="pytorchjob")
     except Exception as exc:
+        if any(term in str(exc).lower() for term in ("insufficient gpu", "no gpu resources", "insufficient resources")):
+            _write_meta(profile, create_pending=False, failure="gpu_resources_unavailable")
+            raise OsirisResourcesUnavailableError("Osiris GPU resources are unavailable") from exc
         raise OsirisUnavailableError("Osiris create outcome is unconfirmed; inspect SDK status") from exc
     name = _create_name(result)
     _write_meta(profile, job_name=name, create_pending=True, generation=generation,
@@ -317,6 +346,14 @@ def _recycle_stale_running(profile: ServiceProfile, osiris, name: str, deadline:
     age = profile.heartbeat_age(heartbeat)
     stale_for = age if age is not None else time.time() - float(meta.get("updated_at", time.time()))
     if stale_for < 2 * profile.heartbeat_max_age_sec:
+        return False
+    if any((profile.nfs_root / "processing").glob("*.json")):
+        return False
+    if (isinstance(heartbeat, dict)
+            and heartbeat.get("service_name") in (None, profile.service_name)
+            and (not meta.get("generation") or heartbeat.get("generation") == meta["generation"])
+            and (heartbeat.get("active_requests", 0) or heartbeat.get("queue_size", 0)
+                 or heartbeat.get("busy"))):
         return False
     osiris.delete(name)
     while True:
@@ -408,6 +445,12 @@ def stop_service(profile: ServiceProfile, osiris=None, *, timeout: float = 120.0
         if state == "unknown":
             raise OsirisUnavailableError(f"Cannot confirm job state; metadata retained: {details}")
         if state not in TERMINAL:
+            heartbeat = profile.read_heartbeat() or {}
+            if (any((profile.nfs_root / "inbox").glob("*.json"))
+                    or any((profile.nfs_root / "processing").glob("*.json"))
+                    or (profile.heartbeat_live(heartbeat) and (
+                        heartbeat.get("active_requests", 0) or heartbeat.get("queue_size", 0)))):
+                raise OsirisBusyError("Osiris has accepted requests; retry stop after completion")
             osiris.delete(name)
             while True:
                 state, details = query_state(osiris, name)

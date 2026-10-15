@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import queue
 import threading
@@ -36,7 +37,7 @@ class WorkerActivity:
             self._active -= 1
             self._last_mono = time.monotonic()
             self._last_wall = time.time()
-            self._status = "ready"
+            self._status = "busy" if self._active else "ready"
 
     def stopping(self):
         with self._lock:
@@ -73,11 +74,12 @@ class WorkerActivity:
 def _discard_expired(path: Path):
     try:
         manifest = json.loads(path.read_text(encoding="utf-8"))
-        if time.time() < float(manifest["expires_at"]):
+        expires = float(manifest["expires_at"])
+        if not math.isfinite(expires) or time.time() < expires:
             return False
         path.unlink(missing_ok=True)
         return True
-    except (OSError, ValueError, TypeError, KeyError):
+    except (OSError, ValueError, TypeError, KeyError, RecursionError, OverflowError):
         return False
 
 
@@ -87,6 +89,10 @@ def claim_new_requests(profile: ServiceProfile, target: queue.Queue):
         if _discard_expired(path):
             continue
         claimed = processing / path.name
+        if claimed.exists():
+            failed = profile.nfs_root / "failed" / (path.stem + ".duplicate.json")
+            path.replace(failed)
+            continue
         try:
             os.replace(path, claimed)
         except FileNotFoundError:
@@ -98,11 +104,20 @@ def recover_processing_after_restart(profile: ServiceProfile):
     for path in (profile.nfs_root / "processing").glob("*.json"):
         if _discard_expired(path):
             continue
-        os.replace(path, profile.nfs_root / "inbox" / path.name)
+        inbox = profile.nfs_root / "inbox" / path.name
+        if inbox.exists():
+            inbox.replace(profile.nfs_root / "failed" / (path.stem + ".duplicate.json"))
+        os.replace(path, inbox)
 
 
 def should_idle_stop(profile: ServiceProfile, activity: WorkerActivity, target: queue.Queue) -> bool:
     """Re-scan before shutdown; a late manifest is recovered by the next job."""
+    from .lifecycle import lifecycle_lock
+    with lifecycle_lock(profile, time.monotonic() + profile.startup_wait_timeout_sec):
+        return _idle_stop_under_lock(profile, activity, target)
+
+
+def _idle_stop_under_lock(profile: ServiceProfile, activity: WorkerActivity, target: queue.Queue) -> bool:
     claim_new_requests(profile, target)
     if not activity.idle_expired(target.qsize()):
         return False

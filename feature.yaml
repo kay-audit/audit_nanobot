@@ -18,6 +18,9 @@ integration:
   - branch: feature/d3_crm
     sha: 383a29ebedc04e441335c5646f46e6778a8c1474
     manifest: workspace/data_store/cache/sessions/finalize_nanobot_20261015/evidence/feature-d3_crm.yaml
+  - branch: feature/osiris
+    sha: 82b9bc934f0ccd770639a708f85f480ea57cae0f
+    manifest: workspace/data_store/cache/sessions/finalize_nanobot_20261015/evidence/feature-osiris.yaml
 requires:
   nanobot_version: '>=2.5.4'
   system_deps:
@@ -56,6 +59,10 @@ tools:
   path: workspace/tools/appeals_analyzer.py
   config_key: appeals_analyzer
   config_section: gateway.appeals_analyzer
+- name: osiris
+  path: workspace/tools/osiris.py
+  config_key: osiris
+  config_section: tools.osiris
 overlays:
   project_json:
   - op: upsert
@@ -152,6 +159,23 @@ overlays:
     rationale: 'Три слоя гидратации обращения. Без tracking_column: они не участвуют
       в инкрементальном sync, данные берёт startup structural loader (Greenplum) и
       слой гидратации по ключу app_row_id.'
+  - op: upsert
+    path: tools.osiris
+    value:
+      enable: true
+      allowed_services:
+      - appeals
+      profile_files:
+      - skills/appeals-analyzer/utils/osiris_config.py
+      allowed_operations:
+        appeals:
+        - retrieve
+        - rerank
+        - embed
+      allow_stop: false
+      admin_session_keys: []
+      request_timeout_sec: 1800
+      max_result_chars: 16000
   sql_migrations:
   - sql/migrations/V006__d6_ior_tables_real.sql
   - sql/migrations/V007__d5_followup_tables.sql
@@ -175,3 +199,5 @@ tests:
 - path: tests/test_appeals_osiris_lifecycle.py
 - path: tests/test_appeals_standalone_cli.py
 - path: tests/test_tools_appeals_analyzer.py
+- path: tests/test_osiris_runtime.py
+- path: tests/test_tools_osiris.py
