@@ -295,6 +295,20 @@ def _entrypoint_main(args: argparse.Namespace, script_dir: Path, workspace_dir: 
     # (``await_ready=false``) ждёт его уже в рабочем цикле.
     ctx.cache_ready_signal = first_sync_event  # type: ignore[attr-defined]
 
+    # Патч фичи d3_crm: стартовый structural-загрузчик обращений.
+    # Ставится перед ctx.start(), чтобы данные appeals были готовы
+    # до открытия каналов. Контекст 2.5.4 (cache_ready_signal и
+    # StartupGate) не меняется.
+    from workspace.utils.appeals_structural_cache import (
+        AppealsStructuralCacheError,
+        prepare_gateway_structural_cache,
+    )
+
+    try:
+        prepare_gateway_structural_cache(ctx)
+    except AppealsStructuralCacheError as exc:
+        raise ConfigurationError(str(exc)) from exc
+
     ctx.start()
 
     _report_db_pool_startup()

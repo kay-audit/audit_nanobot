@@ -15,6 +15,9 @@ integration:
   - branch: feature/d5_followup
     sha: d3b19c7f0ba3150729e1c5765f41113ccb7112e1
     manifest: workspace/data_store/cache/sessions/finalize_nanobot_20261015/evidence/feature-d5_followup.yaml
+  - branch: feature/d3_crm
+    sha: 383a29ebedc04e441335c5646f46e6778a8c1474
+    manifest: workspace/data_store/cache/sessions/finalize_nanobot_20261015/evidence/feature-d3_crm.yaml
 requires:
   nanobot_version: '>=2.5.4'
   system_deps:
@@ -28,6 +31,10 @@ skills:
   path: workspace/skills/follow_up
   pattern: full
   config_section: skills.follow_up
+- name: appeals-analyzer
+  path: workspace/skills/appeals-analyzer
+  pattern: full
+  config_section: skills.appeals_analyzer
 tools:
 - name: ior_analyzer
   path: workspace/tools/ior_analyzer.py
@@ -45,6 +52,10 @@ tools:
   - mcp_follow_up_card_start
   - mcp_follow_up_card_status
   - mcp_follow_up_forget
+- name: appeals_analyzer
+  path: workspace/tools/appeals_analyzer.py
+  config_key: appeals_analyzer
+  config_section: gateway.appeals_analyzer
 overlays:
   project_json:
   - op: upsert
@@ -120,9 +131,31 @@ overlays:
       DuckDB-cache.
 
       '
+  - op: upsert
+    path: gateway.appeals_analyzer.enable
+    value: true
+    rationale: Регистрация native tool через RuntimePatcher.patch_project_tools. config_key="appeals_analyzer",
+      секция gateway.appeals_analyzer обязательна даже при наличии safety-дефолта
+      в tool'е.
+  - op: upsert
+    path: skills.appeals_analyzer.enabled
+    value: false
+    rationale: 'Полнотабличная синхронизация обращений в DuckDB отключена намеренно:
+      стартовый structural-загрузчик в appeals_structural_cache.py сам тянет пять
+      колонок из Greenplum, а generic sync поднял бы полный текст.'
+  - op: upsert
+    path: skills.appeals_analyzer.tables
+    value:
+    - name: s_grnplm_ld_audit_da_project_27.40_kaluginvs_anofl_appeal_2026
+    - name: s_grnplm_ld_audit_da_project_27.40_kaluginvs_anofl_appeal_dialogs_2026
+    - name: s_grnplm_ld_audit_da_project_27.40_kaluginvs_anofl_appeal_task_2026
+    rationale: 'Три слоя гидратации обращения. Без tracking_column: они не участвуют
+      в инкрементальном sync, данные берёт startup structural loader (Greenplum) и
+      слой гидратации по ключу app_row_id.'
   sql_migrations:
   - sql/migrations/V006__d6_ior_tables_real.sql
   - sql/migrations/V007__d5_followup_tables.sql
+  - sql/test_d3_schema.sql
 tests:
 - path: tests/test_ior_bge_followup_contract.py
 - path: tests/test_tools_ior_analyzer.py
@@ -136,3 +169,9 @@ tests:
 - path: tests/test_follow_up_llm_centralization.py
 - path: tests/test_follow_up_skill.py
 - path: tests/test_prepare_outbound_suppressed.py
+- path: tests/test_appeals_production_contracts.py
+- path: tests/test_appeals_hybrid_contracts.py
+- path: tests/test_appeals_structural_cache.py
+- path: tests/test_appeals_osiris_lifecycle.py
+- path: tests/test_appeals_standalone_cli.py
+- path: tests/test_tools_appeals_analyzer.py

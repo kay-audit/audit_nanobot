@@ -219,6 +219,20 @@
         }
       ]
     },
+    "appeals_analyzer": {
+      "enabled": false,
+      "tables": [
+        {
+          "name": "s_grnplm_ld_audit_da_project_27.40_kaluginvs_anofl_appeal_2026"
+        },
+        {
+          "name": "s_grnplm_ld_audit_da_project_27.40_kaluginvs_anofl_appeal_dialogs_2026"
+        },
+        {
+          "name": "s_grnplm_ld_audit_da_project_27.40_kaluginvs_anofl_appeal_task_2026"
+        }
+      ]
+    },
     "audit_analyzer": {
       "enabled": true,
 
@@ -445,6 +459,9 @@
   // ---------------------------------------------------------------------------
   "gateway": {
     "ior_analyzer": {
+      "enable": true
+    },
+    "appeals_analyzer": {
       "enable": true
     },
     "storage": "file",                // Хранилище сессий. Варианты: auto | postgres | file
