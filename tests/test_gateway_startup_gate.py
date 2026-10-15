@@ -235,6 +235,8 @@ def _run_entrypoint(ctx: Any, order: _Order) -> None:
         return_value=ctx,
     ), patch(
         "lib.lifecycle.gateway_runner.GatewayRunner", return_value=runner
+    ), patch(
+        "workspace.utils.appeals_structural_cache.prepare_gateway_structural_cache"
     ), patch.object(
         gw, "_configure_logging"
     ), patch.object(

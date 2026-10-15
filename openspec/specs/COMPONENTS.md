@@ -20,7 +20,7 @@
 | architecture | 2 | 0 | 2 | 0 | 0 |
 | runtime | 9 | 0 | 9 | 0 | 0 |
 | configuration | 1 | 0 | 1 | 0 | 0 |
-| data | 2 | 0 | 2 | 0 | 0 |
+| data | 3 | 0 | 3 | 0 | 0 |
 | infrastructure | 1 | 0 | 1 | 0 | 0 |
 | storage | 3 | 0 | 3 | 0 | 0 |
 | skills | 1 | 0 | 1 | 0 | 0 |
@@ -69,6 +69,7 @@
 | Компонент | Реализация | Спецификация | Статус |
 |-----------|------------|--------------|--------|
 | CacheProvider | `lib/services/cache_provider.py:CacheProvider` | [`data/cache-provider`](data/cache-provider/spec.md) | partial |
+| AppealsStructuralCache | `workspace/utils/appeals_structural_cache.py` | [`data/appeals-structural-cache`](data/appeals-structural-cache/spec.md) | partial |
 | VectorIndexBuildService | `lib/services/vector_index_service.py:VectorIndexBuildService` | [`data/vector-indexes`](data/vector-indexes/spec.md) | partial |
 
 ### Documentation

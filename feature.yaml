@@ -10,16 +10,16 @@ integration:
   database_setup: operator_only_not_executed
   sources:
   - branch: feature/d6_ior
-    sha: 0c709481b744043046752ff2d461819f3e65d771
+    sha: 063080d4c5e0813e4674b8f307c9ee9fbd4173ed
     manifest: workspace/data_store/cache/sessions/finalize_nanobot_20261015/evidence/feature-d6_ior.yaml
   - branch: feature/d5_followup
-    sha: d3b19c7f0ba3150729e1c5765f41113ccb7112e1
+    sha: fac3da334f199d0e0d127b8aa2c831b4d4eef8a2
     manifest: workspace/data_store/cache/sessions/finalize_nanobot_20261015/evidence/feature-d5_followup.yaml
   - branch: feature/d3_crm
-    sha: 383a29ebedc04e441335c5646f46e6778a8c1474
+    sha: e4a3fda782b1eda63ff4f5205b22a6765c850abc
     manifest: workspace/data_store/cache/sessions/finalize_nanobot_20261015/evidence/feature-d3_crm.yaml
   - branch: feature/osiris
-    sha: 82b9bc934f0ccd770639a708f85f480ea57cae0f
+    sha: e85154bb57ab0539e6d0fab4483472337c1196ff
     manifest: workspace/data_store/cache/sessions/finalize_nanobot_20261015/evidence/feature-osiris.yaml
 requires:
   nanobot_version: '>=2.5.4'

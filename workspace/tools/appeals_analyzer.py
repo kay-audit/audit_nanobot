@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import logging
 import sys
-import importlib.util
 from importlib import import_module
 from pathlib import Path
 from typing import Any, ClassVar
@@ -129,20 +128,8 @@ class AppealsAnalyzerTool(Tool):
             for module_name in list(sys.modules):
                 if module_name.startswith(package_name + "."):
                     sys.modules.pop(module_name, None)
-            spec = importlib.util.spec_from_file_location(
-                package_name,
-                package_init,
-                submodule_search_locations=[str(skill_dir)],
-            )
-            if spec is None or spec.loader is None:
-                raise RuntimeError("Cannot create isolated appeals runtime package.")
-            module = importlib.util.module_from_spec(spec)
+            module = import_module(f"workspace.skills.{skill_dir.name}")
             sys.modules[package_name] = module
-            try:
-                spec.loader.exec_module(module)
-            except Exception:
-                sys.modules.pop(package_name, None)
-                raise
         else:
             loaded_origin = getattr(sys.modules[package_name], "__file__", None)
             if loaded_origin is None or Path(loaded_origin).resolve() != package_init.resolve():
