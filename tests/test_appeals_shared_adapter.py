@@ -14,7 +14,7 @@ def test_shared_adapter_preserves_allowed_population_and_legacy_result(monkeypat
     calls=[]
     def retrieve(query,allowed): calls.append((query,allowed)); return allowed
     search=SimpleNamespace(retrieve_hybrid_adaptive=retrieve)
-    monkeypatch.setattr(worker,'load_runtime',lambda pool:(search,object()))
+    monkeypatch.setattr(worker,'load_shared_runtime',lambda pool:(search,object()))
     handlers,legacy=worker.create_shared_handlers(object())
     context=SimpleNamespace(query='same text',session_id='A')
     assert handlers.invoke('retrieve',{'allowed_ids':['A-only']},context)==['A-only']
