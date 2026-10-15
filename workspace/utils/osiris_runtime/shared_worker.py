@@ -22,11 +22,16 @@ def load_skill(name, root):
     """Namespace each skill package; never add a generic `utils` to sys.path."""
     package = "osiris_domain_" + name
     if package not in sys.modules:
-        spec = importlib.util.spec_from_file_location(package, root / "__init__.py",
-                                                      submodule_search_locations=[str(root)])
+        if (root / "__init__.py").is_file():
+            spec = importlib.util.spec_from_file_location(package, root / "__init__.py",
+                                                          submodule_search_locations=[str(root)])
+        else:
+            spec = importlib.machinery.ModuleSpec(package, loader=None, is_package=True)
+            spec.submodule_search_locations = [str(root)]
         module = importlib.util.module_from_spec(spec)
         sys.modules[package] = module
-        spec.loader.exec_module(module)
+        if spec.loader is not None:
+            spec.loader.exec_module(module)
     return importlib.import_module(package + ".rerank_osiris_worker")
 
 
