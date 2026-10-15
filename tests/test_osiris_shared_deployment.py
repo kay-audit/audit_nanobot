@@ -353,3 +353,16 @@ def test_timeout_cleanup_never_allows_uuid_reuse(shared):
     for profile,session in [(profiles[0],'A'),(profiles[0],'B'),(profiles[1],'A')]:
         with pytest.raises(OsirisPayloadError,match='already accepted'):
             json_transport.submit(profile,session,'echo',{'different':True},request_id=rid)
+
+
+def test_wrong_session_cleanup_and_wait_cannot_remove_another_request(shared):
+    _,profiles=shared
+    for transport in ('json','legacy'):
+        p=profiles[0]
+        rid=(json_transport.submit(p,'owner','echo',{}) if transport=='json'
+             else client.submit_request(p,'owner','echo','',{}))
+        json_transport.cleanup(p,'stranger',rid)
+        assert (p.nfs_root/'inbox'/(rid+'.json')).exists()
+        if transport=='legacy':
+            with pytest.raises(OsirisRequestError): client.wait_result(p,'stranger',rid,'echo')
+            assert (p.nfs_root/'inbox'/(rid+'.json')).exists()

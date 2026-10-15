@@ -85,6 +85,18 @@ def correlation(manifest):
     )}
 
 
+def owns_request(profile, session, rid):
+    from .client import session_dirs
+    _, dirs = session_dirs(profile, session)
+    path = confined(dirs["input"] / (rid + ".identity.json"), profile.nfs_root)
+    if not path.is_file():
+        return False
+    manifest = read_json(path, profile.max_payload_bytes + 32768)
+    return (manifest.get("session_id") == str(session) and manifest.get("request_id") == rid
+            and manifest.get("service_name") == profile.service_name
+            and manifest.get("deployment_id") == profile.deployment.profile.service_name)
+
+
 def validate_response(profile, session, rid, op, response, consumer=None):
     if profile.deployment is None:
         return
@@ -120,6 +132,10 @@ def validate_request(profile, manifest, generation):
         raise OsirisPayloadError("Invalid session")
     _, dirs = session_dirs(profile, session)
     rid = manifest["request_id"]
+    retained = read_json(confined(dirs["input"] / (rid + ".identity.json"),
+                                  profile.nfs_root, must_exist=True), profile.max_payload_bytes + 32768)
+    if retained != manifest:
+        raise OsirisPayloadError("Queue manifest differs from the accepted request identity")
     suffixes = (".json",) * 3 if manifest.get("serialization") == "json" else (".pkl", ".pkl", ".txt")
     for area, suffix in zip(("input", "output", "error"), suffixes):
         expected = confined(dirs[area] / (rid + suffix), profile.nfs_root)
