@@ -454,8 +454,9 @@ def test_gateway_entrypoint_loads_before_request_loop(monkeypatch, fails):
         settings={}, sync_service=None, cache_store=None,
         start=lambda: calls.append("start"), stop=lambda: calls.append("stop"),
     )
-    app = types.ModuleType("lib.core.application_context")
-    app.ApplicationContext = types.SimpleNamespace(create=lambda **kwargs: context)
+    from lib.core.application_context import ApplicationContext
+
+    monkeypatch.setattr(ApplicationContext, "create", lambda **kwargs: context)
     commands = types.ModuleType("nanobot.cli.commands")
     commands.__logo__ = "test"
     commands.__version__ = "0"
@@ -464,7 +465,7 @@ def test_gateway_entrypoint_loads_before_request_loop(monkeypatch, fails):
         def run_forever(self, run):
             calls.append("request_loop")
     runner.GatewayRunner = Runner
-    for name, module in ((app.__name__, app), (commands.__name__, commands), (runner.__name__, runner)):
+    for name, module in ((commands.__name__, commands), (runner.__name__, runner)):
         monkeypatch.setitem(sys.modules, name, module)
     monkeypatch.setattr(config, "_initialize_settings", lambda **kwargs: None)
     monkeypatch.setattr(gateway, "_configure_logging", lambda *args: None)
