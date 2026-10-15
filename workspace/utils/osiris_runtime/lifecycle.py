@@ -265,13 +265,21 @@ def lifecycle_lock(profile: ServiceProfile, deadline: float):
                 except FileExistsError:
                     guard_fd = None
                 if guard_fd is not None:
+                    reaped = False
                     try:
                         os.close(guard_fd)
                         if _owner_gone(path):
-                            path.unlink(missing_ok=True)
+                            try:
+                                path.unlink(missing_ok=True)
+                                reaped = True
+                            except PermissionError:
+                                # Windows readers may briefly hold the file.
+                                # Retry through the bounded acquisition loop.
+                                pass
                     finally:
                         guard.unlink(missing_ok=True)
-                    continue
+                    if reaped:
+                        continue
             if time.monotonic() >= deadline:
                 raise OsirisStartupTimeoutError(
                     "Osiris lifecycle lock remained occupied; verify its owner before recovery. "
