@@ -619,7 +619,7 @@ class ProtocolTests(unittest.TestCase):
     def test_old_worker_heartbeat_not_ready(self):
         self.assertFalse(client.SERVICE.heartbeat_ready({"timestamp": time.time(), "ready_gpus": 1}))
         heartbeat = {"timestamp": time.time(), "ready_gpus": 1, "visible_gpus": 1,
-                     "protocol_version": 2, "capabilities": ["retrieve", "rerank"],
+                     "protocol_version": 2, "capabilities": ["retrieve", "rerank", "embed"],
                      "status": "ready", "service_name": "appeals"}
         self.assertTrue(client.SERVICE.heartbeat_ready(heartbeat))
         self.assertEqual(client.SERVICE.num_gpus, 1)
@@ -643,20 +643,20 @@ class WorkerInitializationTests(unittest.TestCase):
             self.assertEqual(heartbeat["status"], "stopped")
             self.assertEqual(heartbeat["ready_gpus"], 0)
 
-    def test_closed_contour_packages_use_public_index_without_token(self):
+    def test_closed_contour_packages_use_internal_index_with_token(self):
         with patch.object(worker.osiris_config, "OSIRIS_PIP_INDEX_URL", ""), patch.object(
             worker.osiris_config, "OSIRIS_PIP_TRUSTED_HOST", "",
         ), patch.object(
-            worker.subprocess, "run",
-        ) as install, patch.object(worker.importlib, "invalidate_caches") as invalidate:
+            worker.subprocess, "run", return_value=Mock(returncode=0),
+        ) as install, patch.object(worker.osiris_config, "get_package_token", return_value="fixture-secret"), patch.object(worker.importlib, "invalidate_caches") as invalidate:
             worker.install_runtime_packages()
         args = install.call_args.args[0]
         self.assertIn("sentence-transformers==3.2.0", args)
         self.assertIn("faiss-gpu-cu12", args)
         env = install.call_args.kwargs["env"]
-        # Публичный PyPI: внутренний индекс не навязывается и токена в коде нет.
-        self.assertNotIn("PIP_INDEX_URL", env)
-        self.assertNotIn("PIP_TRUSTED_HOST", env)
+        self.assertIn("sberosc.ca.sbrf.ru", env["PIP_INDEX_URL"])
+        self.assertNotIn("fixture-secret", repr(args))
+        self.assertEqual(env["PIP_TRUSTED_HOST"], "sberosc.ca.sbrf.ru")
         invalidate.assert_called_once_with()
 
     def test_closed_contour_index_uses_env_when_configured(self):
@@ -666,7 +666,7 @@ class WorkerInitializationTests(unittest.TestCase):
         ), patch.object(
             worker.osiris_config, "OSIRIS_PIP_TRUSTED_HOST", "sberosc.ca.sbrf.ru",
         ), patch.object(
-            worker.subprocess, "run",
+            worker.subprocess, "run", return_value=Mock(returncode=0),
         ) as install, patch.object(worker.importlib, "invalidate_caches"):
             worker.install_runtime_packages()
         args = install.call_args.args[0]
