@@ -10,6 +10,65 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize('failed_send', [False, True])
+async def test_native_appeals_marks_its_real_message_publication(monkeypatch, tmp_path, failed_send):
+    from contextlib import contextmanager, nullcontext
+    from types import SimpleNamespace
+    from nanobot.agent.tools.context import RequestContext, request_context, current_request_context
+    from nanobot.agent.tools.message import MessageTool
+    from workspace.tools import appeals_analyzer as native
+    from lib.utils.verbatim_report import verified_source
+
+    monkeypatch.setenv('APPEALS_ANALYZER_RUNTIME', 'production')
+    monkeypatch.setenv('NANOBOT_SKILLS_RUNTIME', 'production')
+    report = ('## Выводы\n1. Полные шаги проверки\n' + 'Я'*11000)[:11000]
+    path = tmp_path / 'appeals.xlsx'
+    path.write_bytes(b'fixture')
+
+    @contextmanager
+    def artifacts_scope(directory, paths):
+        paths.append(path)
+        yield
+
+    artifacts = SimpleNamespace(artifact_scope=artifacts_scope, session_results=lambda session: tmp_path)
+    backend = SimpleNamespace(backend_scope=lambda mode: nullcontext())
+    real_import = native.import_module
+    def load(name):
+        if name == 'appeals_analyzer_runtime.utils.appeals_artifacts': return artifacts
+        if name == 'appeals_analyzer_runtime.utils.data_store': return backend
+        return real_import(name)
+    monkeypatch.setattr(native, 'import_module', load)
+
+    async def runner(**kwargs):
+        assert kwargs['session_id'] == 'postgres:appeals'
+        return report
+
+    monkeypatch.setattr(native.AppealsAnalyzerTool, '_load_runner', staticmethod(lambda: runner))
+    outbound = []
+    async def send(msg):
+        outbound.append(msg)
+        if failed_send:
+            raise RuntimeError('fixture: delivery failed')
+
+    ctx = RequestContext(channel='postgres', chat_id='chat', message_id='m-1', session_key='postgres:appeals',
+                         metadata={'origin_message_id': 'm-1', 'answer_id': 'a-1', '_verbatim_report_source': 'untrusted'})
+    original = dict(ctx.metadata)
+    tool = native.AppealsAnalyzerTool(config=native.AppealsAnalyzerToolConfig(),
+                                     message_tool=MessageTool(send_callback=send, workspace=tmp_path))
+    with request_context(ctx):
+        result = await tool.execute(prompt='Обращения')
+        assert current_request_context() is ctx
+        assert ctx.metadata == original
+    assert len(outbound) == 1 and outbound[0].content == report
+    assert outbound[0].media == [str(path)]
+    assert verified_source(outbound[0], outbound[0].metadata) == 'appeals_analyzer'
+    if failed_send:
+        assert result.is_error
+    else:
+        assert result == report
+
+
 def _drop_appeals_runtime_modules() -> None:
     for name in list(sys.modules):
         if name == "appeals_analyzer_runtime" or name.startswith("appeals_analyzer_runtime."):
