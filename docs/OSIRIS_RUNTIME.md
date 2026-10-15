@@ -229,7 +229,7 @@ python osiris_job.py --config-file /shared/other_config.py invoke --operation ec
 ```
 
 OSIRIS_IDLE_TIMEOUT_SEC по умолчанию 28800 (8 часов),
-OSIRIS_START_WAIT_TIMEOUT_SEC=300, OSIRIS_RETRY_AFTER_SEC=900.
+OSIRIS_START_WAIT_TIMEOUT_SEC=120, OSIRIS_RETRY_AFTER_SEC=900.
 Startup deadline отделён от request deadline (по умолчанию 1800).
 Профиль допускает явное переопределение idle_timeout_sec. Значение передаётся
 worker через osiris_job.json; worker читает его перед READY.

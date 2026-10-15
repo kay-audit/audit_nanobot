@@ -7,7 +7,7 @@ import time
 from dataclasses import replace
 from pathlib import Path
 
-from .config import PhysicalDeployment, ServiceProfile, common_timeout_settings
+from .config import PhysicalDeployment, ServiceProfile, common_timeout_settings, validate_create_job_name
 from .errors import OsirisBusyError, OsirisPayloadError, OsirisRequestError, OsirisRequestTimeoutError
 from .protocol import confined, identity, read_json, request_identity
 
@@ -19,6 +19,7 @@ def load_deployment(path=None):
     def expand(value):
         return str(value).replace("${PROJECT_ROOT}", str(root))
     settings = data["deployment"]
+    validate_create_job_name(settings["job_name"])
     physical = ServiceProfile(
         settings["name"], settings["job_name"], settings["image"], settings["pool"],
         expand(settings["worker_script"]), 1, Path(expand(settings["nfs_root"])),
@@ -40,7 +41,7 @@ def bind_profile(legacy: ServiceProfile):
     physical = deployment.profile
     return replace(legacy, deployment=deployment, nfs_root=physical.nfs_root / "services" / legacy.service_name,
                    **{key: getattr(physical, key) for key in (
-                       "job_name", "image", "pool", "worker_script", "num_gpus", "idle_timeout_sec")})
+                       "job_name", "image", "pool", "worker_script", "num_gpus", "idle_timeout_sec", "startup_wait_timeout_sec")})
 
 
 def fields(profile, manifest):

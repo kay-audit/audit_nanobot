@@ -24,6 +24,9 @@ def load_profile(path: Path = DEFAULT_CONFIG) -> ServiceProfile:
     profile = getattr(module, "SERVICE", None)
     if not isinstance(profile, ServiceProfile):
         raise RuntimeError(f"Osiris profile file must export SERVICE: {path}")
+    if profile.deployment is None:
+        from workspace.utils.osiris_runtime.deployment import bind_profile
+        profile = bind_profile(profile)
     return profile
 
 

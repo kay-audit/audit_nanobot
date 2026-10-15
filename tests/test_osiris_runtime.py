@@ -87,6 +87,145 @@ def test_default_idle_and_override(profile,monkeypatch):
     assert common_timeout_settings()['idle_timeout_sec']==42
 
 
+class StartupClock:
+    def __init__(self):
+        self.now = 0.0
+    def monotonic(self):
+        return self.now
+    def sleep(self, seconds):
+        assert 0 <= seconds <= 1
+        self.now += seconds
+
+
+def test_startup_defaults_and_environment_override(profile, monkeypatch):
+    monkeypatch.delenv('OSIRIS_START_WAIT_TIMEOUT_SEC', raising=False)
+    assert ServiceProfile.__dataclass_fields__['startup_wait_timeout_sec'].default == 120
+    assert common_timeout_settings()['startup_wait_timeout_sec'] == 120
+    assert common_timeout_settings()['retry_after_sec'] == 900
+    assert client.DEFAULT_REQUEST_TIMEOUT_SEC == 1800
+    monkeypatch.setenv('OSIRIS_START_WAIT_TIMEOUT_SEC', '45')
+    assert common_timeout_settings()['startup_wait_timeout_sec'] == 45
+
+
+@pytest.mark.parametrize('name', ['nanobot_shared', 'Nanobot-shared', 'name/job', '-job', 'job-', 'a'*25, ''])
+def test_invalid_create_name_never_reaches_sdk(profile, monkeypatch, name):
+    clock = StartupClock()
+    monkeypatch.setattr(lifecycle.time, 'monotonic', clock.monotonic)
+    monkeypatch.setattr(lifecycle.time, 'sleep', clock.sleep)
+    if not name:
+        with pytest.raises(ValueError): replace(profile, job_name=name)
+        return
+    actual = replace(profile, job_name=name)
+    sdk = Mock(); sdk.list.return_value = []
+    with pytest.raises(Exception, match='job_name'):
+        lifecycle.ensure_ready(actual, sdk)
+    sdk.create.assert_not_called()
+    sdk.delete.assert_not_called()
+    assert not lifecycle._read_meta(actual).get('create_pending')
+    assert clock.now == 0
+
+
+SDK_REJECTION = {'error': [{'type': 'string_pattern_mismatch', 'loc': ['name'], 'msg': 'Invalid job name'}]}
+
+
+@pytest.mark.parametrize('response', [SDK_REJECTION, str(SDK_REJECTION), json.dumps(SDK_REJECTION)])
+def test_sdk_rejection_is_immediate_and_never_becomes_job_name(profile, monkeypatch, response):
+    from workspace.utils.osiris_runtime.errors import OsirisUnavailableError
+    clock = StartupClock()
+    monkeypatch.setattr(lifecycle.time, 'monotonic', clock.monotonic)
+    monkeypatch.setattr(lifecycle.time, 'sleep', clock.sleep)
+    sdk = Mock(); sdk.list.return_value = []; sdk.create.return_value = response
+    with pytest.raises(OsirisUnavailableError, match='string_pattern_mismatch'):
+        lifecycle.ensure_ready(profile, sdk)
+    metadata = lifecycle._read_meta(profile)
+    assert metadata['create_pending'] is False and not metadata.get('job_name')
+    assert clock.now == 0
+    sdk.create.assert_called_once()
+    sdk.delete.assert_not_called()
+
+
+@pytest.mark.parametrize('response', [None, '', 'not a job name', {}, {'job_name': 123}, {'job_name': 'foreign-job'}])
+def test_ambiguous_create_response_keeps_guard_against_duplicate(profile, monkeypatch, response):
+    from workspace.utils.osiris_runtime.errors import OsirisUnavailableError
+    clock = StartupClock()
+    monkeypatch.setattr(lifecycle.time, 'monotonic', clock.monotonic)
+    monkeypatch.setattr(lifecycle.time, 'sleep', clock.sleep)
+    sdk = Mock(); sdk.list.return_value = []; sdk.create.return_value = response
+    with pytest.raises(OsirisUnavailableError, match='unconfirmed'):
+        lifecycle.ensure_ready(profile, sdk)
+    assert lifecycle._read_meta(profile)['create_pending'] is True
+    assert not lifecycle._read_meta(profile).get('job_name')
+    assert clock.now == 0
+    with pytest.raises(OsirisUnavailableError):
+        lifecycle.ensure_ready(profile, sdk, timeout=2)
+    sdk.create.assert_called_once()
+    sdk.delete.assert_not_called()
+
+
+@pytest.mark.parametrize('name', ['error', 'failed', 'string-pattern-mismatch', 'a'*24])
+def test_valid_job_names_are_not_mistaken_for_sdk_errors(name):
+    from workspace.utils.osiris_runtime.config import validate_create_job_name
+    validate_create_job_name(name)
+    assert lifecycle._create_name(name) == name
+    assert lifecycle._create_name({'job_name': name, 'error': None}) == name
+
+
+def test_default_startup_deadline_counts_sdk_create_time_and_does_not_repeat(profile, monkeypatch):
+    from workspace.utils.osiris_runtime.errors import OsirisStartupTimeoutError
+    clock = StartupClock()
+    monkeypatch.setattr(lifecycle.time, 'monotonic', clock.monotonic)
+    monkeypatch.setattr(lifecycle.time, 'sleep', clock.sleep)
+    profile = replace(profile, startup_wait_timeout_sec=120)
+    sdk = Mock(); sdk.list.return_value = []; sdk.state.return_value = 'Not found'; sdk.status.return_value = 'Not found'
+    def create(**kwargs):
+        clock.now += 35
+        return {'job_name': profile.job_name}
+    sdk.create.side_effect = create
+    with pytest.raises(OsirisStartupTimeoutError):
+        lifecycle.ensure_ready(profile, sdk)
+    assert clock.now == 120
+    with pytest.raises(OsirisStartupTimeoutError):
+        lifecycle.ensure_ready(profile, sdk, timeout=2)
+    assert clock.now == 122
+    sdk.create.assert_called_once()
+    sdk.delete.assert_not_called()
+
+
+def test_old_error_as_name_metadata_is_repaired_without_deleting_job(profile):
+    from workspace.utils.osiris_runtime.errors import OsirisUnavailableError
+    profile = replace(profile, job_name='nanobot-shared')
+    lifecycle._atomic_json({'requested_name': 'nanobot_shared', 'service_name': profile.service_name,
+                           'job_name': str(SDK_REJECTION), 'create_pending': True}, profile.metadata_path)
+    sdk = Mock(); sdk.list.return_value = []; sdk.create.return_value = SDK_REJECTION
+    with pytest.raises(OsirisUnavailableError, match='string_pattern_mismatch'):
+        lifecycle.ensure_ready(profile, sdk)
+    metadata = json.loads(profile.metadata_path.read_text(encoding='utf-8'))
+    assert metadata['requested_name'] == 'nanobot-shared'
+    assert metadata['create_pending'] is False and not metadata.get('job_name')
+    sdk.state.assert_not_called()
+    sdk.delete.assert_not_called()
+
+
+def test_structured_sdk_exception_clears_false_pending(profile, monkeypatch):
+    from workspace.utils.osiris_runtime.errors import OsirisUnavailableError
+    sdk = Mock(); sdk.list.return_value = []; sdk.create.side_effect = ValueError(SDK_REJECTION)
+    monkeypatch.setattr(lifecycle.time, 'sleep', Mock(side_effect=AssertionError('must fail fast')))
+    with pytest.raises(OsirisUnavailableError, match='string_pattern_mismatch'):
+        lifecycle.ensure_ready(profile, sdk)
+    assert lifecycle._read_meta(profile)['create_pending'] is False
+    sdk.delete.assert_not_called()
+
+
+def test_structured_discovery_failure_is_never_absence(profile, monkeypatch):
+    from workspace.utils.osiris_runtime.errors import OsirisUnavailableError
+    sdk = Mock(); sdk.list.return_value = SDK_REJECTION
+    monkeypatch.setattr(lifecycle.time, 'sleep', Mock(side_effect=AssertionError('must fail fast')))
+    with pytest.raises(OsirisUnavailableError, match='string_pattern_mismatch'):
+        lifecycle.ensure_ready(profile, sdk)
+    sdk.create.assert_not_called()
+    sdk.delete.assert_not_called()
+
+
 @pytest.mark.parametrize('payload',[b'pickle',set(),object(),float('nan'),float('inf'),{'bad':complex(1,2)},{1:'value'}])
 def test_json_rejects_python_and_nonfinite_values(profile,payload):
     with pytest.raises(OsirisPayloadError): json_transport.submit(profile,'s','echo',payload)

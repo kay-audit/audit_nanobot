@@ -53,3 +53,45 @@ Offline coverage: `tests/test_osiris_shared_deployment.py` uses real files,
 threads and spawned processes with synthetic SDK/domain handlers. Real SDK,
 CUDA numerics/memory, cross-host NFS locks and GPU release after shutdown must
 be checked on the closed contour; offline success does not establish them.
+
+## Startup name and bounded readiness wait
+
+The checked-in physical job name is `nanobot-shared` (one GPU for Appeals and
+IOR). New create inputs must match `^[a-z0-9](?:[a-z0-9-]{0,22}[a-z0-9])?$`.
+The logical deployment ID `nanobot_gpu` is not a physical job name. Historical
+`srb_d3` / `srbd6` names remain discoverable and block unsafe shared startup;
+no migration deletes those jobs automatically.
+
+Startup readiness defaults to **120 seconds** in `ServiceProfile` and
+`common_timeout_settings()`. `OSIRIS_START_WAIT_TIMEOUT_SEC` and
+`python osiris_job.py start --startup-timeout SECONDS` still override it.
+One monotonic deadline covers shared discovery, lifecycle-lock waiting,
+physical startup and scheduler/heartbeat polling; recursion does not restart
+the timer. An already READY job returns immediately. This does not change
+request execution timeout (1800 seconds), idle TTL (28800) or retry advice (900).
+The deadline bounds runtime polling; a blocking private SDK call must itself
+return before Python can inspect its result (SDK/network timeout configuration
+must be verified on the closed contour).
+
+Explicit structured SDK rejection (including the observed Python-dict string
+form) fails immediately, records `create_pending=False`, and never stores the
+error as an actual name. Structured discovery errors are not treated as absence.
+A generic transport exception or empty/malformed create response is ambiguous:
+it fails immediately but retains `create_pending=True` to prevent another create
+until discovery or an operator resolves the outcome. A valid accepted name can
+precede scheduler visibility; this keeps waiting inside the original deadline
+and does not create again. Names such as `error` are valid names, not error
+heuristics. Error diagnostics expose validation codes rather than SDK payloads.
+
+For metadata written by the old `nanobot_shared` configuration, the known alias
+is accepted only in the same service namespace. An explicitly rejected SDK
+payload formerly stored as `job_name` is ignored as a name, then SDK discovery
+still runs before any create. Existing valid jobs are adopted, never removed
+as part of this repair. Other/uncertain ownership stays fail-closed.
+
+D6's existing degraded behavior is unchanged: SQL/XLSX generation completes
+before optional Osiris index registration. Startup unavailability prevents a
+usable search index; it does not remove the already generated XLSX or report.
+Model/index errors remain failures, not a successful READY/search result.
+Real private SDK, GPU models and cross-host NFS behavior require closed-contour
+validation; the offline tests use synthetic SDK responses and clocks.

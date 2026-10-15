@@ -7,6 +7,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 
@@ -16,6 +17,109 @@ from workspace.utils.osiris_runtime.dispatcher import HandlerRegistry
 from workspace.utils.osiris_runtime.errors import OsirisBusyError, OsirisRequestError, OsirisRequestTimeoutError, OsirisUnavailableError
 from workspace.utils.osiris_runtime.registry import ServiceRegistry
 from workspace.utils.osiris_runtime.shared_worker import SharedWorker
+
+
+def test_operator_shared_config_and_profiles_use_one_valid_job(monkeypatch):
+    import osiris_job
+    from workspace.utils.osiris_runtime.deployment import load_deployment, bind_profile
+    monkeypatch.delenv('OSIRIS_SHARED_CONFIG', raising=False)
+    monkeypatch.delenv('OSIRIS_START_WAIT_TIMEOUT_SEC', raising=False)
+    deployment, services = load_deployment()
+    assert deployment.profile.job_name == 'nanobot-shared'
+    assert deployment.profile.num_gpus == 1
+    assert set(services) == {'appeals', 'ior'}
+    profiles = [bind_profile(replace(deployment.profile, service_name=name, capabilities=('echo',)))
+                for name in ('appeals', 'ior')]
+    assert all(p.deployment == deployment and p.job_name == 'nanobot-shared' and p.startup_wait_timeout_sec == 120 for p in profiles)
+    assert profiles[0].nfs_root != profiles[1].nfs_root
+    assert osiris_job.load_profile().deployment == deployment
+
+
+def test_shared_start_uses_one_deadline_including_sdk_preflight(shared, monkeypatch):
+    from unittest.mock import Mock
+    from workspace.utils.osiris_runtime.errors import OsirisStartupTimeoutError
+    deployment, profiles = shared
+    physical = replace(deployment.profile, startup_wait_timeout_sec=120)
+    profile = replace(profiles[0], deployment=replace(deployment, profile=physical), startup_wait_timeout_sec=120)
+    clock = {'now': 0.0, 'lists': 0}
+    monkeypatch.setattr(lifecycle.time, 'monotonic', lambda: clock['now'])
+    def sleep(seconds):
+        assert 0 <= seconds <= 1
+        clock['now'] += seconds
+    monkeypatch.setattr(lifecycle.time, 'sleep', sleep)
+    sdk = Mock()
+    def listed():
+        if clock['lists'] == 0:
+            clock['now'] += 40
+        clock['lists'] += 1
+        return []
+    sdk.list.side_effect = listed
+    sdk.create.return_value = {'job_name': physical.job_name}
+    sdk.state.return_value = 'Not found'; sdk.status.return_value = 'Not found'
+    with pytest.raises(OsirisStartupTimeoutError):
+        lifecycle.ensure_ready(profile, sdk)
+    assert clock['now'] == 120
+    sdk.create.assert_called_once()
+    sdk.delete.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_ior_xlsx_survives_rejected_osiris_create(shared, monkeypatch, tmp_path):
+    """Runs in the integrated checkout; the OSIRIS-only source has no IOR skill."""
+    root = Path(__file__).resolve().parents[1]
+    if not (root / 'workspace/tools/ior_analyzer.py').is_file():
+        pytest.skip('D6 is present in its source/integration branch, not the OSIRIS-only source')
+    import duckdb
+    import pandas as pd
+    import openpyxl
+    from types import SimpleNamespace
+    from unittest.mock import Mock, AsyncMock
+    from workspace.tools.ior_analyzer import IORAnalyzerTool
+    runner = IORAnalyzerTool._load_runner()
+    import ior_reports as reports
+    from utils import bge_search_engine as bge
+    from utils.data_store import DUCKDB_TABLES
+    from utils.ior_artifacts import artifact_scope
+    from utils.session_extract_manager import get_session_extract
+
+    frame = pd.DataFrame([{c: None for c in reports.MAIN_REPORT_COLUMNS}])
+    frame.loc[0, 'incdnt_id'] = 1
+    frame.loc[0, 'incdnt_sid'] = 'EVE-1'
+    frame.loc[0, 'incdnt_status_name'] = 'Утверждён'
+    frame.loc[0, 'incdnt_full_descr_txt'] = 'Подробное описание для поискового индекса'
+    frame['incdnt_entry_dt'] = pd.to_datetime(['2025-03-01'])
+    connection = duckdb.connect(':memory:')
+    connection.register('fixture', frame)
+    connection.execute('CREATE TABLE '+DUCKDB_TABLES['ior']+' AS SELECT * FROM fixture')
+    store = SimpleNamespace(tables=DUCKDB_TABLES, backend_name='fixture', query_sql=lambda sql: connection.execute(sql).df())
+    monkeypatch.setattr(reports, 'get_data_store', lambda: store)
+    monkeypatch.setattr(reports, 'get_session_extract', lambda session: None)
+    monkeypatch.setattr(reports, 'generate_hypothesis_narrative', AsyncMock(return_value='Основная аналитика сохранена'))
+    profile = replace(shared[1][1], capabilities=('build_index',))
+    monkeypatch.setattr(bge.osiris_client, 'SERVICE', profile)
+    sdk = Mock(); sdk.list.return_value = []
+    sdk.create.return_value = {'error': [{'type': 'string_pattern_mismatch', 'loc': ['name']}]}
+    monkeypatch.setattr(lifecycle, 'import_osiris', lambda: sdk)
+    no_wait = Mock(side_effect=AssertionError('Explicit rejection must not wait'))
+    monkeypatch.setattr(lifecycle.time, 'sleep', no_wait)
+    paths = []
+    try:
+        with artifact_scope(tmp_path / 'exports', paths):
+            report = await runner(None, 'osiris-degraded-regression', 'ИОР за март 2025')
+        assert 'Основная аналитика сохранена' in report
+        assert len(paths) == 1 and paths[0].suffix == '.xlsx'
+        workbook = openpyxl.load_workbook(paths[0], read_only=True)
+        try:
+            assert workbook.active.max_row == 2 and workbook.active.max_column == 64
+        finally:
+            workbook.close()
+        assert len(get_session_extract('osiris-degraded-regression')['df']) == 1
+        assert bge.search_small_index('osiris-degraded-regression', 'повторный поиск') == []
+        sdk.create.assert_called_once()
+        sdk.delete.assert_not_called()
+        no_wait.assert_not_called()
+    finally:
+        connection.close()
 
 
 @pytest.fixture
@@ -219,10 +323,11 @@ def test_idle_and_stop_refuse_pending_requests(shared):
     with pytest.raises(OsirisBusyError): lifecycle.stop_service(profiles[0],FakeSDK(deployment.profile,state))
 
 
-def test_legacy_job_blocks_shared_without_create_or_delete(shared):
+@pytest.mark.parametrize('legacy_name', ['prefix-srb_d3', 'srb_d3', 'srbd6', 'prefix-srbd6'])
+def test_legacy_job_blocks_shared_without_create_or_delete(shared, legacy_name):
     deployment,profiles=shared
     sdk=FakeSDK(deployment.profile,{})
-    sdk.list=lambda:['prefix-srb_d3']
+    sdk.list=lambda:[legacy_name]
     sdk.state=lambda name:'Running'
     with pytest.raises(OsirisUnavailableError): lifecycle.ensure_ready(profiles[0],sdk)
     assert not sdk.shared.get('creates')

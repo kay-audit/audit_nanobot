@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import importlib
+import ast
 import json
+import math
 import os
 import re
 import socket
@@ -13,7 +15,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-from .config import ServiceProfile, physical_profile
+from .config import ServiceProfile, physical_profile, validate_create_job_name
 from .errors import (
     OsirisBusyError,
     OsirisResourcesUnavailableError,
@@ -69,10 +71,30 @@ def _atomic_json(data: dict, path: Path):
         temporary.unlink(missing_ok=True)
 
 
+def _same_requested_name(profile, value):
+    return value == profile.job_name or (value == 'nanobot_shared' and profile.job_name == 'nanobot-shared')
+
+
 def _read_meta(profile: ServiceProfile) -> dict:
     try:
         value = json.loads(profile.metadata_path.read_text(encoding="utf-8"))
-        return value if isinstance(value, dict) and value.get("requested_name") == profile.job_name else {}
+        if not isinstance(value, dict) or not _same_requested_name(profile, value.get('requested_name')):
+            return {}
+        if value.get('service_name') not in (None, profile.service_name):
+            return {}
+        if value.get('job_name'):
+            try:
+                actual = _create_name(value['job_name'])
+            except _CreateRejected:
+                # Repair the known old error-as-name bug; discovery still checks the SDK.
+                actual = None
+                value['create_pending'] = False
+                value['failure'] = 'sdk_rejected'
+            if not actual:
+                value.pop('job_name', None)
+            else:
+                value['job_name'] = actual
+        return value
     except (OSError, ValueError):
         return {}
 
@@ -82,10 +104,42 @@ def _write_meta(profile: ServiceProfile, **values):
                   "updated_at": time.time(), **values}, profile.metadata_path)
 
 
+class _CreateRejected(OsirisUnavailableError):
+    """The SDK explicitly rejected creation, unlike a lost/ambiguous response."""
+
+
+def _structured_result(result):
+    if isinstance(result, str) and result.lstrip().startswith('{') and len(result) <= 65536:
+        for parse in (json.loads, ast.literal_eval):
+            try:
+                parsed = parse(result)
+            except (ValueError, SyntaxError, TypeError, RecursionError):
+                continue
+            if isinstance(parsed, dict):
+                return parsed
+    return result
+
+
+def _raise_sdk_rejection(result):
+    result = _structured_result(result)
+    if isinstance(result, dict) and (result.get('error') or result.get('errors')):
+        errors = result.get('error') or result.get('errors')
+        entries = errors if isinstance(errors, list) else [errors]
+        codes = [item.get('type') for item in entries if isinstance(item, dict)]
+        codes = [code for code in codes if isinstance(code, str) and re.fullmatch(r'[a-zA-Z0-9_-]{1,80}', code)]
+        detail = ': ' + ', '.join(codes) if codes else ''
+        raise _CreateRejected('OSIRIS SDK rejected the operation' + detail + '; check job_name and SDK parameters')
+
+
 def _create_name(result: Any) -> str | None:
+    result = _structured_result(result)
+    _raise_sdk_rejection(result)
     if isinstance(result, dict):
-        return next((str(result[key]) for key in ("job", "job_name", "name") if result.get(key)), None)
-    return result.strip() if isinstance(result, str) and result.strip() else None
+        result = next((result[key] for key in ('job', 'job_name', 'name') if result.get(key)), None)
+    # SDK actual names may carry an operator prefix; the 24-char limit is on create input.
+    if isinstance(result, str) and re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9_.-]{0,255}', result.strip()):
+        return result.strip()
+    return None
 
 
 def _names(value: Any) -> list[str]:
@@ -169,6 +223,10 @@ def discover(profile: ServiceProfile, osiris):
         if actual and candidates[str(actual)][0] not in TERMINAL:
             return str(actual), *candidates[str(actual)]
         return actual, "unknown", str(exc)
+    try:
+        _raise_sdk_rejection(listed)
+    except _CreateRejected as exc:
+        return actual, 'unknown', exc
     if not isinstance(listed, (dict, list, tuple, set)):
         return actual, "unknown", listed
     names = _names(listed)
@@ -188,6 +246,8 @@ def discover(profile: ServiceProfile, osiris):
     if meta.get("create_pending") and not actual:
         return None, "unknown", "Unconfirmed create without actual job name"
     if actual:
+        if meta.get('create_pending') and candidates[str(actual)][0] == 'not_found':
+            return str(actual), 'pending', 'Accepted create is not yet visible in scheduler discovery'
         return str(actual), *candidates[str(actual)]
     return None, "not_found", listed
 
@@ -299,7 +359,7 @@ def lifecycle_lock(profile: ServiceProfile, deadline: float):
             owner = {}
         if isinstance(owner, dict) and (
             owner.get("service_name") not in (None, profile.service_name)
-            or owner.get("requested_name") not in (None, profile.job_name)
+            or (owner.get('requested_name') is not None and not _same_requested_name(profile, owner['requested_name']))
         ):
             raise OsirisUnavailableError("NFS namespace belongs to another Osiris service")
         yield
@@ -328,12 +388,20 @@ def _ready_for_job(profile: ServiceProfile, name: str | None, state: str, meta: 
     return not generation or heartbeat.get("generation") == generation
 
 
-def _start_under_lock(profile: ServiceProfile, osiris):
+def _start_under_lock(profile: ServiceProfile, osiris, deadline=None):
     name, state, details = discover(profile, osiris)
+    if isinstance(details, _CreateRejected):
+        raise details
     if state == "unknown":
         return name, state, details, False
     if state not in TERMINAL:
         return name, state, details, False
+    try:
+        validate_create_job_name(profile.job_name)
+    except ValueError as exc:
+        raise _CreateRejected(str(exc)) from None
+    if deadline is not None and time.monotonic() >= deadline:
+        raise OsirisStartupTimeoutError('Osiris startup deadline elapsed before create')
     if profile.heartbeat_ready(profile.read_heartbeat()) and state in TERMINAL:
         # A fresh heartbeat may be from a job stopping; SDK state wins once confirmed.
         pass
@@ -347,11 +415,27 @@ def _start_under_lock(profile: ServiceProfile, osiris):
                                script=profile.worker_script, restart=False, num_nodes=1,
                                num_gpus=profile.num_gpus, type="pytorchjob")
     except Exception as exc:
+        try:
+            _raise_sdk_rejection(exc.args[0] if exc.args else str(exc))
+            errors = getattr(exc, 'errors', None)
+            if callable(errors):
+                _raise_sdk_rejection({'error': errors()})
+        except _CreateRejected:
+            _write_meta(profile, create_pending=False, failure='sdk_rejected')
+            raise
         if any(term in str(exc).lower() for term in ("insufficient gpu", "no gpu resources", "insufficient resources")):
             _write_meta(profile, create_pending=False, failure="gpu_resources_unavailable")
             raise OsirisResourcesUnavailableError("Osiris GPU resources are unavailable") from exc
         raise OsirisUnavailableError("Osiris create outcome is unconfirmed; inspect SDK status") from exc
-    name = _create_name(result)
+    try:
+        name = _create_name(result)
+    except _CreateRejected:
+        _write_meta(profile, create_pending=False, failure='sdk_rejected')
+        raise
+    if not name or not _matches(profile, name):
+        # Empty/malformed responses can follow an accepted create. Keep uncertainty
+        # durable so another caller cannot launch a duplicate; do not wait for READY now.
+        raise OsirisUnavailableError('Osiris create outcome is unconfirmed: no valid owned job name; inspect SDK status')
     _write_meta(profile, job_name=name, create_pending=True, generation=generation,
                 create_started_at=time.time(), idle_timeout_sec=profile.idle_timeout_sec)
     return name, "pending", result, True
@@ -389,13 +473,18 @@ def _recycle_stale_running(profile: ServiceProfile, osiris, name: str, deadline:
         time.sleep(min(POLL_SEC, max(0, deadline - time.monotonic())))
 
 
-def ensure_ready(profile: ServiceProfile, osiris=None, *, timeout: float | None = None) -> str:
+def ensure_ready(profile: ServiceProfile, osiris=None, *, timeout: float | None = None, _deadline=None) -> str:
     """Create at most once, share an NFS lock, then wait within one startup deadline."""
+    timeout = physical_profile(profile).startup_wait_timeout_sec if timeout is None else timeout
+    if not math.isfinite(timeout) or timeout <= 0:
+        raise ValueError('Startup timeout must be positive and finite')
+    deadline = time.monotonic() + timeout if _deadline is None else _deadline
     if profile.deployment is not None:
         deployment = profile.deployment
         sdk = osiris if osiris is not None else import_osiris()
         # Old independent jobs must be retired by the operator, never silently deleted.
         listed = sdk.list()
+        _raise_sdk_rejection(listed)
         if not isinstance(listed, (dict, list, tuple, set)):
             raise OsirisUnavailableError("Cannot confirm absence of legacy GPU jobs")
         for name in _names(listed):
@@ -406,23 +495,23 @@ def ensure_ready(profile: ServiceProfile, osiris=None, *, timeout: float | None 
                     raise OsirisUnavailableError("Legacy GPU job exists; operator must retire it before shared deployment")
             if not _matches(deployment.profile, name) and query_state(sdk, name)[0] not in TERMINAL:
                 raise OsirisUnavailableError("Another GPU job exists or has unknown state; inspect it before shared startup")
-        result = ensure_ready(deployment.profile, sdk, timeout=timeout)
+        result = ensure_ready(deployment.profile, sdk, timeout=timeout, _deadline=deadline)
         if not profile.heartbeat_ready(profile.read_heartbeat()):
             raise OsirisUnavailableError("Shared worker does not advertise the logical service capabilities")
         return result
-    timeout = profile.startup_wait_timeout_sec if timeout is None else timeout
-    if timeout <= 0:
-        raise ValueError("Startup timeout must be positive")
-    deadline = time.monotonic() + timeout
     try:
         osiris = osiris if osiris is not None else import_osiris()
         created = False
         while True:
+            if time.monotonic() >= deadline:
+                raise OsirisStartupTimeoutError(f'Osiris did not become READY within {timeout:g}s')
             with lifecycle_lock(profile, deadline):
-                name, state, details, did_create = _start_under_lock(profile, osiris)
+                name, state, details, did_create = _start_under_lock(profile, osiris, deadline)
                 created |= did_create
             while True:
                 name, state, details = discover(profile, osiris)
+                if isinstance(details, _CreateRejected):
+                    raise details
                 meta = _read_meta(profile)
                 if _ready_for_job(profile, name, state, meta):
                     if meta.get("create_pending"):
