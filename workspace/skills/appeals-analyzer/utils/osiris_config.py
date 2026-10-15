@@ -92,6 +92,15 @@ SERVICE = ServiceProfile(
 )
 
 
+if (PROJECT_ROOT / "osiris_deployment.json").exists() or "OSIRIS_SHARED_CONFIG" in os.environ:
+    from workspace.utils.osiris_runtime.deployment import bind_profile
+    SERVICE = bind_profile(SERVICE)
+    NFS_ROOT = SERVICE.nfs_root
+    HEARTBEAT_PATH = SERVICE.heartbeat_path
+    JOB_META_PATH = SERVICE.metadata_path
+    LAUNCH_LOCK_PATH = SERVICE.lock_path
+
+
 class OsirisWorkerNotReady(OsirisUnavailableError):
     """Operator-actionable error safe to show in the native Tool response."""
 

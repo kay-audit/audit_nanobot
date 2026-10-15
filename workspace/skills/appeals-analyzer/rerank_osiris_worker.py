@@ -135,8 +135,9 @@ class ExistingAppealsRetrieval:
         return self.search.retrieve_hybrid_adaptive(query, allowed_ids)
 
 
-def load_runtime():
-    install_runtime_packages()
+def load_runtime(model_pool=None):
+    if model_pool is None:
+        install_runtime_packages()
     import torch
     from sentence_transformers import CrossEncoder, SentenceTransformer
 
@@ -148,13 +149,21 @@ def load_runtime():
     reranker_path = Path(os.environ.get("APPEALS_RERANKER_MODEL_PATH", str(model_root / "bge-reranker-v2-m3")))
     if not embed_path.is_dir() or not reranker_path.is_dir():
         raise RuntimeError("Local Osiris BGE-M3/reranker directories are unavailable")
-    embed = SentenceTransformer(str(embed_path), device="cuda:0", local_files_only=True)
-    try:
-        reranker = CrossEncoder(str(reranker_path), device="cuda:0", local_files_only=True,
+    def embedding_factory():
+        return SentenceTransformer(str(embed_path), device="cuda:0", local_files_only=True)
+    def reranker_factory():
+        try:
+            return CrossEncoder(str(reranker_path), device="cuda:0", local_files_only=True,
                                 automodel_args={"torch_dtype": torch.float16})
-    except TypeError:
-        reranker = CrossEncoder(str(reranker_path), device="cuda:0", local_files_only=True)
-        reranker.model.half()
+        except TypeError:
+            model = CrossEncoder(str(reranker_path), device="cuda:0", local_files_only=True)
+            model.model.half()
+            return model
+    if model_pool is None:
+        embed, reranker = embedding_factory(), reranker_factory()
+    else:
+        embed = model_pool.proxy("embed", (str(embed_path.resolve()), "default-local"), embedding_factory)
+        reranker = model_pool.proxy("rerank", (str(reranker_path.resolve()), "fp16-local"), reranker_factory)
     return ExistingAppealsRetrieval(embed), reranker
 
 
@@ -253,6 +262,24 @@ def build_handlers(search, reranker):
             return dispatch_operation(operation, context.query, data, search, reranker)
         handlers.register(name, handle)
     return handlers
+
+
+def create_shared_handlers(model_pool):
+    """Business adapter only; shared lifecycle and transport belong to OSIRIS."""
+    from workspace.utils.osiris_runtime.dispatcher import HandlerRegistry
+    search, reranker = load_runtime(model_pool)
+    handlers = HandlerRegistry()
+    for name in PROFILE.capabilities:
+        def handle(payload, context, operation=name):
+            data = dict(payload)
+            if operation == "rerank":
+                data["response_format"] = "records"
+                data.setdefault("model", "BAAI/bge-reranker-v2-m3")
+            return dispatch_operation(operation, context.query, data, search, reranker)
+        handlers.register(name, handle)
+    def legacy(manifest, payload):
+        return dispatch_operation(manifest["request_type"], manifest["query"], payload, search, reranker)
+    return handlers, legacy
 
 
 def process_request(manifest_path, search, reranker):
