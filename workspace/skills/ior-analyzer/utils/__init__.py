@@ -11,7 +11,7 @@ while _SKILL_DIR.parent != _SKILL_DIR:
 _SCRIPTS_DIR = _SKILL_DIR / "scripts"
 _UTILS_DIR = _SKILL_DIR / "utils"
 
-for _dir in (_SKILL_DIR, _SCRIPTS_DIR, _UTILS_DIR):
+for _dir in (() if __name__.startswith("osiris_domain_") else (_SKILL_DIR, _SCRIPTS_DIR, _UTILS_DIR)):
     _sdir = str(_dir)
     if _sdir not in sys.path:
         sys.path.insert(0, _sdir)

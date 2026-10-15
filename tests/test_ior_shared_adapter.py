@@ -7,9 +7,12 @@ import pytest
 
 
 def test_ior_shared_adapter_keeps_consumer_session_and_extract_version(monkeypatch):
+    import sys
     shared=pytest.importorskip('workspace.utils.osiris_runtime.shared_worker')
     root=Path(__file__).resolve().parents[1]/'workspace/skills/ior-analyzer'
+    before=list(sys.path)
     worker=shared.load_skill('ior_contract',root)
+    assert not any(str(p) in sys.path and str(p) not in before for p in (root,root/'scripts',root/'utils'))
     calls=[]
     def dispatch(session,operation,query,payload):
         calls.append((session,operation,payload['version']))
