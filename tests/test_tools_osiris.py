@@ -202,8 +202,10 @@ def test_real_project_tool_loader_registers_native_tool(tmp_path,monkeypatch):
     settings=SimpleNamespace(tools=SimpleNamespace(osiris={'enable':True,'allowed_services':['test'],'profile_files':['profile.py']}))
     result=register_project_tools(agent,tmp_path,settings=settings)
     assert 'osiris' in result.registered
-    registered=agent.tools.register.call_args.args[0]
-    assert registered.name=='osiris'
+    native = [call.args[0] for call in agent.tools.register.call_args_list
+              if call.args[0].name == 'osiris']
+    assert len(native) == 1
+    registered = native[0]
     assert registered.runtime.profile('test').capabilities==('echo',)
 
 
