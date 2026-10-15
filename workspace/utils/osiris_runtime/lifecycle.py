@@ -13,7 +13,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-from .config import ServiceProfile
+from .config import ServiceProfile, physical_profile
 from .errors import (
     OsirisBusyError,
     OsirisResourcesUnavailableError,
@@ -247,6 +247,7 @@ def _owner_gone(path: Path) -> bool:
 
 @contextmanager
 def lifecycle_lock(profile: ServiceProfile, deadline: float):
+    profile = physical_profile(profile)
     profile.prepare_nfs()
     path = profile.lock_path
     while True:
@@ -347,7 +348,9 @@ def _recycle_stale_running(profile: ServiceProfile, osiris, name: str, deadline:
     stale_for = age if age is not None else time.time() - float(meta.get("updated_at", time.time()))
     if stale_for < 2 * profile.heartbeat_max_age_sec:
         return False
-    if any((profile.nfs_root / "processing").glob("*.json")):
+    if (any((profile.nfs_root / "processing").glob("*.json"))
+            or any((profile.nfs_root / "services").glob("*/processing/*.json"))
+            or any((profile.nfs_root / "services").glob("*/inbox/*.json"))):
         return False
     if (isinstance(heartbeat, dict)
             and heartbeat.get("service_name") in (None, profile.service_name)
@@ -367,6 +370,23 @@ def _recycle_stale_running(profile: ServiceProfile, osiris, name: str, deadline:
 
 def ensure_ready(profile: ServiceProfile, osiris=None, *, timeout: float | None = None) -> str:
     """Create at most once, share an NFS lock, then wait within one startup deadline."""
+    if profile.deployment is not None:
+        deployment = profile.deployment
+        sdk = osiris if osiris is not None else import_osiris()
+        # Old independent jobs must be retired by the operator, never silently deleted.
+        listed = sdk.list()
+        if not isinstance(listed, (dict, list, tuple, set)):
+            raise OsirisUnavailableError("Cannot confirm absence of legacy GPU jobs")
+        for name in _names(listed):
+            if any(_matches(ServiceProfile(legacy, legacy, "image", "pool", "worker", 1,
+                                          Path("."), ("legacy",)), name)
+                   for legacy in deployment.legacy_job_names):
+                if query_state(sdk, name)[0] not in TERMINAL:
+                    raise OsirisUnavailableError("Legacy GPU job exists; operator must retire it before shared deployment")
+        result = ensure_ready(deployment.profile, sdk, timeout=timeout)
+        if not profile.heartbeat_ready(profile.read_heartbeat()):
+            raise OsirisUnavailableError("Shared worker does not advertise the logical service capabilities")
+        return result
     timeout = profile.startup_wait_timeout_sec if timeout is None else timeout
     if timeout <= 0:
         raise ValueError("Startup timeout must be positive")
@@ -413,6 +433,7 @@ def ensure_ready(profile: ServiceProfile, osiris=None, *, timeout: float | None 
 
 
 def service_status(profile: ServiceProfile, osiris=None) -> dict:
+    profile = physical_profile(profile)
     osiris = osiris if osiris is not None else import_osiris()
     name, state, details = discover(profile, osiris)
     heartbeat = profile.read_heartbeat() or {}
@@ -436,6 +457,7 @@ def service_status(profile: ServiceProfile, osiris=None) -> dict:
 
 def stop_service(profile: ServiceProfile, osiris=None, *, timeout: float = 120.0) -> str | None:
     """Use the confirmed closed-contour osiris.delete API, then verify termination."""
+    profile = physical_profile(profile)
     if timeout <= 0:
         raise ValueError("Stop timeout must be positive")
     osiris = osiris if osiris is not None else import_osiris()
@@ -446,7 +468,9 @@ def stop_service(profile: ServiceProfile, osiris=None, *, timeout: float = 120.0
             raise OsirisUnavailableError(f"Cannot confirm job state; metadata retained: {details}")
         if state not in TERMINAL:
             heartbeat = profile.read_heartbeat() or {}
-            if (any((profile.nfs_root / "inbox").glob("*.json"))
+            if (any((profile.nfs_root / "services").glob("*/inbox/*.json"))
+                    or any((profile.nfs_root / "services").glob("*/processing/*.json"))
+                    or any((profile.nfs_root / "inbox").glob("*.json"))
                     or any((profile.nfs_root / "processing").glob("*.json"))
                     or (profile.heartbeat_live(heartbeat) and (
                         heartbeat.get("active_requests", 0) or heartbeat.get("queue_size", 0)))):

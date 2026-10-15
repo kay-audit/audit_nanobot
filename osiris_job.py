@@ -48,6 +48,8 @@ def main(argv=None, *, default_config: Path = DEFAULT_CONFIG):
     try:
         profile = load_profile(args.config_file)
         registry = ServiceRegistry()
+        if profile.deployment is not None:
+            registry.register_deployment(profile.deployment)
         registry.register(profile)
         selected = args.service or profile.service_name
         profile = registry.get(selected)

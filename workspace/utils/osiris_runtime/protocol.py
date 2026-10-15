@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import re
 from pathlib import Path
 
@@ -66,8 +67,18 @@ def operation(profile, name):
 
 
 def confined(path: Path, root: Path, *, must_exist=False) -> Path:
-    root = Path(root).resolve()
-    candidate = Path(path).resolve(strict=must_exist)
+    def resolved(value, strict=False):
+        result = str(Path(value).resolve(strict=strict))
+        # Windows may retain its extended-length prefix while a concurrent
+        # mkdir changes which components exist. Both spellings name one path.
+        if os.name == "nt":
+            if result.startswith("\\\\?\\UNC\\"):
+                result = "\\\\" + result[8:]
+            elif result.startswith("\\\\?\\"):
+                result = result[4:]
+        return Path(result)
+    root = resolved(root)
+    candidate = resolved(path, must_exist)
     if not candidate.is_relative_to(root) or candidate == root:
         raise OsirisPayloadError("Artifact path escapes its namespace")
     if must_exist and not candidate.is_file():

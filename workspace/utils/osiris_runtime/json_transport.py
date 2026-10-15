@@ -32,6 +32,9 @@ class InvocationResult:
 
 def submit(profile, session_id, op, payload, *, consumer_id="python", query="",
            timeout_sec=1800, artifacts=None, file_root=None, request_id=None, validate_only=False):
+    from .deployment import fields, ticket, trusted_session
+    if profile.deployment is not None:
+        session_id = trusted_session(session_id)
     operation(profile, op)
     identity(consumer_id, "consumer ID")
     if not isinstance(session_id, str) or not session_id or len(session_id) > 4096:
@@ -80,6 +83,7 @@ def submit(profile, session_id, op, payload, *, consumer_id="python", query="",
                         error_path=str(dirs["error"] / f"{rid}.json"))
         json_bytes(manifest, profile.max_payload_bytes + 32768)
         with lifecycle_lock(profile, time.monotonic() + profile.startup_wait_timeout_sec):
+            fields(profile, manifest)
             destination = dirs["input"] / f"{rid}.files"
             if (any((profile.nfs_root / queue / f"{rid}.json").exists() for queue in ("inbox", "processing", "failed"))
                     or any((dirs[kind] / f"{rid}.json").exists() for kind in ("input", "output", "error"))
@@ -88,6 +92,7 @@ def submit(profile, session_id, op, payload, *, consumer_id="python", query="",
             staging.replace(destination)
             try:
                 client._atomic_json(body, Path(manifest["input_path"]))
+                ticket(profile, manifest)
                 client._atomic_json(manifest, profile.nfs_root / "inbox" / f"{rid}.json")
             except Exception:
                 cleanup(profile, session_id, rid)
@@ -103,6 +108,7 @@ def cleanup(profile, session_id, rid, *, keep_artifacts=False):
     _, dirs = client.session_dirs(profile, session_id)
     for name in ("input", "output", "error"):
         (dirs[name] / f"{rid}.json").unlink(missing_ok=True)
+    (dirs["input"] / f"{rid}.identity.json").unlink(missing_ok=True)
     for queue in ("inbox", "processing", "failed"):
         (profile.nfs_root / queue / f"{rid}.json").unlink(missing_ok=True)
     for name in ("input", "output"):
@@ -116,6 +122,9 @@ def cleanup(profile, session_id, rid, *, keep_artifacts=False):
 
 def wait(profile, session_id, rid, op, *, consumer_id="python", timeout_sec=1800,
          auto_recover=True):
+    from .deployment import trusted_session, validate_response
+    if profile.deployment is not None:
+        session_id = trusted_session(session_id)
     request_identity(rid)
     operation(profile, op)
     identity(consumer_id, "consumer ID")
@@ -132,6 +141,7 @@ def wait(profile, session_id, rid, op, *, consumer_id="python", timeout_sec=1800
                 if not path.exists():
                     continue
                 response = read_json(path, profile.max_result_bytes)
+                validate_response(profile, session_id, rid, op, response, consumer_id)
                 if not isinstance(response, dict) or any(response.get(key) != value for key, value in {
                     "request_id": rid, "request_type": op, "operation": op,
                     "service_name": profile.service_name, "session_id": session_id,
