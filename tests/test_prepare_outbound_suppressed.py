@@ -126,8 +126,8 @@ def test_suppressed_emits_final_turn():
     assert ctx.delivery.latency_ms == 1200
 
 
-def test_suppressed_keeps_final_content():
-    """Непустой финальный контент не теряется."""
+def test_suppressed_does_not_repeat_final_content():
+    """Подавленный финал завершает lifecycle без повторной публикации пересказа."""
     from lib.utils.outbound_meta import FINAL_TURN_KEY
 
     agent = _patched_agent()
@@ -135,7 +135,9 @@ def test_suppressed_keeps_final_content():
     asyncio.run(agent._prepare_outbound(ctx))
 
     assert ctx.outbound is not None
-    assert ctx.outbound.content == "Отчёт готов"
+    assert ctx.outbound.content == ""
+    assert ctx.outbound.metadata["_suppressed_final"] is True
+    assert ctx.outbound.metadata["_stop_reason"] == "stop"
     assert FINAL_TURN_KEY in ctx.outbound.metadata
 
 
@@ -145,6 +147,16 @@ def test_system_turn_stays_suppressed():
     ctx = _FakeCtx(suppress_response=True, kind="SYSTEM", final_content="пинг")
     asyncio.run(agent._prepare_outbound(ctx))
     assert ctx.outbound is None, "SYSTEM-оборот не должен получать финал"
+
+
+@pytest.mark.parametrize('reason', ['error', 'tool_error', 'cancelled', 'max_iterations'])
+def test_terminal_failure_after_message_uses_normal_final(reason):
+    agent = _patched_agent()
+    ctx = _FakeCtx(suppress_response=True, final_content='Terminal failure', stop_reason=reason)
+    asyncio.run(agent._prepare_outbound(ctx))
+    assert agent.prepare_calls == 1
+    assert ctx.suppress_response is False
+    assert ctx.outbound == 'final-outbound'
 
 
 def test_ephemeral_stays_suppressed():
