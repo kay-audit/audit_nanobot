@@ -1,0 +1,149 @@
+"""Seed dev-БД минимальными данными для smoke follow_up skill."""
+import sys
+sys.stdout.reconfigure(encoding='utf-8')
+import psycopg2
+dsn = 'postgresql://postgres:postgres@127.0.0.1:5433/act_constructor'
+conn = psycopg2.connect(dsn)
+conn.autocommit = True
+cur = conn.cursor()
+
+# 1. t_fu_checklist — пример чек-листа по карточке
+cur.execute("""
+INSERT INTO public.t_fu_checklist (card_id, step_idx, done, note, author, updated_at)
+VALUES
+  ('card-test-001', 1, true,  'Проверить корректность индексации',           'seed_bot', NOW() - INTERVAL '2 hours'),
+  ('card-test-001', 2, true,  'Подтвердить наличие эмбеддингов',            'seed_bot', NOW() - INTERVAL '1 hour'),
+  ('card-test-001', 3, false, 'Сверить данные с поручением',                'seed_bot', NOW()),
+  ('card-test-002', 1, true,  'Загрузить новый чек-лист',                   'seed_bot', NOW() - INTERVAL '3 hours'),
+  ('card-test-002', 2, false, 'Согласовать с владельцем KM',                'seed_bot', NOW())
+ON CONFLICT DO NOTHING
+""")
+print(f'checklist: {cur.rowcount} rows')
+
+# 2. t_fu_km_method — описание методов по check_id
+cur.execute("""
+INSERT INTO public.t_fu_km_method (check_id, method_json, src_chunk_ids, model_used, created_by, created_at)
+VALUES
+  ('CHK-001', '{"name":"document_classification","version":"1.0","steps":["parse","classify","score"]}', '["chunk-1","chunk-2"]', 'MiniMax-M3', 'seed_bot', NOW()),
+  ('CHK-002', '{"name":"hypothesis_generation","version":"2.1","steps":["context","hypothesize","validate"]}', '["chunk-3","chunk-4","chunk-5"]', 'MiniMax-M3', 'seed_bot', NOW()),
+  ('CHK-003', '{"name":"evidence_extraction","version":"1.2","steps":["retrieve","extract","cite"]}', '["chunk-6"]', 'MiniMax-M3', 'seed_bot', NOW())
+ON CONFLICT DO NOTHING
+""")
+print(f'km_method: {cur.rowcount} rows')
+
+# 3. t_fu_poruch_shadow — теневые записи поручений
+cur.execute("""
+INSERT INTO public.t_fu_poruch_shadow (poruch_key, km_id, doc_reg_num, row_hash, emb_status, first_seen)
+VALUES
+  ('P-2026-0001', 'KM-10121', 'DOC-001-2026', 'hash-aaaa1111', 'embedded', NOW() - INTERVAL '5 days'),
+  ('P-2026-0002', 'KM-10121', 'DOC-002-2026', 'hash-bbbb2222', 'embedded', NOW() - INTERVAL '4 days'),
+  ('P-2026-0003', 'KM-10121', NULL,           'hash-cccc3333', 'pending',  NOW() - INTERVAL '1 day'),
+  ('P-2026-0004', 'KM-10121', 'DOC-003-2026', 'hash-dddd4444', 'pending',  NOW()),
+  ('P-2026-0005', 'KM-20202', 'DOC-004-2026', 'hash-eeee5555', 'embedded', NOW() - INTERVAL '2 days')
+ON CONFLICT DO NOTHING
+""")
+print(f'poruch_shadow: {cur.rowcount} rows')
+
+# 4. t_fu_act_docs — реестр загруженных актов
+cur.execute("""
+INSERT INTO public.t_fu_act_docs (file_id, filename, check_id, topic, created_by, created_at)
+VALUES
+  ('DOC-001-2026', 'act_2026_001.pdf', 'CHK-001', 'Аудит ИОР за 2025 год',  'seed_bot', NOW() - INTERVAL '7 days'),
+  ('DOC-002-2026', 'act_2026_002.pdf', 'CHK-001', 'Аудит ИОР Среднерусского банка', 'seed_bot', NOW() - INTERVAL '5 days'),
+  ('DOC-003-2026', 'act_2026_003.docx', 'CHK-002', 'Гипотезы по операционному риску', 'seed_bot', NOW() - INTERVAL '3 days'),
+  ('DOC-004-2026', 'act_2026_004.xlsx', 'CHK-003', 'Извлечение доказательств',  'seed_bot', NOW() - INTERVAL '1 day')
+ON CONFLICT DO NOTHING
+""")
+print(f'act_docs: {cur.rowcount} rows')
+
+# 5. t_fu_repo_index — реестр репозиториев-источников
+cur.execute("""
+INSERT INTO public.t_fu_repo_index (check_id, repo_slug, repo_url, readme_ok, quality_tier, head_commit, parsed_at, parsed_by)
+VALUES
+  ('CHK-001', 'audit-km-base',  'https://git.example.com/audit-km-base',  true, 'A', 'a1b2c3d4', NOW() - INTERVAL '1 day',  'seed_bot'),
+  ('CHK-002', 'audit-hypothes', 'https://git.example.com/audit-hypothes', true, 'B', 'e5f6g7h8', NOW() - INTERVAL '2 days', 'seed_bot'),
+  ('CHK-003', 'audit-evidence', 'https://git.example.com/audit-evidence', false, 'C', NULL,         NOW() - INTERVAL '3 days', 'seed_bot')
+ON CONFLICT DO NOTHING
+""")
+print(f'repo_index: {cur.rowcount} rows')
+
+# 6. t_fu_repo_files — файлы в репозиториях
+cur.execute("""
+INSERT INTO public.t_fu_repo_files (id, repo_slug, punkt_akta, file_path, file_kind, authors, descr, data_sources, tech, file_url)
+VALUES
+  (DEFAULT, 'audit-km-base',  '1.1', 'docs/km/KM-10121.md',  'spec',     'Иванов И.И.',     'Методика работы с KM',        'НСИ',  'Markdown', 'https://git.example.com/audit-km-base/-/blob/main/docs/km/KM-10121.md'),
+  (DEFAULT, 'audit-km-base',  '1.2', 'docs/km/KM-20202.md',  'spec',     'Петров П.П.',     'Методика работы с KM v2',     'НСИ',  'Markdown', 'https://git.example.com/audit-km-base/-/blob/main/docs/km/KM-20202.md'),
+  (DEFAULT, 'audit-hypothes', '2.1', 'docs/hyp/framework.py','code',     'Сидоров С.С.',    'Фреймворк генерации гипотез', 'НСИ',  'Python',   'https://git.example.com/audit-hypothes/-/blob/main/docs/hyp/framework.py'),
+  (DEFAULT, 'audit-evidence', '3.1', 'docs/ev/explain.md',   'doc',      'Кузнецова А.В.', 'Извлечение доказательств',    'НСИ',  'Markdown', 'https://git.example.com/audit-evidence/-/blob/main/docs/ev/explain.md')
+""")
+print(f'repo_files: {cur.rowcount} rows')
+
+# 7. t_fu_sync_lock — единственная запись-маркер
+cur.execute("""
+INSERT INTO public.t_fu_sync_lock (task_key, locked_by, lease_until)
+VALUES ('global_sync', 'seed_bot', NOW() + INTERVAL '1 day')
+ON CONFLICT DO NOTHING
+""")
+print(f'sync_lock: {cur.rowcount} rows')
+
+# Final check
+cur.execute("""
+SELECT 'checklist' AS tbl, COUNT(*) FROM public.t_fu_checklist
+UNION ALL SELECT 'km_method', COUNT(*) FROM public.t_fu_km_method
+UNION ALL SELECT 'poruch_shadow', COUNT(*) FROM public.t_fu_poruch_shadow
+UNION ALL SELECT 'act_docs', COUNT(*) FROM public.t_fu_act_docs
+UNION ALL SELECT 'repo_index', COUNT(*) FROM public.t_fu_repo_index
+UNION ALL SELECT 'repo_files', COUNT(*) FROM public.t_fu_repo_files
+UNION ALL SELECT 'sync_lock', COUNT(*) FROM public.t_fu_sync_lock
+ORDER BY tbl
+""")
+print('\n=== seeded tables ===')
+for r in cur.fetchall():
+    print(f'  {r[0]:20s} {r[1]} rows')
+
+conn.close()
+
+
+# 8. poruch_fixture.json - vitrina poruchenii dlya local-rezhima follow_up.
+# V dev (PostgreSQL) GP vyklyuchen, i resolve_poruch chitaet reestr iz etogo
+# faila (backend/agents/execution_control.py::fetch_rows -> fixture branch).
+# Put' zadan skillom: base_dir/data/fixtures/poruch_fixture.json
+# (base_dir = workspace/skills/follow_up). data/ v .gitignore skilla - poetomu
+# fail generiruetsya zdes pri apply --with-test-data, a ne kommititsya.
+# km_id/doc_reg_num sovpadayut s t_fu_poruch_shadow vyshe (kogerentnost seed).
+import json as _json, os as _os
+_fixture_rows = [
+  {"km_id": "KM-10121", "doc_reg_num": "DOC-001-2026",
+   "problem": "Нарушение сроков исполнения контрольных процедур по кредитному портфелю: 14 случаев просрочки подтверждения лимитов.",
+   "assignment_": "Устранить причины просрочки, внедрить автоконтроль сроков в АБС, представить отчёт.",
+   "poruch_status": "в работе", "close_fact": None,
+   "actions": "Разработан регламент; настроен автоконтроль в АБС; опытная эксплуатация.",
+   "block_unit": "Департамент кредитных рисков"},
+  {"km_id": "KM-10121", "doc_reg_num": "DOC-002-2026",
+   "problem": "Отсутствие формализованной методики оценки обеспечения по отдельным видам залогов.",
+   "assignment_": "Разработать и утвердить методику, обучить сотрудников.",
+   "poruch_status": "исполнено", "close_fact": "2026-06-30",
+   "actions": "Методика утверждена; обучено 42 сотрудника; применяется с 01.07.2026.",
+   "block_unit": "Управление залогового обеспечения"},
+  {"km_id": "KM-10121", "doc_reg_num": "DOC-003-2026",
+   "problem": "Недостаточный контроль актуализации данных клиента при пролонгации договоров.",
+   "assignment_": "Обеспечить актуализацию данных при пролонгации, доработать проверки.",
+   "poruch_status": "частично исполнено", "close_fact": None,
+   "actions": "Доработаны системные проверки; срок продлён до 31.12.2026.",
+   "block_unit": "Операционный департамент"},
+  {"km_id": "KM-20202", "doc_reg_num": "DOC-004-2026",
+   "problem": "Расхождения между управленческой и бухгалтерской отчётностью по резервам.",
+   "assignment_": "Провести сверку методик, устранить расхождения, закрепить единый источник.",
+   "poruch_status": "в работе", "close_fact": None,
+   "actions": "Создана рабочая группа; первичная сверка проведена; готовится план.",
+   "block_unit": "Финансовый департамент"},
+]
+_skill_root = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+                            "workspace", "skills", "follow_up")
+_fixture_dir = _os.path.join(_skill_root, "data", "fixtures")
+_os.makedirs(_fixture_dir, exist_ok=True)
+_fixture_path = _os.path.join(_fixture_dir, "poruch_fixture.json")
+with open(_fixture_path, "w", encoding="utf-8") as _fh:
+    _json.dump(_fixture_rows, _fh, ensure_ascii=False, indent=2)
+print(f"poruch_fixture.json: {len(_fixture_rows)} rows -> {_fixture_path}")
+

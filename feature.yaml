@@ -1,244 +1,138 @@
-# feature.yaml - обязательный манифест ветки feature/d6_ior.
-#
-# Описывает содержимое ветки d6_ior для apply через audit_bridge:
-# - skill ior-analyzer (паттерн full, native-tool registration);
-# - tool ior_analyzer (config_key=ior_analyzer);
-# - V006-миграция — production-схема таблиц IOR (5 связанных таблиц);
-# - testing-инфраструктура:
-#     * data_generator → ior.json (JSON-кэш для smoke);
-#     * pg_loader (seed_test_data.py) → public.t_db_oarb_ior_d6_*
-#       (идемпотентный: CREATE TABLE IF NOT EXISTS + заполнение, если таблица пуста).
-#
-# Навык НЕ требует модификации lib/, sql/audit-*. runtime-aware выбор
-# backend'а (cache vs greenplum) делается в data_store.py напрямую через
-# os.environ.get("NANOBOT_SKILLS_RUNTIME") — без импорта из lib/.
-#
-# Все пути относительно корня audit_nanobot.
-
 feature:
-  id: d6_ior
-  name: ior-analyzer
+  id: finalize_nanobot
+  name: nanobot-integration
   version: 1.0.0
-  description: >
-    Анализ инцидентов операционного риска (ИОР): стандартные выгрузки,
-    ad-hoc запросы, отчёты, гипотезы и уточнения по выгрузке.
-  documentation: docs/D6.md
-  maintainer: "@kay-audit/audit-team"
-
+  description: Local integration on vllm_fix; reviewed Git merges and configuration
+    overlays
+integration:
+  base: 634afff94fd5e7154e000d62bdc3126927be54cf
+  apply_method: git_merge_and_reviewed_overlays
+  database_setup: operator_only_not_executed
+  sources:
+  - branch: feature/d6_ior
+    sha: 0c709481b744043046752ff2d461819f3e65d771
+    manifest: workspace/data_store/cache/sessions/finalize_nanobot_20261015/evidence/feature-d6_ior.yaml
+  - branch: feature/d5_followup
+    sha: d3b19c7f0ba3150729e1c5765f41113ccb7112e1
+    manifest: workspace/data_store/cache/sessions/finalize_nanobot_20261015/evidence/feature-d5_followup.yaml
 requires:
-  nanobot_version: ">=2.5.0"
+  nanobot_version: '>=2.5.4'
   system_deps:
-    - python>=3.14
-  env_vars:
-    - name: NANOBOT_SKILLS_RUNTIME
-      required: false
-      default: production
-      allowed: [production, testing]
-      description: "Режим работы skill'ов (production/testing). testing → cache (DuckDB), иначе → greenplum."
-    - name: IOR_RAG_CACHE_DIR
-      required: false
-      description: "Путь к глобальному кешу BGE-M3 retrieval; по умолчанию workspace/data_store/cache/caches_pipelines/cache_final."
-    - name: PIPELINES_CACHE_DIR
-      required: false
-      default: ""
-      description: "Корень кешей pipelines; если пусто - автодеривация"
-    - name: EMBED_TOKEN
-      required: false
-      scope: cross_cutting
-      description: "Bearer-токен для Ollama /api/embed reverse proxy (cross-cutting)"
-    - name: IOR_DATA_BACKEND
-      required: false
-      default: ""
-      allowed: [cache, local_duckdb, greenplum, spark]
-      description: >
-        Явный override backend'а data_store.py. Пусто → выбор по
-        NANOBOT_SKILLS_RUNTIME (testing → cache, иначе → greenplum).
-    - name: IOR_TEST_DSN
-      required: false
-      default: ""
-      description: "DSN для тестовой БД фичи; пусто → fallback в channels.postgres.dsn (production-БД)."
-    - name: IOR_OSIRIS_NFS_ROOT
-      required: false
-      description: "Общий для gateway и OSIRIS worker путь NFS; по умолчанию workspace/data_store/osiris/ior."
-    - name: IOR_OSIRIS_WORKER_SCRIPT
-      required: false
-      description: "Путь к rerank_osiris_worker.py, доступный внутри CUDA image; по умолчанию скрипт навыка."
-    - name: IOR_OSIRIS_JOB_NAME
-      required: false
-      default: srbd6
-      description: "Имя отдельного OSIRIS job для IOR."
-    - name: IOR_OSIRIS_IMAGE
-      required: false
-      description: "CUDA image с OSIRIS SDK и зависимостями BGE/reranker; дефолт задан в utils/osiris_config.py."
-    - name: IOR_OSIRIS_POOL
-      required: false
-      default: common
-      description: "Пул OSIRIS для IOR worker."
-    - name: IOR_BGE_MODEL_PATH
-      required: false
-      description: "Локальный путь к BGE-M3, доступный worker."
-    - name: IOR_RERANKER_MODEL_PATH
-      required: false
-      description: "Локальный путь к reranker, доступный worker."
-  secrets:
-    - name: DATABASE_URL
-      source: existing
-    - name: OPENAI_API_KEY
-      source: existing
-  sql_migrations: []
-
+  - python>=3.14
 skills:
-  - name: ior-analyzer
-    path: workspace/skills/ior-analyzer
-    pattern: full
-    # Регистрируется в project.json::skills.ior-analyzer (см. overlays.project_json).
-    # Содержит:
-    #   * 5 production-таблиц IOR (t_db_oarb_ior_d6_*) для sync в DuckDB-кэш;
-    #   * без cli.*/llm.*/vector_indexes — tool-only skill.
-    config_section: skills.ior-analyzer
-
+- name: ior-analyzer
+  path: workspace/skills/ior-analyzer
+  pattern: full
+  config_section: skills.ior-analyzer
+- name: follow_up
+  path: workspace/skills/follow_up
+  pattern: full
+  config_section: skills.follow_up
 tools:
-  - name: ior_analyzer
-    path: workspace/tools/ior_analyzer.py
-    config_key: ior_analyzer
-    config_section: gateway.ior_analyzer
-
+- name: ior_analyzer
+  path: workspace/tools/ior_analyzer.py
+  config_key: ior_analyzer
+  config_section: gateway.ior_analyzer
+- name: follow_up
+  path: workspace/tools/follow_up.py
+  config_key: follow_up
+  config_section: tools.follow_up
+  registered_names:
+  - mcp_follow_up_ask
+  - mcp_follow_up_hypotheses
+  - mcp_follow_up_deviations
+  - mcp_follow_up_status
+  - mcp_follow_up_card_start
+  - mcp_follow_up_card_status
+  - mcp_follow_up_forget
 overlays:
   project_json:
-    - op: upsert
-      path: gateway.ior_analyzer.enable
-      value: true
-      rationale: >
-        Регистрация native tool через RuntimePatcher.patch_project_tools.
-        config_key="ior_analyzer", секция gateway.ior_analyzer обязательна
-        даже при наличии safety-дефолта в tool'е (явная запись в git diff —
-        единственный source of truth для аудита).
-    - op: upsert
-      path: skills.ior-analyzer.enabled
-      value: true
-      rationale: >
-        Регистрация доменных таблиц IOR для синхронизации в DuckDB-кэш.
-        Без этой записи PgDuckDbSyncService не подхватывает таблицы, и
-        skill получает "схема не существует" при попытке чтения через
-        NanobotCacheStore. На DEV таблицы лежат в public (создаются V006);
-        на ПРОМ — в GP, отдельный project.json. Выбор backend'а
-        (cache vs greenplum) делается runtime-aware в data_store.py по
-        NANOBOT_SKILLS_RUNTIME.
-    - op: upsert
-      path: skills.ior-analyzer.tables
-      value:
-        - name: public.t_db_oarb_ior_d6_base_of_knowledge_ior
-          tracking_column: incdnt_id
-        - name: public.t_db_oarb_ior_d6_base_of_knowledge_incident_stts_chng
-          tracking_column: incdnt_id
-        - name: public.t_db_oarb_ior_d6_base_of_knowledge_incident_recovery
-          tracking_column: incdnt_id
-        - name: public.t_db_oarb_ior_d6_base_of_knowledge_incident_fin_impact
-          tracking_column: incdnt_id
-        - name: public.t_db_oarb_ior_d6_base_of_knowledge_incident_nonfin_impact
-          tracking_column: incdnt_id
-      rationale: >
-        tracking_column=incdnt_id — PK основной таблицы (монотонный BIGINT,
-        совместим с инкрементальным sync'ом). Связанные таблицы тоже
-        используют incdnt_id как FK на основную. Один tracking_column для
-        всех 5 — корректен.
-  env_files: []
-  templates: []
+  - op: upsert
+    path: gateway.ior_analyzer.enable
+    value: true
+    rationale: 'Регистрация native tool через RuntimePatcher.patch_project_tools.
+      config_key="ior_analyzer", секция gateway.ior_analyzer обязательна даже при
+      наличии safety-дефолта в tool''е (явная запись в git diff — единственный source
+      of truth для аудита).
+
+      '
+  - op: upsert
+    path: skills.ior-analyzer.enabled
+    value: true
+    rationale: 'Регистрация доменных таблиц IOR для синхронизации в DuckDB-кэш. Без
+      этой записи PgDuckDbSyncService не подхватывает таблицы, и skill получает "схема
+      не существует" при попытке чтения через NanobotCacheStore. На DEV таблицы лежат
+      в public (создаются V006); на ПРОМ — в GP, отдельный project.json. Выбор backend''а
+      (cache vs greenplum) делается runtime-aware в data_store.py по NANOBOT_SKILLS_RUNTIME.
+
+      '
+  - op: upsert
+    path: skills.ior-analyzer.tables
+    value:
+    - name: public.t_db_oarb_ior_d6_base_of_knowledge_ior
+      tracking_column: incdnt_id
+    - name: public.t_db_oarb_ior_d6_base_of_knowledge_incident_stts_chng
+      tracking_column: incdnt_id
+    - name: public.t_db_oarb_ior_d6_base_of_knowledge_incident_recovery
+      tracking_column: incdnt_id
+    - name: public.t_db_oarb_ior_d6_base_of_knowledge_incident_fin_impact
+      tracking_column: incdnt_id
+    - name: public.t_db_oarb_ior_d6_base_of_knowledge_incident_nonfin_impact
+      tracking_column: incdnt_id
+    rationale: 'tracking_column=incdnt_id — PK основной таблицы (монотонный BIGINT,
+      совместим с инкрементальным sync''ом). Связанные таблицы тоже используют incdnt_id
+      как FK на основную. Один tracking_column для всех 5 — корректен.
+
+      '
+  - op: upsert
+    path: tools.follow_up.enable
+    value: true
+    rationale: 'Регистрация native tool follow_up через RuntimePatcher.patch_project_tools.
+      config_key="follow_up" обязателен даже при наличии safety-дефолта в tool''е
+      (явная запись в git diff — единственный source of truth для аудита).
+
+      '
+  - op: upsert
+    path: skills.follow_up.enabled
+    value: true
+    rationale: 'Активация skill''а follow-up. Без этой записи ApplicationContext._auto_register_skills
+      не зарегистрирует skill в TableRegistry, и LLM не увидит tools follow_up.
+
+      '
+  - op: upsert
+    path: skills.follow_up.tables
+    value:
+    - name: public.t_fu_checklist
+      tracking_column: updated_at
+    - name: public.t_fu_km_method
+      tracking_column: created_at
+    - name: public.t_fu_poruch_shadow
+      tracking_column: first_seen
+    - name: public.t_fu_act_docs
+      tracking_column: created_at
+    - name: public.t_fu_repo_index
+      tracking_column: parsed_at
+    - name: public.t_fu_repo_files
+      tracking_column: id
+    rationale: 'tracking_column per-table — Pk-эквивалент для инкрементального sync''а
+      через PgDuckDbSyncService. Без этой записи DuckDB-снапшот для follow-up таблиц
+      не создаётся, и skill получает "схема не существует" при попытке чтения через
+      DuckDB-cache.
+
+      '
   sql_migrations:
-    # V006 создаёт 5 production-таблиц IOR (t_db_oarb_ior_d6_*) под схемой
-    # public в локальной PostgreSQL. Имена — production-реальные (совпадают
-    # с ПРОМ GP), чтобы DuckDB-кэш мог переиспользовать ту же раскладку
-    # колонок. На ПРОМ таблицы уже существуют (DDL не нужен), миграция
-    # применяется только в DEV-окружении.
-    - sql/migrations/V006__d6_ior_tables_real.sql
-
-# lib_additions: НЕТ. Навык полностью живёт в workspace/ и подключается
-# через runtime-aware backend в data_store.py + apply-feature.ps1
-# env_files. Существующий master-файл lib/services/skill_runtime_mode.py
-# НЕ модифицируется (навык не должен трогать инфраструктуру Nanobot).
-
-# Формат — объекты TestSpec (schema.TestSpec: path + marker), а не голые
-# строки: у каждого теста есть marker ('required' — apply падает на красном,
-# 'optional' — продолжает с предупреждением). Список строк не проходит
-# pydantic, и apply останавливается на стадии 1 с MANIFEST_INVALID.
-# Здесь все optional (дефолт): контрактные тесты фичи могут требовать
-# стенда, которого на машине применения ещё нет.
+  - sql/migrations/V006__d6_ior_tables_real.sql
+  - sql/migrations/V007__d5_followup_tables.sql
 tests:
-  - path: tests/test_ior_bge_followup_contract.py
-  - path: tests/test_tools_ior_analyzer.py
-  - path: workspace/skills/ior-analyzer/scripts/test_analysis_mode.py
-  - path: workspace/skills/ior-analyzer/tests/test_business_contract.py
-  - path: workspace/skills/ior-analyzer/scripts/test_osiris_contract.py
-  - path: workspace/skills/ior-analyzer/scripts/test_preset_analysis.py
-  - path: workspace/skills/ior-analyzer/utils/resolve/test_resolve.py
-  - path: workspace/skills/ior-analyzer/utils/test_data_store_cache.py
-  - path: workspace/skills/ior-analyzer/tests/test_source_planner.py
-
-testing:
-  runtime_env: NANOBOT_SKILLS_RUNTIME
-  runtime_value: testing
-  runtime_data_backend: testing_pg
-  data_generator:
-    # Генерирует JSON-файл для тестов (1000 записей, seed=20260921).
-    # Быстро, детерминизм — нужно для seed_test_data.py.
-    path: workspace/skills/ior-analyzer/testing/data_generator.py
-    command: "python workspace/skills/ior-analyzer/testing/data_generator.py --force"
-    target_storage: filesystem
-    filesystem:
-      target_path: workspace/data_store/cache/testing/ior/ior.json
-    idempotent: true
-    deterministic: true
-    seed: 20260921
-    record_count: 1000
-  pg_loader:
-    # Дополнительный шаг после data_generator: заливает JSON в production-
-    # таблицы IOR (public.t_db_oarb_ior_d6_*) для SQL-flow через
-    # workspace.utils.db. Идемпотентен — повторный запуск НЕ дропает
-    # существующие таблицы и НЕ перезаписывает данные
-    # (CREATE TABLE IF NOT EXISTS + INSERT skip-if-populated).
-    # Требует: V006 миграция применена (`python tools/migrate.py --apply`).
-    # audit_bridge apply копирует файл, но НЕ выполняет DDL —
-    # это сознательное разделение.
-    path: workspace/skills/ior-analyzer/testing/seed_test_data.py
-    command: "python workspace/skills/ior-analyzer/testing/seed_test_data.py --json workspace/data_store/cache/testing/ior/ior.json"
-    requires_migration: V006__d6_ior_tables_real
-    idempotent: true
-
-isolation:
-  removable: true
-  strategy: files_and_config
-  # Полный список файлов этой ветки. Не модифицирует master-файлы в lib/,
-  # config.json, project.json. Изменения конфигурации идут только через
-  # overlays.project_json.
-  files_added:
-    - sql/seed/seed_ior_dev_data.sql
-    - docs/INSTALL.md
-    - docs/D6.md
-    - .gitignore
-    - workspace/skills/ior-analyzer/**
-    - workspace/tools/ior_analyzer.py
-    - workspace/utils/osiris_runtime/**
-    - tests/test_ior_bge_followup_contract.py
-    - tests/test_tools_ior_analyzer.py
-    - sql/migrations/V006__d6_ior_tables_real.sql
-  files_modified:
-    - AGENTS.md
-    - docs/D6.md
-    - project.json        # + skills.ior-analyzer (таблицы IOR для sync) — overlay only
-    - feature.yaml        # манифест ветки
-  config_keys_added:
-    - gateway.ior_analyzer.enable
-    - skills.ior_analyzer.enabled
-    - skills.ior_analyzer.tables
-  config_keys_removed: []
-
-
-# Локальный стенд audit_nanobot ходит за данными в PostgreSQL, а не в
-# Greenplum. IOR_DATA_BACKEND выбирает прямой SQL-путь (GreenplumStore —
-# общий пул workspace.utils.db, он работает с любым DSN из DATABASE_URL),
-# IOR_GP_SCHEMA указывает схему: на PG таблицы лежат в public (их создаёт
-# миграция V006), тогда как дефолт кода — пром-Greenplum.
-# Пишется в .secrets.env только при --env=dev, на ПРОМ блок пропускается.
-dev_env:
-  IOR_DATA_BACKEND: greenplum
-  IOR_GP_SCHEMA: public
+- path: tests/test_ior_bge_followup_contract.py
+- path: tests/test_tools_ior_analyzer.py
+- path: workspace/skills/ior-analyzer/scripts/test_analysis_mode.py
+- path: workspace/skills/ior-analyzer/tests/test_business_contract.py
+- path: workspace/skills/ior-analyzer/scripts/test_osiris_contract.py
+- path: workspace/skills/ior-analyzer/scripts/test_preset_analysis.py
+- path: workspace/skills/ior-analyzer/utils/resolve/test_resolve.py
+- path: workspace/skills/ior-analyzer/utils/test_data_store_cache.py
+- path: workspace/skills/ior-analyzer/tests/test_source_planner.py
+- path: tests/test_follow_up_llm_centralization.py
+- path: tests/test_follow_up_skill.py
+- path: tests/test_prepare_outbound_suppressed.py
