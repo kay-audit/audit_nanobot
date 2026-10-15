@@ -165,9 +165,11 @@ class AppealsAnalyzerTool(Tool):
             ):
                 report = await runner(session_id=resolved_session, user_prompt=prompt)
             if paths and context is not None:
-                delivery = await self._message_tool.execute(
-                    content=report, media=[str(path) for path in paths],
-                )
+                from lib.utils.verbatim_report import verbatim_report_context
+                with verbatim_report_context(context, 'appeals_analyzer', report):
+                    delivery = await self._message_tool.execute(
+                        content=report, media=[str(path) for path in paths],
+                    )
                 if getattr(delivery, "is_error", False):
                     raise RuntimeError("Appeals artifact delivery failed")
             return report
