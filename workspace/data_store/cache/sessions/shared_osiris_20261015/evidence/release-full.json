@@ -1,0 +1,20 @@
+{
+  "label": "release-full",
+  "command": [
+    "D:\\audit-dev\\audit_nanobot_finalize\\.venv\\Scripts\\python.exe",
+    "-m",
+    "pytest",
+    "tests",
+    "workspace/skills/audit_analyzer/tests",
+    "workspace/skills/audit_formulation_strengthener/tests",
+    "--ignore=tests/test_cache_ownership_claim.py",
+    "-m",
+    "not live and not integration",
+    "-q",
+    "--tb=short",
+    "--junitxml=workspace/data_store/cache/sessions/shared_osiris_20261015/evidence/release-full.xml",
+    "--basetemp=D:\\audit-dev\\audit_nanobot_finalize\\.venv\\test-tmp\\release-full\\pytest"
+  ],
+  "exit_code": 1,
+  "seconds": 239.84
+}

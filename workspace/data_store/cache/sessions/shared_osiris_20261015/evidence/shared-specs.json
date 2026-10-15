@@ -1,0 +1,9 @@
+{
+  "label": "shared-specs",
+  "command": [
+    "D:\\audit-dev\\audit_nanobot_finalize\\.venv\\Scripts\\python.exe",
+    "tools/validate_component_specs.py"
+  ],
+  "exit_code": 1,
+  "seconds": 0.27
+}

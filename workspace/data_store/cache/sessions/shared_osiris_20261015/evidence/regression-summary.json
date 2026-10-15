@@ -1,0 +1,40 @@
+{
+  "status": "PARTIALLY READY",
+  "code_sha": "2bc793d60cd34e26dfff12a3de12087f4ff15528",
+  "pytest_summary": "5425 passed, 10 failed, 36 skipped, 11 deselected, 1 xpassed; 48 subtests passed",
+  "junit_counts": {
+    "passed": 5426,
+    "failed": 10,
+    "skipped": 36,
+    "errors": 0
+  },
+  "baseline_failure_names": [
+    "tests.benchmarks.test_acceptance_matrix::test_acceptance_matrix_required_modules_exist",
+    "tests.contract.test_session_manager_contract.TestReadSessionMetadataReturnsLogicalUpdatedAt::test_updated_at_changes_after_save",
+    "tests.test_audit_analyzer_cli.TestCLIIntegration::test_cli_help_exits_zero",
+    "tests.test_config.TestSettingsModule::test_secrets_exported_to_env",
+    "tests.test_config.TestSettingsModule::test_settings_loaded_via_resolver",
+    "tests.test_information_preservation::test_info_preservation_e2e_mock_passes_keywords",
+    "tests.test_information_preservation::test_info_preservation_e2e_partial_summary_below_threshold",
+    "tests.test_profile_lifecycle::test_cli_agent_starts_without_profile_flag",
+    "tests.test_resume_scenarios::test_resume_integration_run_writes_manifest",
+    "workspace.skills.audit_analyzer.tests.test_audit_analyzer_behavior.TestAuditAnalyerSkillToolSet::test_no_removed_tool_modules_exist"
+  ],
+  "new_failures": [],
+  "baseline_note": "JUnit counts include the XPASS case; console passed count is 5425.",
+  "ior": "275 passed, 2 skipped, 67 subtests passed",
+  "critical_ruff": "passed",
+  "compileall": "passed",
+  "bootstrap": "passed; no SDK/CUDA imports; both logical services bind one deployment",
+  "d5": "7 real stdio MCP tools, validation and synthetic SQLite corpus boot passed",
+  "component_validation": "200 violations, output exactly equals baseline",
+  "live_limitations": [
+    "No real OSIRIS SDK/scheduler job",
+    "No CUDA model inference or VRAM measurement",
+    "No cross-host NFS",
+    "No PG/GP production data"
+  ],
+  "required": "467 passed, 1 skipped; 48 subtests passed",
+  "security_audit": "No credentials or prohibited tracked paths found; only pre-existing synthetic token:secret fixture URLs matched.",
+  "verified_execution": "release-full"
+}

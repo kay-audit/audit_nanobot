@@ -1,0 +1,32 @@
+{
+  "label": "release-required",
+  "command": [
+    "D:\\audit-dev\\audit_nanobot_finalize\\.venv\\Scripts\\python.exe",
+    "-m",
+    "pytest",
+    "tests/test_osiris_shared_deployment.py",
+    "tests/test_osiris_runtime.py",
+    "tests/test_tools_osiris.py",
+    "tests/test_appeals_shared_adapter.py",
+    "tests/test_ior_shared_adapter.py",
+    "tests/test_appeals_production_contracts.py",
+    "tests/test_appeals_osiris_lifecycle.py",
+    "tests/test_tools_ior_analyzer.py",
+    "tests/test_tools_appeals_analyzer.py",
+    "tests/test_appeals_routing.py",
+    "tests/test_follow_up_skill.py",
+    "tests/test_follow_up_llm_centralization.py",
+    "tests/test_runtime_patcher.py",
+    "tests/test_prepare_outbound_suppressed.py",
+    "tests/test_runtime_inventory.py",
+    "tests/test_architecture_tool_domain_free.py",
+    "tests/test_runtime_patcher_no_project_tools_boundary.py",
+    "tests/test_storage_hybridization.py",
+    "-q",
+    "--tb=short",
+    "--junitxml=workspace/data_store/cache/sessions/shared_osiris_20261015/evidence/release-required.xml",
+    "--basetemp=D:\\audit-dev\\audit_nanobot_finalize\\.venv\\test-tmp\\release-required\\pytest"
+  ],
+  "exit_code": 0,
+  "seconds": 56.44
+}

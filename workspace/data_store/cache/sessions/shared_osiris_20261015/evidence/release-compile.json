@@ -1,0 +1,18 @@
+{
+  "label": "release-compile",
+  "command": [
+    "D:\\audit-dev\\audit_nanobot_finalize\\.venv\\Scripts\\python.exe",
+    "-m",
+    "compileall",
+    "-q",
+    "lib",
+    "tools",
+    "workspace",
+    "gateway.py",
+    "cli_agent.py",
+    "osiris_job.py",
+    "appeals_osiris_job.py"
+  ],
+  "exit_code": 0,
+  "seconds": 0.34
+}

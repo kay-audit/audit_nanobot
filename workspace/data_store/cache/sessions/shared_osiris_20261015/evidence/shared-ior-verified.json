@@ -1,0 +1,23 @@
+{
+  "label": "shared-ior-verified",
+  "command": [
+    "D:\\audit-dev\\audit_nanobot_finalize\\.venv\\Scripts\\python.exe",
+    "-m",
+    "pytest",
+    "tests/test_tools_ior_analyzer.py",
+    "tests/test_ior_bge_followup_contract.py",
+    "tests/test_ior_shared_adapter.py",
+    "workspace/skills/ior-analyzer/tests",
+    "workspace/skills/ior-analyzer/scripts/test_osiris_contract.py",
+    "workspace/skills/ior-analyzer/scripts/test_analysis_mode.py",
+    "workspace/skills/ior-analyzer/scripts/test_preset_analysis.py",
+    "workspace/skills/ior-analyzer/utils/resolve/test_resolve.py",
+    "workspace/skills/ior-analyzer/utils/test_data_store_cache.py",
+    "-q",
+    "--tb=short",
+    "--junitxml=workspace/data_store/cache/sessions/shared_osiris_20261015/evidence/ior-verified.xml",
+    "--basetemp=D:\\audit-dev\\audit_nanobot_finalize\\.venv\\test-tmp\\shared-ior-verified\\pytest"
+  ],
+  "exit_code": 0,
+  "seconds": 88.12
+}

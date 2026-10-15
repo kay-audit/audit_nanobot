@@ -1,0 +1,47 @@
+{
+  "tested_code_sha": "2bc793d60cd34e26dfff12a3de12087f4ff15528",
+  "heads": {
+    "feature/osiris": "b6f1300748ee5eb3792a03b5032f376d08c6e6b7",
+    "feature/d3_crm": "42d6a35fd865fa33caabd33592b901251237b043",
+    "feature/d6_ior": "a4728385ee1728eee78826afd7eac8432752c2cd",
+    "feature/d5_followup": "fac3da334f199d0e0d127b8aa2c831b4d4eef8a2",
+    "finalize_nanobot": "2bc793d60cd34e26dfff12a3de12087f4ff15528"
+  },
+  "source_commits": {
+    "feature/osiris": [
+      "b6f1300748ee5eb3792a03b5032f376d08c6e6b7 fix(osiris): keep atomic temporary filenames within Windows path limits",
+      "5e650ed2b65cc52b9011adbb25d7c79e0cb07da0 fix(osiris): refuse second GPU job on foreign or ambiguous SDK discovery",
+      "b2f6fb75a1fd8e92d6bb61471ffa369c3fd1b952 fix(osiris): bind cleanup and queue dispatch to accepted session identity",
+      "5c668fb61c665e06a281230f10fb50aa73135883 fix(osiris): prevent UUID reuse after timeout and bound Windows lock recovery",
+      "984c7b2c84d4081b534252b5fdeeeac7c20c1fbd test(osiris): distinguish standalone protocol fixtures from shared deployment binding",
+      "521d944e9e2895de38437e4d0341a529f345b4a5 fix(osiris): serialize stale-lock reclamation and test worker ownership races",
+      "2ca059f48eb5c69e8277ef74a67e567a92b5aa20 fix(osiris): load skill namespace packages without generic utils collisions",
+      "a048e0dc8760c121c485afe1e60772c5f6d422e4 fix(osiris): register physical profile in legacy API and inherit worker idle policy",
+      "141210c8ad084946119637bc32cf6117795c43ae feat(osiris): share one physical GPU deployment with isolated logical requests"
+    ],
+    "feature/d3_crm": [
+      "42d6a35fd865fa33caabd33592b901251237b043 fix(appeals): preserve legacy ML loader and explicit standalone protocol fixtures",
+      "990d5176d874c473005b51f2b504550b570e2c23 feat(appeals): bind to shared GPU deployment with isolated domain handlers"
+    ],
+    "feature/d6_ior": [
+      "a4728385ee1728eee78826afd7eac8432752c2cd test(ior): keep legacy NFS fixtures explicitly standalone",
+      "73722f323dc3d659417ee4863a1326816a87629a fix(ior): keep shared worker package imports out of global utils namespace",
+      "d4b52eb75e1ed73b3ded74056dca8b09d1a95614 feat(ior): route isolated extract handlers through shared GPU deployment"
+    ]
+  },
+  "integration_merges": [
+    "2bc793d60cd34e26dfff12a3de12087f4ff15528 merge: keep shared identity atomic writes within Windows path limits",
+    "594bd6ac87c69d677f96d31035534a67e3c63bcc merge: fail closed on foreign GPU jobs and ambiguous scheduler discovery",
+    "012dbad3bf9ec056cbad308425e6600c90f5c9b9 merge: preserve IOR standalone NFS regression fixtures",
+    "fa9440421b573b64a5c4d7a11e35ee4d1c649f9d merge: enforce cleanup ownership and accepted manifest identity",
+    "8fd6b5c91ff9e3363b729cfcf701cab57d671070 merge: isolate IOR worker package import paths",
+    "4600f04a4535912012da61aa28749115a58f84b0 merge: prevent shared UUID reuse and bound lock recovery",
+    "8aa35ae2c2c6253c0a068d369b1dcbafbb3b6e00 merge: retain unchanged Appeals legacy ML contracts",
+    "a9075bdd68ecedc6580e4bb45c8434b923322286 merge: harden shared lock recovery and standalone compatibility guards",
+    "9899ed8dd9d1286f397288fdab247b2b218db264 merge: support namespace-only IOR worker package",
+    "a91e3c91a232d3e53941dae12379836ae3172ab1 merge: adapt IOR domain to shared GPU deployment",
+    "1462a6ff3015aaa2d2e372fa88d890d38078d30f merge: adapt Appeals domain to shared GPU deployment",
+    "c2de58397fcd936dfd1549d47869ba62a33b282f merge: preserve shared runtime API registration and idle policy",
+    "8179a5ea591efd8f8eac0d48d0b6ef1830d2d5be merge: integrate isolated shared physical OSIRIS runtime"
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "label": "release-bootstrap",
+  "command": [
+    "D:\\audit-dev\\audit_nanobot_finalize\\.venv\\Scripts\\python.exe",
+    "workspace/data_store/cache/sessions/shared_osiris_20261015/verify_offline_bootstrap.py"
+  ],
+  "exit_code": 0,
+  "seconds": 2.11
+}
