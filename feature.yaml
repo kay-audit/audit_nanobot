@@ -71,7 +71,7 @@ tools:
   - name: follow_up
     path: workspace/tools/follow_up.py
     config_key: follow_up
-    config_section: gateway.follow_up
+    config_section: tools.follow_up
     # config_key — это ключ КОНФИГУРАЦИИ (config.json::tools.follow_up.enable),
     # а не имя инструмента в реестре gateway. Модуль workspace/tools/follow_up.py
     # — MCP-агрегатор: он поднимает внешний MCP-сервер
@@ -92,7 +92,7 @@ tools:
 overlays:
   project_json:
     - op: upsert
-      path: gateway.follow_up.enable
+      path: tools.follow_up.enable
       value: true
       rationale: >
         Регистрация native tool follow_up через RuntimePatcher.patch_project_tools.
@@ -241,7 +241,7 @@ isolation:
   # Раньше он был в files_modified, и префлит каждый раз выдавал
   # DECLARED_BUT_NOT_IN_DIFF: файл объявлен, но в git diff ветки его нет.
   config_keys_added:
-    - gateway.follow_up.enable
+    - tools.follow_up.enable
     - skills.follow_up.enabled
     - skills.follow_up.tables
   config_keys_removed: []

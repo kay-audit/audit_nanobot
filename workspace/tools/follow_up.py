@@ -221,6 +221,11 @@ class _Bridge:
         me = asyncio.current_task()
         for attempt in (1, 2):
             gen = await self._current()
+            if not await self._alive(gen):
+                await self._retire(gen)
+                if attempt == 1:
+                    continue
+                raise ConnectionError("сервер навыка недоступен")
             gen.pending.add(me)
             try:
                 result = await gen.session.call_tool(name, arguments)

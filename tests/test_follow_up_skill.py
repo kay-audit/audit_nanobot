@@ -215,11 +215,11 @@ def test_project_linter_leaves_the_skill_code_to_its_repository():
 
 def _git_ignored(paths: list[str]) -> set[str]:
     """Что из ``paths`` git не возьмёт в коммит — по правилам всех .gitignore."""
-    r = subprocess.run(["git", "-C", str(REPO_ROOT), "check-ignore", "--no-index", "--stdin"],
-                       input="\n".join(paths), capture_output=True, text=True)
+    r = subprocess.run(["git", "-C", str(REPO_ROOT), "check-ignore", "--no-index", "-z", "--stdin"],
+                       input="\0".join(paths).encode("utf-8") + b"\0", capture_output=True)
     if r.returncode not in (0, 1):
         pytest.skip(f"git check-ignore недоступен: {r.stderr.strip()[:200]}")
-    return set(r.stdout.split())
+    return set(r.stdout.decode("utf-8").rstrip("\0").split("\0")) if r.stdout else set()
 
 
 _RUNTIME = {"data", "logs", "models", ".ruff_cache", "__pycache__"}
@@ -335,6 +335,14 @@ def test_agent_tools_can_be_switched_off():
     assert mod.FollowUpAskTool.enabled(SimpleNamespace()) is True
 
 
+def test_manifest_activation_uses_the_tool_settings_section():
+    manifest = yaml.safe_load((REPO_ROOT / "feature.yaml").read_text(encoding="utf-8"))
+    follow_up = next(tool for tool in manifest["tools"] if tool["name"] == "follow_up")
+    assert follow_up["config_section"] == "tools.follow_up"
+    assert any(overlay["path"] == "tools.follow_up.enable" and overlay["value"] is True
+               for overlay in manifest["overlays"]["project_json"])
+
+
 _STUB_SERVER = """
 import json, os, sys
 import anyio
@@ -439,6 +447,24 @@ def test_unknown_arguments_are_not_forwarded(monkeypatch):
 
 
 def _pid_alive(pid: int) -> bool:
+    if os.name == "nt":
+        import ctypes
+        from ctypes import wintypes
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.OpenProcess.restype = wintypes.HANDLE
+        kernel32.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+        kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+        handle = kernel32.OpenProcess(0x1000, False, pid)
+        if not handle:
+            return ctypes.get_last_error() != 87
+        try:
+            code = wintypes.DWORD()
+            if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
+                raise ctypes.WinError(ctypes.get_last_error())
+            return code.value == 259
+        finally:
+            kernel32.CloseHandle(handle)
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
@@ -492,7 +518,7 @@ def test_first_call_after_idle_death_succeeds(stub_bridge):
 
     mod, b = stub_bridge
     first = json.loads(asyncio.run(b.call("echo", {}, 60))[1])["pid"]
-    os.kill(first, signal.SIGKILL)
+    os.kill(first, getattr(signal, "SIGKILL", signal.SIGTERM))
     assert _wait_dead(first)
     is_error, text = asyncio.run(b.call("echo", {}, 60))
     assert not is_error and json.loads(text)["pid"] != first
@@ -507,10 +533,11 @@ def test_death_under_concurrent_calls_neither_hangs_nor_kills_the_replacement(st
     mod, b = stub_bridge
 
     async def scenario():
+        await b.call("echo", {}, 60)
         slow = [asyncio.create_task(b.call("slow", {"sec": 3}, 60)) for _ in range(3)]
         await asyncio.sleep(0.5)
         die = asyncio.create_task(b.call("die", {}, 60))
-        await asyncio.sleep(1.0)
+        await asyncio.wait_for(asyncio.gather(die, return_exceptions=True), 10)
         echo = await b.call("echo", {}, 60)              # уже новый сервер
         later = await b.call("slow", {"sec": 6}, 60)     # живёт дольше пинга в 5 с
         old = await asyncio.gather(*slow, die, return_exceptions=True)
