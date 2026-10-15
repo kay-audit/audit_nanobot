@@ -33,6 +33,8 @@ def session_dirs(profile: ServiceProfile, session_id: Any):
     root = profile.nfs_root / "sessions" / safe
     paths = {name: root / name for name in ("input", "output", "error")}
     for path in paths.values():
+        from .protocol import confined
+        confined(path / "namespace-probe", profile.nfs_root)
         path.mkdir(parents=True, exist_ok=True)
     return safe, paths
 
@@ -67,6 +69,9 @@ def submit_request(profile: ServiceProfile, session_id, request_type, query, pay
                    timeout_sec=DEFAULT_REQUEST_TIMEOUT_SEC):
     if request_type not in profile.capabilities or timeout_sec <= 0:
         raise ValueError("Unsupported Osiris request type or timeout")
+    from .deployment import fields, ticket, trusted_session
+    if profile.deployment is not None:
+        session_id = trusted_session(session_id)
     profile.prepare_nfs()
     safe, dirs = session_dirs(profile, session_id)
     request_id = uuid.uuid4().hex
@@ -84,15 +89,23 @@ def submit_request(profile: ServiceProfile, session_id, request_type, query, pay
     _atomic_pickle(payload, input_path)
     try:
         with lifecycle_lock(profile, time.monotonic() + profile.startup_wait_timeout_sec):
+            fields(profile, manifest)
+            ticket(profile, manifest)
             _atomic_json(manifest, profile.nfs_root / "inbox" / f"{request_id}.json")
     except Exception:
         input_path.unlink(missing_ok=True)
+        (dirs["input"] / f"{request_id}.identity.json").unlink(missing_ok=True)
         raise
     return request_id
 
 
 def wait_result(profile: ServiceProfile, session_id, request_id, request_type,
                 timeout_sec=DEFAULT_REQUEST_TIMEOUT_SEC, *, auto_recover=False):
+    from .deployment import trusted_session, validate_response
+    from .protocol import confined, request_identity
+    request_identity(request_id)
+    if profile.deployment is not None:
+        session_id = trusted_session(session_id)
     _, dirs = session_dirs(profile, session_id)
     output = dirs["output"] / f"{request_id}.pkl"
     error = dirs["error"] / f"{request_id}.txt"
@@ -101,14 +114,21 @@ def wait_result(profile: ServiceProfile, session_id, request_id, request_type,
     try:
         while True:
             if output.exists():
+                confined(output, profile.nfs_root, must_exist=True)
                 with output.open("rb") as handle:
                     response = pickle.load(handle)
+                validate_response(profile, session_id, request_id, request_type, response)
                 if (not isinstance(response, dict)
                         or response.get("request_id") != request_id
                         or response.get("request_type") != request_type):
                     raise OsirisRequestError("Osiris response correlation mismatch")
                 return response["result"]
             if error.exists():
+                confined(error, profile.nfs_root, must_exist=True)
+                if profile.deployment is not None:
+                    detail = json.loads(error.read_text(encoding="utf-8"))
+                    validate_response(profile, session_id, request_id, request_type, detail)
+                    raise OsirisRequestError(f"Shared worker rejected request {request_id}")
                 detail = error.read_text(encoding="utf-8", errors="replace")
                 logger.error("Osiris request %s failed: %s", request_id, detail)
                 raise OsirisRequestError(f"Osiris {request_type} failed; request_id={request_id}")
@@ -124,6 +144,7 @@ def wait_result(profile: ServiceProfile, session_id, request_id, request_type,
             time.sleep(min(POLL_SEC, max(0, deadline - time.monotonic())))
     finally:
         for path in (output, error, dirs["input"] / f"{request_id}.pkl",
+                     dirs["input"] / f"{request_id}.identity.json",
                      profile.nfs_root / "inbox" / f"{request_id}.json",
                      profile.nfs_root / "processing" / f"{request_id}.json",
                      profile.nfs_root / "failed" / f"{request_id}.json"):

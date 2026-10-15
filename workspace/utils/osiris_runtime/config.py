@@ -34,6 +34,7 @@ class ServiceProfile:
     max_payload_bytes: int = 1048576
     max_result_bytes: int = 16777216
     max_artifact_bytes: int = 536870912
+    deployment: PhysicalDeployment | None = None
 
     def __post_init__(self):
         if any(not isinstance(value, str) or not value.strip() for value in (
@@ -53,6 +54,12 @@ class ServiceProfile:
         if self.protocol_version != 2:
             raise ValueError("Unsupported Osiris protocol version")
         object.__setattr__(self, "nfs_root", Path(self.nfs_root))
+        if self.deployment is not None:
+            physical = self.deployment.profile
+            if any(getattr(self, key) != getattr(physical, key) for key in (
+                "job_name", "image", "pool", "worker_script", "num_gpus", "idle_timeout_sec"
+            )) or self.nfs_root.resolve() != (physical.nfs_root / "services" / self.service_name).resolve():
+                raise ValueError("Logical service must match its registered physical deployment")
         for name in ("max_payload_bytes", "max_result_bytes", "max_artifact_bytes"):
             if isinstance(getattr(self, name), bool) or not isinstance(getattr(self, name), int) or getattr(self, name) <= 0:
                 raise ValueError(f"{name} must be a positive integer")
@@ -63,14 +70,20 @@ class ServiceProfile:
 
     @property
     def heartbeat_path(self) -> Path:
+        if self.deployment is not None:
+            return self.deployment.profile.heartbeat_path
         return self.nfs_root / "worker_heartbeat.json"
 
     @property
     def metadata_path(self) -> Path:
+        if self.deployment is not None:
+            return self.deployment.profile.metadata_path
         return self.nfs_root / "osiris_job.json"
 
     @property
     def lock_path(self) -> Path:
+        if self.deployment is not None:
+            return self.deployment.profile.lock_path
         return self.nfs_root / "launcher.lock"
 
     def prepare_nfs(self) -> None:
@@ -93,6 +106,11 @@ class ServiceProfile:
             return None
 
     def heartbeat_live(self, heartbeat) -> bool:
+        if self.deployment is not None:
+            return (self.deployment.profile.heartbeat_live(heartbeat)
+                    and isinstance(heartbeat.get("logical_services"), dict)
+                    and all(op in heartbeat["logical_services"].get(self.service_name, [])
+                            for op in self.capabilities))
         if not isinstance(heartbeat, dict):
             return False
         age = self.heartbeat_age(heartbeat)
@@ -118,6 +136,25 @@ class ServiceProfile:
                     and int(heartbeat.get("ready_gpus", 0)) >= self.num_gpus)
         except (TypeError, ValueError):
             return False
+
+
+@dataclass(frozen=True)
+class PhysicalDeployment:
+    """Explicit shared ownership; a matching job name alone never grants access."""
+
+    profile: ServiceProfile
+    max_queue: int = 128
+    legacy_job_names: tuple[str, ...] = ("srb_d3", "srbd6")
+
+    def __post_init__(self):
+        if self.profile.deployment is not None or self.profile.num_gpus != 1:
+            raise ValueError("A physical deployment must own exactly one GPU")
+        if type(self.max_queue) is not int or self.max_queue < 1:
+            raise ValueError("Physical queue capacity must be positive")
+
+
+def physical_profile(profile: ServiceProfile) -> ServiceProfile:
+    return profile.deployment.profile if profile.deployment is not None else profile
 
 
 def common_timeout_settings():

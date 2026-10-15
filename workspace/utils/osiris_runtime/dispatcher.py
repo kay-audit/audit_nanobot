@@ -29,6 +29,9 @@ class WorkerRequest:
     artifacts: dict[str, Path]
     output_dir: Path
     expires_at: float
+    service_name: str = ""
+    operation: str = ""
+    generation: str | None = None
 
 
 @dataclass(frozen=True)
@@ -71,6 +74,9 @@ def process_json_request(profile, manifest_path: Path, handlers: HandlerRegistry
         "request_id", "request_type", "operation", "service_name", "session_id",
         "consumer_id", "protocol_version",
     )}
+    if profile.deployment is not None:
+        from .deployment import correlation as shared_correlation
+        correlation = shared_correlation(manifest)
     published = False
     try:
         if time.time() >= expires:
@@ -81,7 +87,8 @@ def process_json_request(profile, manifest_path: Path, handlers: HandlerRegistry
         artifacts = check_artifacts(body.get("artifacts", []), dirs["input"] / f"{manifest['request_id']}.files", profile.max_artifact_bytes)
         output_dir = confined(dirs["output"] / f"{manifest['request_id']}.files", profile.nfs_root)
         context = WorkerRequest(manifest["session_id"], manifest["consumer_id"], manifest["request_id"],
-                                manifest["query"], artifacts, output_dir, expires)
+                                manifest["query"], artifacts, output_dir, expires,
+                                profile.service_name, manifest["operation"], manifest.get("generation"))
         raw = handlers.invoke(manifest["operation"], body["payload"], context)
         result = raw if isinstance(raw, WorkerResult) else WorkerResult(raw)
         records = []
