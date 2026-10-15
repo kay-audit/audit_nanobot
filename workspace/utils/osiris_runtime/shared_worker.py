@@ -79,7 +79,9 @@ class SharedWorker:
                 raise ValueError("Worker received a foreign deployment")
         self.adapters = adapters
         self.generation = generation
-        self.activity = WorkerActivity(self.profile)
+        metadata = read_json(self.profile.metadata_path, 32768)
+        self.activity = WorkerActivity(replace(self.profile, idle_timeout_sec=float(
+            metadata.get("idle_timeout_sec", self.profile.idle_timeout_sec))))
         self.tasks = queue.Queue()
         self.execution = threading.Lock()
 
