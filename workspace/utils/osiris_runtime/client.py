@@ -101,12 +101,14 @@ def submit_request(profile: ServiceProfile, session_id, request_type, query, pay
 
 def wait_result(profile: ServiceProfile, session_id, request_id, request_type,
                 timeout_sec=DEFAULT_REQUEST_TIMEOUT_SEC, *, auto_recover=False):
-    from .deployment import trusted_session, validate_response
+    from .deployment import owns_request, trusted_session, validate_response
     from .protocol import confined, request_identity
     request_identity(request_id)
     if profile.deployment is not None:
         session_id = trusted_session(session_id)
     _, dirs = session_dirs(profile, session_id)
+    if profile.deployment is not None and not owns_request(profile, session_id, request_id):
+        raise OsirisRequestError("Request does not belong to this logical service/session")
     output = dirs["output"] / f"{request_id}.pkl"
     error = dirs["error"] / f"{request_id}.txt"
     deadline = time.monotonic() + timeout_sec

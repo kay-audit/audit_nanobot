@@ -120,6 +120,8 @@ class SharedWorker:
                 if profile is None:
                     raise ValueError("Queue item belongs to no logical service")
                 manifest = read_json(confined(path, profile.nfs_root, must_exist=True), profile.max_payload_bytes + 32768)
+                if path.name != str(manifest.get("request_id")) + ".json":
+                    raise ValueError("Queue filename does not match its request identity")
                 # First verify the entire namespace; only then may we write a correlated error.
                 validate_request(profile, manifest, manifest.get("generation"))
                 if manifest["generation"] != self.generation:

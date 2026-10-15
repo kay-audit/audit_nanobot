@@ -106,11 +106,15 @@ def submit(profile, session_id, op, payload, *, consumer_id="python", query="",
 def cleanup(profile, session_id, rid, *, keep_artifacts=False):
     request_identity(rid)
     _, dirs = client.session_dirs(profile, session_id)
+    from .deployment import owns_request
+    owned = profile.deployment is None or owns_request(profile, session_id, rid)
     for name in ("input", "output", "error"):
         (dirs[name] / f"{rid}.json").unlink(missing_ok=True)
-    (dirs["input"] / f"{rid}.identity.json").unlink(missing_ok=True)
-    for queue in ("inbox", "processing", "failed"):
-        (profile.nfs_root / queue / f"{rid}.json").unlink(missing_ok=True)
+    if not keep_artifacts:
+        (dirs["input"] / f"{rid}.identity.json").unlink(missing_ok=True)
+    if owned:
+        for queue in ("inbox", "processing", "failed"):
+            (profile.nfs_root / queue / f"{rid}.json").unlink(missing_ok=True)
     for name in ("input", "output"):
         if name == "output" and keep_artifacts:
             continue
