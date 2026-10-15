@@ -256,11 +256,22 @@ def lifecycle_lock(profile: ServiceProfile, deadline: float):
             break
         except FileExistsError:
             if _owner_gone(path):
+                # Recheck under an exclusive reaper lease. Two contenders must
+                # never both unlink a stale path: the second could delete a
+                # newly acquired live lock after the first has recovered it.
+                guard = path.with_name(path.name + ".reaper")
                 try:
-                    path.unlink()
-                except FileNotFoundError:
-                    pass
-                continue
+                    guard_fd = os.open(str(guard), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+                except FileExistsError:
+                    guard_fd = None
+                if guard_fd is not None:
+                    try:
+                        os.close(guard_fd)
+                        if _owner_gone(path):
+                            path.unlink(missing_ok=True)
+                    finally:
+                        guard.unlink(missing_ok=True)
+                    continue
             if time.monotonic() >= deadline:
                 raise OsirisStartupTimeoutError(
                     "Osiris lifecycle lock remained occupied; verify its owner before recovery. "

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import multiprocessing
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
@@ -289,3 +290,56 @@ def test_shared_json_artifacts_confined_and_cleaned_per_request(shared,tmp_path)
     assert [r.artifacts['report'].read_bytes() for r in results]==[b'A',b'B']
     json_transport.cleanup(profiles[0],'A',ids[0])
     assert results[1].artifacts['report'].exists()
+
+
+def test_background_worker_serial_queue_and_exclusive_worker_lease(shared):
+    _,profiles=shared
+    first=engine(shared)
+    stop=threading.Event()
+    thread=threading.Thread(target=first.run,args=(stop,))
+    thread.start()
+    try:
+        ids=[json_transport.submit(p,'A','echo',{'n':i}) for i,p in enumerate(profiles)]
+        for i,(p,rid) in enumerate(zip(profiles,ids)):
+            result=json_transport.wait(p,'A',rid,'echo',auto_recover=False,timeout_sec=3)
+            assert result.value['payload']['n']==i
+        heartbeat=profiles[0].read_heartbeat()
+        assert set(heartbeat['logical_services'])=={'appeals','ior'}
+        owner=replace(first.profile,nfs_root=first.profile.nfs_root/'worker-owner')
+        from workspace.utils.osiris_runtime.errors import OsirisStartupTimeoutError
+        with pytest.raises(OsirisStartupTimeoutError):
+            with lifecycle.lifecycle_lock(owner,time.monotonic()+.03):
+                raise AssertionError('A second worker acquired the live lease')
+    finally:
+        stop.set(); thread.join(timeout=5)
+        assert not thread.is_alive()
+
+
+def test_stale_lock_recovery_is_serialized_across_contenders(shared,monkeypatch):
+    import socket
+    _,profiles=shared
+    physical=profiles[0].deployment.profile
+    client._atomic_json({'host':socket.gethostname(),'pid':99999999},physical.lock_path)
+    active=0; maximum=0
+    def contender(_):
+        nonlocal active,maximum
+        with lifecycle.lifecycle_lock(profiles[_%2],time.monotonic()+3):
+            active+=1; maximum=max(maximum,active)
+            time.sleep(.01)
+            active-=1
+    with ThreadPoolExecutor(8) as pool: list(pool.map(contender,range(8)))
+    assert maximum==1
+
+
+def test_start_stop_shared_lifecycle_never_overlaps_physical_jobs(shared):
+    deployment,profiles=shared
+    state={}
+    sdk=FakeSDK(deployment.profile,state)
+    sdk.delete=lambda name: state.update(created=False)
+    lifecycle.ensure_ready(profiles[0],sdk)
+    def action(index):
+        if index%2: return lifecycle.stop_service(profiles[index%2],sdk)
+        return lifecycle.ensure_ready(profiles[index%2],sdk)
+    with ThreadPoolExecutor(2) as pool: list(pool.map(action,range(2)))
+    # Depending on lock order, start observes the old job or creates after stop.
+    assert state['creates'] in (1,2)

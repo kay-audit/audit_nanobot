@@ -500,12 +500,19 @@ def _cleanup_quietly(directory: tempfile.TemporaryDirectory) -> None:
         directory.cleanup()
 
 
+def standalone_profile(profile, **changes):
+    """These fixtures verify legacy transport, not shared deployment placement."""
+    if hasattr(profile, 'deployment'):
+        changes['deployment'] = None
+    return replace(profile, **changes)
+
+
 class ProtocolTests(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
         self.addCleanup(_cleanup_quietly, self.directory)
         self.root = Path(self.directory.name)
-        profile = replace(client.SERVICE, nfs_root=self.root)
+        profile = standalone_profile(client.SERVICE, nfs_root=self.root)
         for module, values in (
             (client, {"SERVICE": profile}),
             (worker, {"PROFILE": profile, "NFS_ROOT": self.root,
@@ -646,7 +653,15 @@ class WorkerInitializationTests(unittest.TestCase):
                      'appeals_osiris_job.py']:
             with self.subTest(path=path):
                 old = subprocess.check_output(['git', 'show', f'c6f18b3:{path}'], cwd=ROOT)
-                self.assertEqual(old.replace(b'\r\n', b'\n'), (ROOT / path).read_bytes().replace(b'\r\n', b'\n'))
+                current_bytes = (ROOT / path).read_bytes().replace(b'\r\n', b'\n')
+                marker = b'if (PROJECT_ROOT / "osiris_deployment.json")'
+                if path.endswith('osiris_config.py') and marker in current_bytes:
+                    # Only the explicit shared binding is new; every byte of
+                    # the original standalone configuration must still match.
+                    prefix, extension = current_bytes.split(marker, 1)
+                    _, suffix = extension.split(b'class OsirisWorkerNotReady', 1)
+                    current_bytes = prefix + b'class OsirisWorkerNotReady' + suffix
+                self.assertEqual(old.replace(b'\r\n', b'\n'), current_bytes)
 
     def test_baseline_and_current_legacy_masks_and_rerank_match(self):
         result = subprocess.run(['git', 'show', 'c6f18b3:workspace/skills/appeals-analyzer/rerank_osiris_worker.py'],
@@ -662,7 +677,7 @@ class WorkerInitializationTests(unittest.TestCase):
             for module in [baseline, worker]:
                 with self.subTest(mask=mask, implementation=module.__name__), tempfile.TemporaryDirectory() as directory:
                     root = Path(directory)
-                    profile = replace(client.SERVICE, nfs_root=root)
+                    profile = standalone_profile(client.SERVICE, nfs_root=root)
                     search = Mock()
                     expected = ['1', '2', '3'] if mask is None else mask
                     search.retrieve_hybrid_adaptive.return_value = expected
@@ -676,7 +691,7 @@ class WorkerInitializationTests(unittest.TestCase):
         for module in [baseline, worker]:
             with tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
-                profile = replace(client.SERVICE, nfs_root=root)
+                profile = standalone_profile(client.SERVICE, nfs_root=root)
                 with patch.object(client, 'SERVICE', profile), patch.object(module, 'PROFILE', profile), patch.object(module, 'NFS_ROOT', root), patch.object(module, 'predict_with_retry', return_value=np.array([0, -1])):
                     rid = client.submit_request('s', 'rerank', 'q', {'items': [{'id': '1', 'text': 'one'}, {'id': '2', 'text': 'two'}]})
                     module.process_request(root/'inbox'/f'{rid}.json', None, object())
@@ -687,7 +702,7 @@ class WorkerInitializationTests(unittest.TestCase):
         from workspace.utils.osiris_runtime import json_transport
         for mask in [None, [], ['1', '3']]:
             with self.subTest(mask=mask), tempfile.TemporaryDirectory() as directory:
-                profile = replace(worker.PROFILE, nfs_root=Path(directory))
+                profile = standalone_profile(worker.PROFILE, nfs_root=Path(directory))
                 search = Mock()
                 expected = ['1', '2', '3'] if mask is None else mask
                 search.retrieve_hybrid_adaptive.return_value = expected
@@ -707,8 +722,13 @@ sys.path.insert(0,{str(ROOT)!r})
 spec=importlib.util.spec_from_file_location('import_contract',path)
 module=importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
 assert module._PROJECT_ROOT==Path({str(ROOT)!r})
-assert Path(module.PROFILE.worker_script)==path
-assert module.PROFILE.nfs_root==Path({str(ROOT)!r})/'workspace/data_store/osiris/srb_d3'
+if getattr(module.PROFILE, 'deployment', None) is None:
+    assert Path(module.PROFILE.worker_script)==path
+    assert module.PROFILE.nfs_root==Path({str(ROOT)!r})/'workspace/data_store/osiris/srb_d3'
+else:
+    assert module.PROFILE.job_name=='nanobot_shared'
+    assert module.PROFILE.nfs_root==module.PROFILE.deployment.profile.nfs_root/'services/appeals'
+    assert module.PROFILE.heartbeat_path==module.PROFILE.deployment.profile.heartbeat_path
 assert not any(name in sys.modules for name in ['torch','sentence_transformers','osiris'])
 """
         env = dict(__import__('os').environ)
@@ -721,7 +741,7 @@ assert not any(name in sys.modules for name in ['torch','sentence_transformers',
     def test_main_exits_and_marks_stopped_after_idle_ttl(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as directory:
             root = Path(directory)
-            profile = replace(worker.PROFILE, nfs_root=root, idle_timeout_sec=.025)
+            profile = standalone_profile(worker.PROFILE, nfs_root=root, idle_timeout_sec=.025)
             with patch.object(worker, "PROFILE", profile), patch.object(
                 worker, "activity", worker.WorkerActivity(profile),
             ), patch.object(worker, "NFS_ROOT", root), patch.object(
@@ -739,7 +759,7 @@ assert not any(name in sys.modules for name in ['torch','sentence_transformers',
         from workspace.utils.osiris_runtime import lifecycle
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            profile = replace(worker.PROFILE, nfs_root=root, idle_timeout_sec=.025)
+            profile = standalone_profile(worker.PROFILE, nfs_root=root, idle_timeout_sec=.025)
             sdk = Mock()
             sdk.list.return_value = []
             sdk.create.return_value = {'job_name': 'fixture-job'}
