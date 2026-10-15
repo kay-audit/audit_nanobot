@@ -16,8 +16,11 @@ from dataclasses import replace
 
 ROOT=Path(__file__).resolve().parents[3]
 sys.path.insert(0,str(ROOT))
-sys.path.insert(0,str(Path(__file__).parent))
-from utils.osiris_config import SERVICE
+if __package__:
+    from .utils.osiris_config import SERVICE
+else:
+    sys.path.insert(0,str(Path(__file__).parent))
+    from utils.osiris_config import SERVICE
 from workspace.utils.osiris_runtime.client import _atomic_json, _atomic_pickle
 from workspace.utils.osiris_runtime.worker import (
     WorkerActivity,claim_new_requests,recover_processing_after_restart,should_idle_stop)
@@ -81,21 +84,51 @@ class IORRuntime:
             scores=1/(1+np.exp(-np.clip(raw,-50,50)))
             return {'version':version,'items':[{'id':row['id'],'score':float(score)} for row,score in zip(items,scores)]}
         if kind=='retrieve':
-            search=importlib.import_module('utils.osiris_search_runtime')
+            search=search_module()
             return search.search_pipeline(query,**payload)
         raise ValueError('Unsupported IOR request type')
 
-def load_runtime():
+def search_module():
+    name=f'{__package__}.utils.osiris_search_runtime' if __package__ else 'utils.osiris_search_runtime'
+    return importlib.import_module(name)
+
+
+def load_runtime(model_pool=None):
     import torch
     from sentence_transformers import SentenceTransformer,CrossEncoder
     if not torch.cuda.is_available():
         raise RuntimeError('IOR Osiris requires CUDA; no local/CPU model fallback')
     torch.cuda.set_device(0)
-    search=importlib.import_module('utils.osiris_search_runtime')
-    embed=SentenceTransformer(str(search.model_dir()),device='cuda:0')
-    reranker=CrossEncoder(str(search.reranker_dir()),device='cuda:0')
+    search=search_module()
+    if model_pool is None:
+        embed=SentenceTransformer(str(search.model_dir()),device='cuda:0')
+        reranker=CrossEncoder(str(search.reranker_dir()),device='cuda:0')
+    else:
+        embed_path=search.model_dir().resolve()
+        reranker_path=search.reranker_dir().resolve()
+        if not embed_path.is_dir() or not reranker_path.is_dir():
+            raise RuntimeError('IOR shared worker requires provisioned local model weights')
+        embed=model_pool.proxy('embed',(str(embed_path),'default-local'),
+            lambda:SentenceTransformer(str(embed_path),device='cuda:0',local_files_only=True))
+        reranker=model_pool.proxy('rerank',(str(reranker_path),'default-local'),
+            lambda:CrossEncoder(str(reranker_path),device='cuda:0',local_files_only=True))
     search._MODEL_CACHE.update(embed=embed,reranker=reranker)
     return IORRuntime(embed,reranker)
+
+def create_shared_handlers(model_pool):
+    """Preserve IOR algorithms and its own extract/index state behind shared routing."""
+    from workspace.utils.osiris_runtime.dispatcher import HandlerRegistry
+    runtime=load_runtime(model_pool)
+    handlers=HandlerRegistry()
+    for name in SERVICE.capabilities:
+        def handle(payload,context,operation=name):
+            return runtime.dispatch((context.session_id,context.consumer_id),operation,context.query,payload)
+        handlers.register(name,handle)
+    def legacy(manifest,payload):
+        return runtime.dispatch((manifest['session_id'],manifest['consumer_id']),
+            manifest['request_type'],manifest['query'],payload)
+    return handlers,legacy
+
 
 def process_request(profile,path,runtime):
     manifest=json.loads(path.read_text(encoding='utf-8'))
