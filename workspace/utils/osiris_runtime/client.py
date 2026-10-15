@@ -41,7 +41,7 @@ def session_dirs(profile: ServiceProfile, session_id: Any):
 
 def _atomic_pickle(value: Any, target: Path):
     target.parent.mkdir(parents=True, exist_ok=True)
-    temporary = target.with_name(target.name + f".tmp.{uuid.uuid4().hex}")
+    temporary = target.with_name(f".tmp.{uuid.uuid4().hex}")
     try:
         with temporary.open("wb") as handle:
             pickle.dump(value, handle, protocol=pickle.HIGHEST_PROTOCOL)
@@ -54,7 +54,7 @@ def _atomic_pickle(value: Any, target: Path):
 
 def _atomic_json(data: dict, target: Path):
     target.parent.mkdir(parents=True, exist_ok=True)
-    temporary = target.with_name(target.name + f".tmp.{uuid.uuid4().hex}")
+    temporary = target.with_name(f".tmp.{uuid.uuid4().hex}")
     try:
         with temporary.open("w", encoding="utf-8") as handle:
             json.dump(data, handle, ensure_ascii=False)

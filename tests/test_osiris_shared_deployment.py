@@ -376,3 +376,5 @@ def test_unknown_sdk_discovery_or_foreign_job_never_creates_second_job(shared,li
     sdk.state=lambda name:'Running'
     with pytest.raises(OsirisUnavailableError): lifecycle.ensure_ready(profiles[0],sdk,timeout=.03)
     assert not sdk.shared.get('creates')
+
+
