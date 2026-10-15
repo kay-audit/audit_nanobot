@@ -22,6 +22,52 @@ import pytest
 
 CAT={ground.ORIGIN:['Среднерусский банк','Московская региональная дирекция','Риски','Люди и культура'],
      ground.RESPONSIBILITY:['Риски','Люди и культура']}
+
+
+@pytest.mark.parametrize('column,label', [
+    ('incdnt_full_descr_txt', 'Подробное описание'),
+    ('recovery_rub_amt', 'Сумма возмещения (руб.)'),
+    ('fin_impact_rub_amt', 'Сумма последствия (руб.)'),
+])
+def test_atomic_xlsx_export_preserves_values_and_identifiers(tmp_path, column, label):
+    import openpyxl
+    from utils.dataframe_ops import _write_xlsx_safe
+
+    value = 'Полное описание' if column.endswith('_txt') else Decimal('1234.50')
+    source = pd.DataFrame({'incdnt_id': ['1234567890123456789'], column: [value]})
+    target = tmp_path / 'report.xlsx'
+    _write_xlsx_safe(source, target, 'ИОР')
+    book = openpyxl.load_workbook(target, read_only=True, data_only=True)
+    try:
+        rows = list(book['ИОР'].values)
+    finally:
+        book.close()
+    assert rows[0] == ('Идентификационный ключ инцидента операционного риска', label)
+    assert rows[1][0] == '1234567890123456789'
+    assert rows[1][1] == (value if isinstance(value, str) else float(value))
+
+
+def test_missing_schema_loader_reports_the_import_failure(monkeypatch):
+    import ast
+    import builtins
+    from utils import dataframe_ops
+
+    tree = ast.parse(Path(dataframe_ops.__file__).read_text(encoding='utf-8'))
+    guarded_import = next(node for node in tree.body if isinstance(node, ast.Try))
+    real_import = builtins.__import__
+
+    def missing_schema(name, *args, **kwargs):
+        if name == 'utils.schema.loader':
+            raise ImportError('schema fixture unavailable')
+        return real_import(name, *args, **kwargs)
+
+    namespace = {}
+    with monkeypatch.context() as patcher:
+        patcher.setattr(builtins, '__import__', missing_schema)
+        exec(compile(ast.Module(body=[guarded_import], type_ignores=[]), '<schema-fallback>', 'exec'), namespace)
+    with pytest.raises(RuntimeError, match='schema fixture unavailable'):
+        namespace['get_schema']()
+
 def frame():
     df = pd.DataFrame({'incdnt_id':[1,2,3],'incdnt_sid':['EVE-1','EVE-2','EVE-3'],
         'incdnt_entry_dt':pd.to_datetime(['2025-01-01','2025-05-01','2025-08-01']),
