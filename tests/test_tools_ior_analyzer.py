@@ -10,6 +10,50 @@ from types import SimpleNamespace
 import pytest
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize('failed_send', [False, True])
+async def test_native_ior_marks_only_its_real_message_publication(monkeypatch, tmp_path, failed_send):
+    from nanobot.agent.tools.context import RequestContext, request_context, current_request_context
+    from nanobot.agent.tools.message import MessageTool
+    from workspace.tools.ior_analyzer import IORAnalyzerTool, IORAnalyzerToolConfig
+    from lib.utils.verbatim_report import verified_source
+    IORAnalyzerTool._prepare_skill_utils_namespace(Path(__file__).resolve().parents[1] / 'workspace/skills/ior-analyzer')
+    from utils import ior_artifacts as artifacts
+    original_scope = artifacts.artifact_scope
+    monkeypatch.setattr(artifacts, 'artifact_scope', lambda directory, paths: original_scope(tmp_path, paths))
+    report = ('## Гипотезы\n1. Полные шаги проверки\n' + 'Я'*11000)[:11000]
+
+    async def runner(**kwargs):
+        assert kwargs['trusted_preset'] is False
+        path = tmp_path / 'report.xlsx'
+        path.write_bytes(b'fixture')
+        artifacts.register_artifact(path)
+        return report
+
+    outbound = []
+    async def send(msg):
+        outbound.append(msg)
+        if failed_send:
+            raise RuntimeError('fixture: send failed')
+
+    monkeypatch.setattr(IORAnalyzerTool, '_load_runner', staticmethod(lambda: runner))
+    context = RequestContext(channel='postgres', chat_id='chat', message_id='m-1', session_key='postgres:chat',
+                             metadata={'origin_message_id': 'm-1', 'answer_id': 'a-1', '_verbatim_report_source': 'untrusted'})
+    original = dict(context.metadata)
+    tool = IORAnalyzerTool(config=IORAnalyzerToolConfig(), message_tool=MessageTool(send_callback=send, workspace=tmp_path))
+    with request_context(context):
+        result = await tool.execute(prompt='ИОР')
+        assert current_request_context() is context
+        assert context.metadata == original
+    assert len(outbound) == 1 and outbound[0].content == report
+    assert verified_source(outbound[0], outbound[0].metadata) == 'ior_analyzer'
+    assert outbound[0].media == [str(tmp_path / 'report.xlsx')]
+    if failed_send:
+        assert result.is_error
+    else:
+        assert result == report
+
+
 def _load_data_store_module():
     path = (
         Path(__file__).resolve().parent.parent
