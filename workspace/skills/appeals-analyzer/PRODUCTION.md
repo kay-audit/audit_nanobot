@@ -44,7 +44,7 @@ Reference parameters: `FAISS_K=2048`, `BM25_TOTAL_K=1372`, `ALPHA=0.3`, `K_RRF=6
 
 ## NFS, startup and delivery
 
-Osiris lifecycle is shared by `workspace/utils/osiris_runtime/`, used by both the root operator CLI and Appeals requests. `utils/srb_d3.py` is the Appeals-specific retrieve/rerank adapter. Requests auto-start an absent or terminal job under the shared NFS lock and wait up to `OSIRIS_START_WAIT_TIMEOUT_SEC` (default 300 seconds). Startup failure returns a retry-later message using `OSIRIS_RETRY_AFTER_SEC` (default 900 seconds). The worker exits after `OSIRIS_IDLE_TIMEOUT_SEC` (default 3600 seconds) without requests; each completed request renews the full TTL. See [shared runtime guide](../../../docs/OSIRIS_RUNTIME.md).
+Osiris lifecycle is shared by `workspace/utils/osiris_runtime/`, used by both the root operator CLI and Appeals requests. `utils/srb_d3.py` is the Appeals-specific retrieve/rerank adapter. Requests auto-start an absent or terminal job under the shared NFS lock and wait up to `OSIRIS_START_WAIT_TIMEOUT_SEC` (default 120 seconds). Startup failure returns a retry-later message using `OSIRIS_RETRY_AFTER_SEC` (default 900 seconds). The worker exits after `OSIRIS_IDLE_TIMEOUT_SEC` (default 3600 seconds) without requests; each completed request renews the full TTL. See [shared runtime guide](../../../docs/OSIRIS_RUNTIME.md).
 
 Run from the repository root:
 
