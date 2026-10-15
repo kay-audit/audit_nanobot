@@ -54,9 +54,11 @@ Eligibility подготовлена внешним ETL и не вычисляе
 
 ## Требования
 
+### Requirement: Сохранность structural rows без source texts
+
 Компонент SHALL сохранять duplicate base IDs и SHALL NOT передавать source text columns в ingestion.
 
-### Сценарий: Несколько base rows
+#### Scenario: Несколько base rows
 
 WHEN один ID имеет A/X и B/Y, THEN оба structural rows SHALL сохраняться и каждый соответствующий lookup SHALL возвращать этот ID один раз.
 
