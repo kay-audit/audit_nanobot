@@ -32,7 +32,8 @@ def runtime(monkeypatch):
 
 @pytest.fixture
 def nfs(tmp_path,monkeypatch,runtime):
-    profile=replace(adapter.SERVICE,nfs_root=tmp_path)
+    profile=replace(adapter.SERVICE,nfs_root=tmp_path,
+        **({'deployment':None} if hasattr(adapter.SERVICE,'deployment') else {}))
     monkeypatch.setattr(adapter,'SERVICE',profile)
     monkeypatch.setattr(transport,'ensure_ready',lambda profile:None)
     def service(profile,session,kind,query,payload):
@@ -76,7 +77,8 @@ def test_malformed_response_rejected(monkeypatch,kind,bad):
         else: adapter.rerank('s','v','q',[{'id':'EVE-1','text':'text'}])
 
 def test_transport_timeout_and_correlation_cleanup(tmp_path):
-    profile=replace(adapter.SERVICE,nfs_root=tmp_path)
+    profile=replace(adapter.SERVICE,nfs_root=tmp_path,
+        **({'deployment':None} if hasattr(adapter.SERVICE,'deployment') else {}))
     rid=transport.submit_request(profile,'s','embed','',{'texts':['a']},.01)
     with pytest.raises(OsirisRequestTimeoutError): transport.wait_result(profile,'s',rid,'embed',.01)
     assert not list(tmp_path.rglob('*.pkl'))
