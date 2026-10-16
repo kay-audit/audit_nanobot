@@ -268,6 +268,7 @@ def parse_period(text: str, column: str = DEFAULT_DATE_COLUMN, *, today=None) ->
             t = answer
     # Do not silently ignore a mistyped year while parsing a valid quarter/month.
     date_years = re.findall(r'(?<![\w-])(\d{4})(?=\s*год)', t)
+    date_years += re.findall(r'\bза\s+(\d{4})(?![\w-]|\s*(?:руб|млн|тыс|млрд|доллар|евро|%))', t)
     date_years += re.findall(r'(?:квартал\w*|\bq\s*[1-4])\s+(\d{4})\b', t)
     for month_pattern, _, _ in _MONTHS:
         date_years += re.findall(r'\b' + month_pattern + r'\s+(\d{4})\b', t)

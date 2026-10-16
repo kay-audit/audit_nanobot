@@ -411,7 +411,8 @@ class FlowTests(unittest.IsolatedAsyncioTestCase):
             result=await tool.execute(prompt='ИОРы')
         self.assertNotIn('private',result); self.assertNotIn('Traceback',result)
         self.assertIn('журнал',result)
-        self.assertIn('Traceback',' '.join(logged.output))
+        self.assertIn('RuntimeError',' '.join(logged.output))
+        self.assertNotIn('private',' '.join(logged.output))
         with patch.object(tool,'_load_runner',return_value=AsyncMock(return_value='Уточните блок')):
             self.assertEqual(await tool.execute(prompt='ИОРы'),'Уточните блок')
         for phrase in ['SBR','Уточнение:','вкладк']:

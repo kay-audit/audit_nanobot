@@ -10,9 +10,11 @@ from __future__ import annotations
 import logging
 import hashlib
 import json
+import math
 import os
 import re
 import sys
+import time
 import uuid
 from importlib import import_module
 from pathlib import Path
@@ -24,6 +26,36 @@ from pydantic import BaseModel
 
 
 logger = logging.getLogger(__name__)
+_CLARIFICATION_TTL_SEC = 3600
+
+
+def _pending_input_kind(text: str, question: str) -> str:
+    """Use the expected answer before deciding whether a request is new."""
+    low, expected = text.casefold().strip(), question.casefold()
+    if re.match(r"уточнение:", low):
+        return "answer"
+    if re.search(r"\bнов\w*\s+(?:запрос|анализ|выгрузк)|\b(?:начни|начать)\s+заново", low):
+        return "new"
+    action = bool(re.search(r"\b(?:выгруз\w*|найди|покажи|проанализируй|сделай|сформируй)\b", low))
+    domain = bool(re.search(r"\b(?:иор\w*|инцидент\w*)\b", low))
+    constraints = bool(re.search(r"\b\d{4}\b|\b(?:q[1-4]|drp|eve)[-_\s]?\d*|финансов\w*\s+последств|возмещ|удал[её]н", low))
+    if re.search(r"год", expected) and re.fullmatch(r"(?:год\s*[:—-]?\s*)?\d{4}(?:\s*год\w*)?[.!\s]*", low):
+        return "answer"
+    if re.search(r"происхожд|ответствен|подраздел|блок", expected) and re.search(
+        r"происхожд|ответствен", low
+    ) and not action and not constraints and "?" not in low:
+        return "answer"
+    if "eve" in expected and re.fullmatch(r"(?:иор\s+)?eve[-_\s]?\d+[.!\s]*", low):
+        return "answer"
+    if re.search(r"вид\w*\s+анализ|какой анализ", expected) and re.fullmatch(
+        r"(?:возмещения|удал[её]нные иор|(?:не)?финансовые последствия)(?:\s+по иор)?[.!\s]*", low
+    ):
+        return "answer"
+    if domain and (action or constraints):
+        return "new"
+    if not domain and not action and "?" not in low and len(text) <= 1000:
+        return "answer"
+    return "ambiguous"
 
 _PRESETS = (
     "financial_consequences_ior",
@@ -219,10 +251,10 @@ class IORAnalyzerTool(Tool):
                 key = hashlib.sha256((resolved_session + "\0" + owner).encode()).hexdigest()[:24]
                 pending_path = output.parent / f"ior_clarification_{key}.json"
                 turn = getattr(request_context, "turn_id", None) or getattr(request_context, "message_id", None)
-                new_request = bool(re.search(r"\b(?:выгруз\w*|покажи|найди|проанализируй|сделай|сформируй|анализ|иор\w*|инцидент\w*)\b", original, re.I))
+                new_request = _pending_input_kind(original, "") == "new" or original.startswith("Анализ ИОР")
                 try:
                     pending = json.loads(pending_path.read_text(encoding="utf-8"))
-                    if not isinstance(pending, dict) or not isinstance(pending.get("prompt"), str):
+                    if not isinstance(pending, dict) or not isinstance(pending.get("prompt"), str) or pending.get("session") != resolved_session or pending.get("owner") != owner:
                         raise ValueError("Invalid pending clarification")
                 except FileNotFoundError:
                     pending = None
@@ -231,14 +263,27 @@ class IORAnalyzerTool(Tool):
                         return ToolResult.error("Не удалось прочитать состояние уточнения ИОР. Повторите полный исходный запрос.")
                     pending = None
                 from utils.resolve.request_plan import explicit_followup
-                if pending and pending.get("session") == resolved_session and pending.get("owner") == owner and not new_request and not explicit_followup(original):
+                if pending:
+                    created = pending.get("created_at")
+                    if not isinstance(created, (int, float)) or isinstance(created, bool) or not math.isfinite(created) or not 0 <= time.time() - created <= _CLARIFICATION_TTL_SEC:
+                        pending_path.unlink(missing_ok=True)
+                        pending = None
+                        if not new_request:
+                            return ToolResult.error("Срок ожидания уточнения ИОР истёк. Повторите полный исходный запрос.")
+                continuing = False
+                if pending and not explicit_followup(original):
+                    kind = _pending_input_kind(original, pending.get("question", ""))
                     if turn and pending.get("turn") == turn:
                         prompt = pending["prompt"]
-                    elif "?" not in original and len(original) <= 1000:
+                        continuing = True
+                    elif kind == "answer":
                         prefix = "\n" if re.match(r"\s*уточнение:", original, re.I) else "\nУточнение: "
                         prompt = pending["prompt"] + prefix + original
+                        continuing = True
+                    elif kind == "new":
+                        prompt = original
                     else:
-                        return "Ожидается ответ на уточнение ИОР: " + pending.get("question", "Повторите полный запрос.")
+                        return "Это ответ на предыдущее уточнение или новый запрос по ИОР? Уточните намерение; исходные условия сохранены. " + pending.get("question", "")
                 else:
                     prompt = original
                 if re.fullmatch(r"\s*(?:год\s*[:—-]?\s*)?\d{4}(?:\s*год\w*)?[.!\s]*", prompt):
@@ -253,7 +298,8 @@ class IORAnalyzerTool(Tool):
                     temporary = pending_path.with_name(pending_path.name + "." + uuid.uuid4().hex + ".tmp")
                     try:
                         temporary.write_text(json.dumps({"session": resolved_session, "owner": owner,
-                            "turn": turn, "prompt": prompt, "question": str(question)}, ensure_ascii=False), encoding="utf-8")
+                            "turn": turn, "prompt": prompt, "question": str(question),
+                            "created_at": pending["created_at"] if continuing else time.time()}, ensure_ascii=False), encoding="utf-8")
                         os.replace(temporary, pending_path)
                     finally:
                         temporary.unlink(missing_ok=True)
@@ -267,8 +313,6 @@ class IORAnalyzerTool(Tool):
                     user_prompt=prompt,
                     **runtime_options,
                 )
-            if pending_path is not None and not clarification:
-                pending_path.unlink(missing_ok=True)
             if paths:
                 if request_context is not None:
                     if self._message_tool is None:
@@ -280,9 +324,11 @@ class IORAnalyzerTool(Tool):
                         )
                     if getattr(delivery, "is_error", False):
                         raise RuntimeError(f"IOR artifact delivery failed: {delivery}")
+            if pending_path is not None and not clarification:
+                pending_path.unlink(missing_ok=True)
             return report
         except Exception as exc:
-            logger.exception("IOR analysis failed")
+            logger.error("IOR analysis failed: %s", type(exc).__name__)
             return ToolResult.error(
                 f"Не удалось выполнить анализ ИОР ({type(exc).__name__}). "
                 "Подробности записаны в журнал."
