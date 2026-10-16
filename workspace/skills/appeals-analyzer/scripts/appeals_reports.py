@@ -47,6 +47,8 @@ def validate_date_range(value: Any) -> Optional[tuple[str, str]]:
 
 def extract_search_params(semantic_query: str) -> Dict[str, Any]:
     """Extract only date range. The original semantic query is never rewritten."""
+    if not re.search(r"\b\d{4}\b|\d{1,2}[./]\d{1,2}|январ|феврал|март|апрел|ма[йея]|июн|июл|август|сентябр|октябр|ноябр|декабр|квартал|месяц|недел|вчера|сегодня|год|период", semantic_query or "", re.I):
+        return {"date_range": None}
     fallback = None
     match = re.search(r"\b(20\d{2})\b", semantic_query or "")
     if match:
@@ -183,11 +185,13 @@ async def run_appeals_report(session_id: str, user_prompt: str = "", filters: Op
     query = request["query"]
     date_range = (request["date_range"] if request["format"] in {"canonical", "json"}
                   else extract_search_params(query)["date_range"])
-    allowed_ids = await asyncio.to_thread(
-        fetch_candidate_ids_by_product, request["products"], request["subproducts"],
-        request["channels"], date_range,
-    )
-    if not allowed_ids:
+    allowed_ids = None
+    if request["format"] != "natural":
+        allowed_ids = await asyncio.to_thread(
+            fetch_candidate_ids_by_product, request["products"], request["subproducts"],
+            request["channels"], date_range,
+        )
+    if request["format"] != "natural" and not allowed_ids:
         return _empty("По указанным фильтрам обращений не найдено.", session_id)
     try:
         structural_filters = {key: request[key] for key in ("products", "subproducts", "channels") if request[key]}
@@ -225,7 +229,7 @@ async def _run_follow_up(session_id: str, prompt: str, session: Dict[str, Any]) 
         frame = await asyncio.to_thread(fetch_appeals_by_ids, matched, session.get("date_range"),
                                         **session.get("structural_filters", {}))
         return await asyncio.to_thread(answer_complaint_details, prompt, _rows_for_answer(frame), hypothesis=hypothesis)
-    if classify_complaint_intent(prompt) == "search":
+    if route_intent(prompt, True) == Intent.FOLLOWUP_SEARCH or classify_complaint_intent(prompt) == "search":
         frame = await _search_population(session_id, prompt, final_ids, session.get("date_range"),
                                          structural_filters=session.get("structural_filters", {}))
         if frame.empty:

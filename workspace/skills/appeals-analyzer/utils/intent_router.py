@@ -15,27 +15,37 @@ class Intent(str, Enum):
 
 def looks_like_new_analytical_request(prompt: str) -> bool:
     text = (prompt or "").strip()
-    if text and text.splitlines()[0].strip().casefold() == "анализ обращений":
+    if re.match(r"анализ обращений\b", text, re.I) or re.search(r"(?m)^(?:Продукт|Подпродукт|Канал|Период|Запрос):", text):
         return True
     if text.startswith("{"):
         try:
             payload = json.loads(text)
         except json.JSONDecodeError:
-            if re.search(r'"request_type"\s*:\s*"appeals_analysis"', text):
+            if re.search(r'"request_type"\s*:\s*"appeals_analysis"|"filters"\s*:', text):
                 return True
         else:
             if isinstance(payload, dict) and payload.get("request_type") == "appeals_analysis":
                 return True
-    quoted = r'"(?:[^"]|"")*"'
-    return re.fullmatch(rf"\s*{quoted}\s*,\s*{quoted}\s*,\s*{quoted}\s*,\s*{quoted}\s*", text) is not None
+    # A damaged CSV envelope must not silently become an unfiltered search.
+    return text.startswith('"')
+
+
+def is_natural_search_request(prompt: str) -> bool:
+    text = (prompt or "").casefold()
+    return bool(re.search(r"\b(?:обращени\w*|жалоб\w*)", text) and re.search(
+        r"\b(?:найди|найти|покажи|показать|проанализируй|анализ\w*|поиск\w*)\b", text))
 
 
 def route_intent(prompt: str, has_selection: bool = False) -> Intent:
     if looks_like_new_analytical_request(prompt):
         return Intent.NEW_SEARCH
     text = (prompt or "").casefold().strip()
+    if is_natural_search_request(prompt) and re.search(
+        r"\bнов\w*\s+(?:поиск|анализ|выгрузк)|\bпо\s+всем\s+(?:обращени|жалоб)", text
+    ):
+        return Intent.NEW_SEARCH
     if has_selection and re.search(r"\b(?:id|обращени[ея])?\s*\d{5,}\b", text):
         return Intent.SPECIFIC_APPEAL
-    if has_selection and any(x in text for x in ("в каких", "среди них", "среди выборки", "найди", "покажи")):
+    if has_selection and any(x in text for x in ("в каких", "среди них", "среди этих", "среди выборки", "найди", "покажи")):
         return Intent.FOLLOWUP_SEARCH
     return Intent.REPORT_QUESTION if has_selection else Intent.NEW_SEARCH
