@@ -214,7 +214,9 @@ async def run_appeals_report(session_id: str, user_prompt: str = "", filters: Op
         "final_ids": final_df["id"].tolist(), "hypothesis": narrative, "export_info": export,
         "structural_filters": structural_filters, "date_range": date_range,
     })
-    return narrative + f"\n\nВыгрузка: {export['name']} ({len(final_df)} уникальных обращений)."
+    return (narrative + f"\n\nВыгрузка: {export['name']} ({len(final_df)} уникальных обращений)."
+            "\nКоличество относится к поисковой выборке, ограниченной числом кандидатов; "
+            "точное число подходящих обращений во всём корпусе этим поиском не вычисляется.")
 
 
 def _osiris_unavailable_message() -> str:

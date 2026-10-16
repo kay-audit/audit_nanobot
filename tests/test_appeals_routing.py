@@ -188,8 +188,8 @@ class RoutingTests(unittest.TestCase):
     def test_actual_followup_paths_preserve_saved_ids(self):
         self.selection()
         with patch.object(reports, "classify_complaint_intent", return_value="search"), patch.object(reports, "answer_complaint_follow_up", return_value="found"):
-            self.assertEqual(self.run_report("Покажи блокировки"), "found")
-        self.mocks["_search_population"].assert_awaited_once_with(self.keys[0], "Покажи блокировки", ["123456"], None, structural_filters={})
+            self.assertEqual(self.run_report("Покажи блокировки в этих обращениях"), "found")
+        self.mocks["_search_population"].assert_awaited_once_with(self.keys[0], "Покажи блокировки в этих обращениях", ["123456"], None, structural_filters={})
         with patch.object(reports, "fetch_appeals_by_ids", return_value=self.frame) as fetch, patch.object(reports, "_rows_for_answer", return_value=[]), patch.object(reports, "answer_complaint_details", return_value="details"):
             self.assertEqual(self.run_report("Обращение 123456"), "details")
             fetch.assert_called_once_with(["123456"], None)
@@ -249,7 +249,7 @@ class RoutingTests(unittest.TestCase):
     def test_damaged_structured_requests_never_expand_to_global_search(self):
         for prompt in ("Анализ обращений\nНайди жалобы", '{"request_type":"appeals_analysis",',
                        '"Кредиты", "", "найди жалобы"', "Продукт:\n- Кредиты\nЗапрос:\nНайди жалобы",
-                       "Кредиты, , , Найди жалобы", "Кредиты, Ипотека, СБОЛ, Найди жалобы"):
+                       "Кредиты, , , Найди жалобы"):
             with self.subTest(prompt=prompt):
                 self.selection()
                 self.assert_format_error(prompt)
@@ -264,9 +264,12 @@ class RoutingTests(unittest.TestCase):
         self.mocks["generate_complaint_hypothesis_narrative"].assert_not_awaited()
         self.assertFalse(sessions.get_session_extract(self.keys[0]).get("final_ids"))
 
-    def test_unrelated_text_is_not_a_natural_appeals_search(self):
+    def test_tool_accepts_any_nonempty_text_after_agent_routing(self):
         for text in ("Какая сегодня погода?", "2026", "Найди документацию Python"):
-            with self.subTest(text=text), self.assertRaises(ValueError):
+            with self.subTest(text=text):
+                self.assertEqual(parser.parse_structured_analytical_request(text)["query"], text)
+        for text in ("", "  \n"):
+            with self.assertRaises(ValueError):
                 parser.parse_structured_analytical_request(text)
 
     def test_absent_period_never_asks_llm_to_invent_dates(self):
@@ -304,8 +307,7 @@ class RoutingTests(unittest.TestCase):
         self.assertFalse(router.looks_like_new_analytical_request("Найди жалобы на карты"))
         self.assertEqual(router.route_intent("Найди жалобы на карты", True), router.Intent.NEW_SEARCH)
         for prompt in ("Какие основные причины жалоб среди них?",
-                       "Расскажи подробнее об обращении 123456", "Что означает Анализ обращений?",
-                       '{"request_type":"other","prompt":"appeals_analysis"}'):
+                       "Расскажи подробнее об обращении 123456", "Что означает Анализ обращений?"):
             self.assertFalse(router.looks_like_new_analytical_request(prompt))
             self.assertNotEqual(router.route_intent(prompt, True), router.Intent.NEW_SEARCH)
 

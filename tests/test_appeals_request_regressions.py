@@ -63,6 +63,38 @@ def assert_pipeline_counts(bundle, count):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("text", [
+    "Сколько было обращений, в которых клиент жалуется на бонусные категории?",
+    "Почему клиенты жалуются на комиссии?",
+    "Есть ли обращения по мошенничеству?",
+    "Что чаще всего не устраивает клиентов?",
+    "Найди жалобы на карты, переводы и кредиты",
+    "Жалобы: карты, переводы, кредиты, комиссии",
+])
+async def test_arbitrary_natural_question_starts_new_search_with_original_text(bundle, text):
+    # A previous result must not silently restrict an independent question.
+    bundle.sessions.set_session_extract("postgres:A", bundle.frame,
+        extra={"final_ids": ["old-id"], "hypothesis": "old report"})
+    with request_context(context(text)):
+        result = await bundle.tool.execute(prompt="rewritten by agent")
+    assert "FULL REPORT" in result and "CSV" not in result
+    assert "точное число" in result
+    bundle.calls["search"].assert_called_once_with("postgres:A", text, None)
+    assert_pipeline_counts(bundle, 1)
+
+
+@pytest.mark.asyncio
+async def test_question_with_reference_searches_only_saved_selection(bundle, monkeypatch):
+    bundle.sessions.set_session_extract("postgres:A", bundle.frame,
+        extra={"final_ids": ["1", "2"], "hypothesis": "old report"})
+    monkeypatch.setattr(bundle.reports, "answer_complaint_follow_up", Mock(return_value="bounded answer"))
+    text = "А почему клиенты в этих обращениях жалуются?"
+    with request_context(context(text)):
+        assert await bundle.tool.execute(prompt="rewritten") == "bounded answer"
+    bundle.calls["search"].assert_called_once_with("postgres:A", text, ["1", "2"])
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("fallback", [False, True])
 async def test_same_turn_repeated_and_parallel_calls_execute_pipeline_once(bundle, monkeypatch, fallback, caplog):
     if fallback:
