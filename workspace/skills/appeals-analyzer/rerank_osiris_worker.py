@@ -33,24 +33,53 @@ print("Конфигурация успешно загружена!", flush=True)
 
 
 def install_runtime_packages():
+    """Install once during runtime initialization, before importing ML packages."""
+    import re
+    from urllib.parse import quote, unquote, urlsplit
+
     packages = ["faiss-gpu-cu12", "huggingface_hub==0.27.0", "pandas==2.2.3",
                 "sentence-transformers==3.2.0", "rank_bm25==0.2.1", "bm25s==0.3.8"]
     install_env = os.environ.copy()
     index_url = osiris_config.OSIRIS_PIP_INDEX_URL
     if not index_url:
-        from urllib.parse import quote
         token = osiris_config.get_package_token()
         index_url = "https://token:" + quote(token, safe="") + "@sberosc.ca.sbrf.ru/repo/pypi/simple"
-    install_env["PIP_INDEX_URL"] = index_url
+    # Preserve the image's primary index, as in the working --extra-index-url command.
+    install_env["PIP_EXTRA_INDEX_URL"] = " ".join(filter(None, (
+        install_env.get("PIP_EXTRA_INDEX_URL", ""), index_url,
+    )))
     install_env["PIP_TRUSTED_HOST"] = osiris_config.OSIRIS_PIP_TRUSTED_HOST or "sberosc.ca.sbrf.ru"
-    install_env.pop("PIP_EXTRA_INDEX_URL", None)
-    result = subprocess.run(
-        [sys.executable, "-m", "pip", "install", "--retries", "5", *packages],
-        env=install_env, capture_output=True, text=True,
-    )
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "pip", "install", "--retries", "5", *packages],
+            env=install_env, capture_output=True, text=True,
+        )
+    except OSError as exc:
+        raise RuntimeError(
+            f"Appeals OSIRIS cannot start pip: {type(exc).__name__} (errno={exc.errno})"
+        ) from None
     if result.returncode:
-        raise RuntimeError("Appeals OSIRIS package installation failed; check internal registry configuration")
+        detail = result.stderr or result.stdout or "pip returned no diagnostic output"
+        # Pip may echo authenticated URLs or passwords: never expose them in worker logs.
+        for value in (install_env.get("PIP_INDEX_URL", ""), install_env["PIP_EXTRA_INDEX_URL"]):
+            for url in value.split():
+                password = urlsplit(url).password
+                if password:
+                    detail = detail.replace(password, "[redacted]").replace(unquote(password), "[redacted]")
+        detail = re.sub(r"https?://\S+", "[registry URL]", detail)
+        raise RuntimeError(
+            f"Appeals OSIRIS package installation failed (pip exit {result.returncode}): {detail[-1500:]}"
+        ) from None
     importlib.invalidate_caches()
+    for module in ("numpy", "torch", "faiss", "huggingface_hub", "pandas",
+                   "sentence_transformers", "rank_bm25", "bm25s"):
+        try:
+            importlib.import_module(module)
+        except Exception as exc:
+            raise RuntimeError(
+                f"Appeals OSIRIS dependency import failed after pip install: {module} "
+                f"({type(exc).__name__}); check package/image compatibility"
+            ) from None
 
 
 import gc
@@ -63,8 +92,6 @@ import time
 import traceback
 import uuid
 from dataclasses import replace
-
-import numpy as np
 
 from workspace.utils.osiris_runtime.worker import (
     WorkerActivity, claim_new_requests as shared_claim_new_requests,
@@ -159,6 +186,7 @@ def load_runtime():
 
 
 def load_shared_runtime(model_pool):
+    install_runtime_packages()
     import torch
     from sentence_transformers import CrossEncoder, SentenceTransformer
 
@@ -186,6 +214,7 @@ def load_shared_runtime(model_pool):
 
 
 def embed_items(embed, items):
+    import numpy as np
     ids = [item["id"] for item in items]
     if not items or len(ids) != len(set(ids)) or any(not isinstance(item["text"], str) for item in items):
         raise ValueError("Embedding requires unique IDs and text strings")
@@ -201,6 +230,7 @@ def embed_items(embed, items):
 
 
 def predict_with_retry(model, pairs):
+    import numpy as np
     import torch
 
     batch_size = RERANK_BATCH_SIZE
@@ -221,6 +251,7 @@ def predict_with_retry(model, pairs):
 
 
 def sigmoid(raw):
+    import numpy as np
     return 1.0 / (1.0 + np.exp(-np.clip(np.asarray(raw, dtype="float64"), -50, 50)))
 
 
@@ -237,6 +268,7 @@ def _paths(manifest):
 
 
 def dispatch_operation(kind, query, payload, search, reranker):
+    import numpy as np
     if kind == "retrieve":
         result = search.retrieve_hybrid_adaptive(query, payload["allowed_ids"])
         result = list(map(str, result))

@@ -7,6 +7,7 @@ import contextlib
 import importlib
 import importlib.util
 import json
+import os
 import pickle
 import subprocess
 import sys
@@ -655,16 +656,26 @@ class WorkerInitializationTests(unittest.TestCase):
             worker.osiris_config, "OSIRIS_PIP_TRUSTED_HOST", "",
         ), patch.object(
             worker.subprocess, "run", return_value=Mock(returncode=0),
-        ) as install, patch.object(worker.osiris_config, "get_package_token", return_value="fixture-secret"), patch.object(worker.importlib, "invalidate_caches") as invalidate:
+        ) as install, patch.object(worker.osiris_config, "get_package_token", return_value="fixture-secret"), patch.object(worker.importlib, "invalidate_caches") as invalidate, patch.object(worker.importlib, "import_module") as imports, patch.dict(os.environ, {"PIP_INDEX_URL": "https://primary.example/simple"}):
             worker.install_runtime_packages()
         args = install.call_args.args[0]
         self.assertIn("sentence-transformers==3.2.0", args)
         self.assertIn("faiss-gpu-cu12", args)
+        self.assertIn("huggingface_hub==0.27.0", args)
+        self.assertIn("pandas==2.2.3", args)
+        self.assertIn("rank_bm25==0.2.1", args)
+        self.assertIn("bm25s==0.3.8", args)
+        self.assertFalse(install.call_args.kwargs.get("shell", False))
         env = install.call_args.kwargs["env"]
-        self.assertIn("sberosc.ca.sbrf.ru", env["PIP_INDEX_URL"])
+        self.assertIn("sberosc.ca.sbrf.ru", env["PIP_EXTRA_INDEX_URL"])
+        self.assertEqual(env["PIP_INDEX_URL"], "https://primary.example/simple")
         self.assertNotIn("fixture-secret", repr(args))
         self.assertEqual(env["PIP_TRUSTED_HOST"], "sberosc.ca.sbrf.ru")
         invalidate.assert_called_once_with()
+        self.assertEqual([call.args[0] for call in imports.call_args_list], [
+            "numpy", "torch", "faiss", "huggingface_hub", "pandas",
+            "sentence_transformers", "rank_bm25", "bm25s",
+        ])
 
     def test_closed_contour_index_uses_env_when_configured(self):
         with patch.object(
@@ -674,17 +685,60 @@ class WorkerInitializationTests(unittest.TestCase):
             worker.osiris_config, "OSIRIS_PIP_TRUSTED_HOST", "sberosc.ca.sbrf.ru",
         ), patch.object(
             worker.subprocess, "run", return_value=Mock(returncode=0),
-        ) as install, patch.object(worker.importlib, "invalidate_caches"):
+        ) as install, patch.object(worker.importlib, "invalidate_caches"), patch.object(worker.importlib, "import_module"), patch.dict(os.environ, {"PIP_EXTRA_INDEX_URL": "https://extra.example/simple"}):
             worker.install_runtime_packages()
         args = install.call_args.args[0]
         env = install.call_args.kwargs["env"]
         # Токен передаётся только через окружение, в argv не утекает.
         self.assertNotIn("secret", repr(args))
         self.assertEqual(
-            env["PIP_INDEX_URL"],
-            "https://token:secret@sberosc.ca.sbrf.ru/repo/pypi/simple",
+            env["PIP_EXTRA_INDEX_URL"],
+            "https://extra.example/simple https://token:secret@sberosc.ca.sbrf.ru/repo/pypi/simple",
         )
         self.assertEqual(env["PIP_TRUSTED_HOST"], "sberosc.ca.sbrf.ru")
+
+    def test_installation_precedes_imports_in_both_runtime_paths(self):
+        import builtins
+        original_import = builtins.__import__
+        for name, args in (("load_runtime", ()), ("load_shared_runtime", (Mock(),))):
+            events = []
+            def guarded_import(module, *args, **kwargs):
+                if module == "torch":
+                    events.append("torch")
+                    raise RuntimeError("stop before CUDA")
+                return original_import(module, *args, **kwargs)
+            with patch.object(worker, "install_runtime_packages", side_effect=lambda: events.append("pip")), patch("builtins.__import__", side_effect=guarded_import):
+                with self.assertRaisesRegex(RuntimeError, "stop before CUDA"):
+                    getattr(worker, name)(*args)
+            self.assertEqual(events, ["pip", "torch"])
+
+    def test_pip_failure_stops_before_imports_and_redacts_secret(self):
+        for failure in (Mock(returncode=1, stdout="", stderr="ERROR: no matching distribution https://token:fixture-secret@sberosc.ca.sbrf.ru/simple fixture-secret"), OSError(2, "missing executable")):
+            with patch.object(worker.osiris_config, "OSIRIS_PIP_INDEX_URL", ""), patch.object(worker.osiris_config, "get_package_token", return_value="fixture-secret"), patch.object(worker.subprocess, "run") as run, patch.object(worker.importlib, "import_module") as imports:
+                if isinstance(failure, Exception):
+                    run.side_effect = failure
+                else:
+                    run.return_value = failure
+                with self.assertRaises(RuntimeError) as caught:
+                    worker.install_runtime_packages()
+                self.assertNotIn("fixture-secret", str(caught.exception))
+                self.assertIn("pip", str(caught.exception))
+                if not isinstance(failure, Exception):
+                    self.assertIn("no matching distribution", str(caught.exception))
+                imports.assert_not_called()
+
+    def test_successful_pip_precedes_import_check_and_import_error_is_clear(self):
+        events = []
+        def run(*args, **kwargs):
+            events.append("pip")
+            return Mock(returncode=0)
+        def import_module(name):
+            events.append(name)
+            raise ImportError("unavailable")
+        with patch.object(worker.osiris_config, "OSIRIS_PIP_INDEX_URL", "https://registry.example/simple"), patch.object(worker.subprocess, "run", side_effect=run), patch.object(worker.importlib, "import_module", side_effect=import_module):
+            with self.assertRaisesRegex(RuntimeError, "dependency import failed after pip install: numpy"):
+                worker.install_runtime_packages()
+        self.assertEqual(events, ["pip", "numpy"])
 
     def test_metadata_loader_does_not_require_texts_or_embeddings(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as directory:
