@@ -5,12 +5,17 @@ from pathlib import Path
 from threading import RLock
 import pandas as pd
 from utils import osiris_client
+from utils.osiris_client import IORSessionIndexUnavailableError
 
 logger=logging.getLogger(__name__)
 _LOCK=RLock()
 _SMALL_FAISS_SESSION_CACHE={}
 SESSION_SCORE_THRESHOLD=.7
 _PIPELINES_DIR=Path(__file__).resolve().parents[3]/'data_store/cache/caches_pipelines'
+
+
+class IORSearchUnavailableError(RuntimeError):
+    """OSIRIS could not execute the search; this is not an empty result."""
 def cache_dir(): return Path(os.getenv('IOR_RAG_CACHE_DIR',str(_PIPELINES_DIR/'cache_final')))
 def model_dir(): return Path(os.getenv('IOR_BGE_MODEL_PATH',str(_PIPELINES_DIR/'BAAI:bge-m3')))
 def reranker_dir(): return Path(os.getenv('IOR_RERANKER_MODEL_PATH',str(_PIPELINES_DIR/'bge-reranker-v2-m3')))
@@ -53,29 +58,37 @@ def build_and_cache_small_index(session_id,df_or_map):
         return False
 
 def search_small_index(session_id,query,top_k=5,threshold=SESSION_SCORE_THRESHOLD):
+    """Return matches (possibly empty); index and execution failures raise separately."""
     from utils.session_extract_manager import get_session_extract
     with _LOCK:
         extract=get_session_extract(session_id)
         index=_SMALL_FAISS_SESSION_CACHE.get(session_id)
         if not extract or not index or index['version']!=extract['version']:
-            return []
+            raise IORSessionIndexUnavailableError('IOR session index missing or stale')
         version=index['version']
         ids=list(index['ids'])
     try:
         items=osiris_client.search(session_id,version,query,ids,top_k,threshold)
         if not items:
+            with _LOCK:
+                current=get_session_extract(session_id)
+                if not current or current['version']!=version:
+                    raise IORSessionIndexUnavailableError('IOR extract changed during search')
             return []
         ranked=osiris_client.rerank(session_id,version,query,items)
         with _LOCK:
             current=get_session_extract(session_id)
             if not current or current['version']!=version:
-                return []
+                raise IORSessionIndexUnavailableError('IOR extract changed during search')
         texts={row['id']:row['text'] for row in items}
         return [f"ИОР {row['id']}: {texts[row['id']]}" for row in sorted(ranked,key=lambda r:r['score'],reverse=True)]
-    except Exception:
-        invalidate_small_index(session_id)
+    except IORSessionIndexUnavailableError:
+        logger.exception('IOR session index unavailable')
+        raise
+    except Exception as exc:
         logger.exception('IOR Osiris search unavailable')
-        return []
+        # Preserve the extract and index identity so a later user turn can retry.
+        raise IORSearchUnavailableError('IOR Osiris search unavailable') from exc
 
 def search_pipeline(query,session_id='ior-global',**kwargs):
     return osiris_client.request(session_id,'retrieve',query,kwargs)

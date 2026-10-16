@@ -1,5 +1,6 @@
 """Trusted user input and session-scoped clarification; no live SQL or LLM."""
 from importlib import import_module
+import asyncio
 import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
@@ -41,6 +42,126 @@ def native_input(monkeypatch, tmp_path):
 def ctx(text, *, session="postgres:A", sender="user-A", turn="turn-1"):
     return RequestContext(channel="postgres", chat_id="A", session_key=session,
                           original_user_text=text, sender_id=sender, turn_id=turn, message_id=turn)
+
+
+@pytest.fixture
+def followup_runtime(native_input, monkeypatch):
+    """Real native tool/report/search/client; only OSIRIS transport and Qwen are fake."""
+    import pandas as pd
+    from utils import bge_search_engine as search
+    from utils import session_extract_manager as sessions
+    frame = pd.DataFrame({"incdnt_sid": ["EVE-1"], "incdnt_full_descr_txt": ["Мошенничество"]})
+    extract = sessions.set_session_extract("postgres:A", frame)
+    monkeypatch.setitem(search._SMALL_FAISS_SESSION_CACHE, "postgres:A",
+                        {"version": extract["version"], "ids": ["EVE-1"]})
+    state = SimpleNamespace(failure=None, failure_kind="search", empty=False,
+                            remote_index_error=False, remote_version=None)
+    def dispatch(session, kind, query, payload):
+        assert session == "postgres:A" and query == "В каких из этих ИОР есть информация о мошенничестве?"
+        if state.failure is not None and kind == state.failure_kind:
+            raise state.failure
+        if state.remote_index_error:
+            return {"version": payload["version"], "error": "session_index_unavailable", "items": []}
+        if kind == "search":
+            assert payload["allowed_ids"] == ["EVE-1"]
+            items = [] if state.empty else [{"id": "EVE-1", "text": "Мошенничество", "score": .9}]
+            return {"version": state.remote_version or payload["version"], "items": items}
+        assert kind == "rerank"
+        return {"version": payload["version"], "items": [{"id": "EVE-1", "score": .9}]}
+    request = Mock(side_effect=dispatch)
+    monkeypatch.setattr(search.osiris_client, "request", request)
+    monkeypatch.setattr(IORAnalyzerTool, "_load_runner", staticmethod(lambda: native_input.reports.run_ior_report))
+    answer = Mock(return_value="Найдены ИОР: EVE-1")
+    monkeypatch.setattr(native_input.reports, "answer_follow_up_with_qwen", answer)
+    monkeypatch.setattr(native_input.reports, "get_data_store", Mock(side_effect=AssertionError("No global SQL")))
+    yield SimpleNamespace(tool=native_input.tool, state=state, request=request, answer=answer,
+                          search=search, sessions=sessions, extract=extract)
+    sessions.clear_session_extract("postgres:A")
+
+
+FOLLOWUP = "В каких из этих ИОР есть информация о мошенничестве?"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("empty", [False, True])
+async def test_followup_distinguishes_matches_from_successful_empty_search(followup_runtime, empty):
+    runtime = followup_runtime
+    runtime.state.empty = empty
+    with request_context(ctx(FOLLOWUP)):
+        result = await runtime.tool.execute(prompt="rewritten")
+    assert not getattr(result, "is_error", False)
+    if empty:
+        assert result == "По вашему запросу в выбранных ИОР совпадений не найдено."
+        runtime.answer.assert_not_called()
+    else:
+        assert result == "Найдены ИОР: EVE-1"
+        runtime.answer.assert_called_once()
+    assert runtime.request.call_count == (1 if empty else 2)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure_kind", ["search", "rerank"])
+@pytest.mark.parametrize("failure", ["worker_lost", "timeout"])
+async def test_followup_error_is_terminal_in_turn_and_retryable_in_next_turn(followup_runtime, failure, failure_kind):
+    from workspace.utils.osiris_runtime.errors import OsirisRequestError, OsirisRequestTimeoutError
+    runtime = followup_runtime
+    runtime.state.failure = (OsirisRequestTimeoutError("timeout") if failure == "timeout"
+                             else OsirisRequestError("Osiris worker lost during request"))
+    runtime.state.failure_kind = failure_kind
+    with request_context(ctx(FOLLOWUP)):
+        first, second = await asyncio.gather(runtime.tool.execute(prompt="rewritten"),
+                                            runtime.tool.execute(prompt="another formulation"))
+        third = await runtime.tool.execute(prompt="try again")
+    assert first is second is third and first.is_error
+    assert "OSIRIS сейчас недоступен" in first and "Предыдущая выгрузка сохранена" in first
+    assert "совпадений не найдено" not in first
+    attempts = 1 if failure_kind == "search" else 2
+    assert runtime.request.call_count == attempts
+    assert runtime.sessions.get_session_extract("postgres:A") is runtime.extract
+    assert runtime.search._SMALL_FAISS_SESSION_CACHE["postgres:A"]["version"] == runtime.extract["version"]
+    runtime.answer.assert_not_called()
+    runtime.state.failure = None
+    with request_context(ctx(FOLLOWUP, turn="turn-2")):
+        assert await runtime.tool.execute(prompt="rewritten") == "Найдены ИОР: EVE-1"
+    assert runtime.request.call_count == attempts + 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind", ["missing", "stale", "worker_lost_index", "worker_stale_index"])
+async def test_followup_index_error_is_distinct_and_does_not_drop_extract(followup_runtime, kind):
+    runtime = followup_runtime
+    if kind == "missing":
+        runtime.search.invalidate_small_index("postgres:A")
+    elif kind == "stale":
+        runtime.search._SMALL_FAISS_SESSION_CACHE["postgres:A"]["version"] = "old"
+    elif kind == "worker_lost_index":
+        runtime.state.remote_index_error = True
+    else:
+        runtime.state.remote_version = "old"
+    with request_context(ctx(FOLLOWUP)):
+        first = await runtime.tool.execute(prompt="rewritten")
+        assert await runtime.tool.execute(prompt="retry") is first
+    assert first.is_error and "Поисковый индекс предыдущей выгрузки недоступен" in first
+    assert "совпадений не найдено" not in first
+    assert runtime.request.call_count == (0 if kind in {"missing", "stale"} else 1)
+    assert runtime.sessions.get_session_extract("postgres:A") is runtime.extract
+    runtime.answer.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_followup_error_identity_uses_turn_fallback_and_sender(followup_runtime):
+    runtime = followup_runtime
+    runtime.state.failure = TimeoutError("timeout")
+    def turn_context(sender):
+        return RequestContext(channel="postgres", chat_id="A", session_key="postgres:A",
+            original_user_text=FOLLOWUP, sender_id=sender, turn_id="trusted-turn")
+    with request_context(turn_context("user-A")):
+        first = await runtime.tool.execute(prompt="rewritten")
+        assert await runtime.tool.execute(prompt="retry", session_id="forged") is first
+    assert first.is_error and runtime.request.call_count == 1
+    with request_context(turn_context("user-B")):
+        assert (await runtime.tool.execute(prompt="rewritten")).is_error
+    assert runtime.request.call_count == 2
 
 
 @pytest.mark.parametrize("reply,question,expected", [

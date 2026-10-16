@@ -4,6 +4,17 @@ from workspace.utils.osiris_runtime import client as transport
 from workspace.utils.osiris_runtime.errors import OsirisRequestError
 from .osiris_config import SERVICE
 
+
+class IORSessionIndexUnavailableError(OsirisRequestError):
+    """The selected extract has no usable index in this worker."""
+
+
+def _check_session_index(result, version):
+    if isinstance(result, dict) and (
+        result.get('error') == 'session_index_unavailable' or result.get('version') != version
+    ):
+        raise IORSessionIndexUnavailableError('IOR session index missing or stale')
+
 def request(session_id,kind,query,payload):
     return transport.request(SERVICE,session_id,kind,query,payload)
 
@@ -23,6 +34,7 @@ def build_index(session_id,version,items):
 
 def search(session_id,version,query,allowed_ids,top_k,threshold):
     result=request(session_id,'search',query,{'version':version,'allowed_ids':allowed_ids,'top_k':top_k,'threshold':threshold})
+    _check_session_index(result, version)
     if not isinstance(result,dict) or result.get('version')!=version or not isinstance(result.get('items'),list):
         raise OsirisRequestError('Invalid Osiris search version')
     items=result['items']
@@ -34,6 +46,7 @@ def search(session_id,version,query,allowed_ids,top_k,threshold):
 
 def rerank(session_id,version,query,items):
     result=request(session_id,'rerank',query,{'version':version,'items':items})
+    _check_session_index(result, version)
     if not isinstance(result,dict) or result.get('version')!=version or not isinstance(result.get('items'),list):
         raise OsirisRequestError('Invalid Osiris rerank version')
     scored=result['items']
