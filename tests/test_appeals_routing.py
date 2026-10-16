@@ -7,6 +7,7 @@ import importlib
 import importlib.util
 import json
 import sys
+import tempfile
 from types import ModuleType, SimpleNamespace
 import unittest
 from pathlib import Path
@@ -44,6 +45,9 @@ class RoutingTests(unittest.TestCase):
         for key in self.keys:
             sessions.clear_session_extract(key)
         self.frame = pd.DataFrame({"id": ["123456"], "score": [0.9]})
+        self.real_search = reports._search_population
+        self.real_extract_dates = reports.extract_search_params
+        self.real_export = reports.export_complaints_excel
         patches = {
             "fetch_candidate_ids_by_product": Mock(return_value=["123456"]),
             "_search_population": AsyncMock(return_value=self.frame),
@@ -113,13 +117,14 @@ class RoutingTests(unittest.TestCase):
                 followup.assert_awaited_once_with(self.keys[0], prompt, saved)
         self.mocks["_search_population"].assert_not_awaited()
 
-    def test_no_ids_never_runs_followup_or_population(self):
+    def test_no_ids_never_runs_followup_but_allows_natural_search(self):
         for saved in (None, {}, {"final_ids": []}, {"final_ids": None}, {"hypothesis": "technical"}):
             with self.subTest(saved=saved), patch.object(reports, "get_session_extract", return_value=saved), patch.object(reports, "_run_follow_up", new=AsyncMock()) as followup:
                 result = self.run_report("Покажи обращения, связанные с блокировкой карты")
                 self.assertIsInstance(result, str)
                 followup.assert_not_awaited()
-        self.mocks["_search_population"].assert_not_awaited()
+        self.assertEqual(self.mocks["_search_population"].await_count, 5)
+        self.mocks["fetch_candidate_ids_by_product"].assert_not_called()
 
     def test_empty_technical_record_is_not_a_selection(self):
         reports._empty("technical", self.keys[0])
@@ -140,7 +145,9 @@ class RoutingTests(unittest.TestCase):
         with patch.object(reports, "parse_structured_analytical_request", wraps=parser.parse_structured_analytical_request) as parse:
             self.run_report(prompt)
         parse.assert_called_once_with(prompt)
-        self.mocks["_search_population"].assert_not_awaited()
+        self.mocks["_search_population"].assert_awaited_once_with(
+            self.keys[0], prompt, None, None, structural_filters={})
+        self.mocks["fetch_candidate_ids_by_product"].assert_not_called()
 
     def test_sessions_do_not_interfere(self):
         saved = self.selection(self.keys[1])
@@ -186,6 +193,99 @@ class RoutingTests(unittest.TestCase):
         with patch.object(reports, "fetch_appeals_by_ids", return_value=self.frame) as fetch, patch.object(reports, "_rows_for_answer", return_value=[]), patch.object(reports, "answer_complaint_details", return_value="details"):
             self.assertEqual(self.run_report("Обращение 123456"), "details")
             fetch.assert_called_once_with(["123456"], None)
+
+    def test_natural_query_has_no_invented_filters_or_mass_population(self):
+        for prompt in ("Найди обращения, где клиенты жалуются на мошенничество",
+                       "Проанализируй жалобы клиентов на переводы",
+                       "Найди обращения по кредитным картам с жалобами на комиссии"):
+            with self.subTest(prompt=prompt):
+                request = parser.parse_structured_analytical_request(prompt)
+                self.assertEqual(request, {"format": "natural", "query": prompt,
+                    "products": [], "subproducts": [], "channels": [], "date_range": None})
+                sessions.clear_session_extract(self.keys[0])
+                self.assertIn("Готовый отчёт", self.run_report(prompt))
+                self.mocks["_search_population"].assert_awaited_with(
+                    self.keys[0], prompt, None, None, structural_filters={})
+        self.mocks["fetch_candidate_ids_by_product"].assert_not_called()
+        self.mocks["export_complaints_excel"].assert_called()
+        self.mocks["generate_complaint_hypothesis_narrative"].assert_awaited()
+
+    def test_natural_date_is_applied_only_to_candidate_hydration(self):
+        query = "Найди обращения о мошенничестве за 2026 год"
+        dates = ("2026-01-01", "2026-12-31")
+        self.mocks["extract_search_params"].return_value = {"date_range": dates}
+        # Exercise the real search function, including None at the OSIRIS boundary.
+        source = importlib.import_module(f"{PACKAGE}.utils.srb_d3")
+        with patch.object(reports, "_search_population", self.real_search), patch.object(
+            reports, "retrieve_via_srb_d3", wraps=source.retrieve_via_srb_d3,
+        ) as retrieve, patch.object(source, "ensure_srb_d3_ready"), patch.object(
+            source, "submit_request", return_value="request",
+        ) as submit, patch.object(source, "wait_result", return_value=["123456"]), patch.object(
+            reports, "fetch_appeals_by_ids", return_value=self.frame,
+        ) as hydrate, patch.object(reports, "rerank_via_srb_d3", return_value=self.frame):
+            self.assertIn("Готовый отчёт", self.run_report(query))
+        retrieve.assert_called_once_with(self.keys[0], query, None)
+        self.assertIsNone(submit.call_args.args[3]["allowed_ids"])
+        hydrate.assert_called_once_with(["123456"], dates)
+        self.mocks["fetch_candidate_ids_by_product"].assert_not_called()
+
+    def test_explicit_new_natural_search_overrides_previous_ids(self):
+        self.selection()
+        prompt = "Сделай новый поиск по всем обращениям о мошенничестве"
+        with patch.object(reports, "_run_follow_up", new=AsyncMock()) as followup:
+            self.assertIn("Готовый отчёт", self.run_report(prompt))
+            followup.assert_not_awaited()
+        self.mocks["_search_population"].assert_awaited_once_with(
+            self.keys[0], prompt, None, None, structural_filters={})
+
+    def test_among_these_appeals_is_bounded_followup(self):
+        self.selection()
+        prompt = "А среди этих обращений есть упоминания мошенничества?"
+        with patch.object(reports, "answer_complaint_follow_up", return_value="found"):
+            self.assertEqual(self.run_report(prompt), "found")
+        self.mocks["_search_population"].assert_awaited_once_with(
+            self.keys[0], prompt, ["123456"], None, structural_filters={})
+
+    def test_damaged_structured_requests_never_expand_to_global_search(self):
+        for prompt in ("Анализ обращений\nНайди жалобы", '{"request_type":"appeals_analysis",',
+                       '"Кредиты", "", "найди жалобы"', "Продукт:\n- Кредиты\nЗапрос:\nНайди жалобы"):
+            with self.subTest(prompt=prompt):
+                self.selection()
+                self.assert_format_error(prompt)
+                self.assertFalse(sessions.get_session_extract(self.keys[0]).get("final_ids"))
+
+    def test_natural_osiris_outage_is_not_a_fictional_report(self):
+        from workspace.utils.osiris_runtime import OsirisUnavailableError
+        self.mocks["_search_population"].side_effect = OsirisUnavailableError("offline")
+        result = self.run_report("Найди обращения о мошенничестве")
+        self.assertIn("сервис обработки недоступен", result)
+        self.mocks["export_complaints_excel"].assert_not_called()
+        self.mocks["generate_complaint_hypothesis_narrative"].assert_not_awaited()
+        self.assertFalse(sessions.get_session_extract(self.keys[0]).get("final_ids"))
+
+    def test_unrelated_text_is_not_a_natural_appeals_search(self):
+        for text in ("Какая сегодня погода?", "2026", "Найди документацию Python"):
+            with self.subTest(text=text), self.assertRaises(ValueError):
+                parser.parse_structured_analytical_request(text)
+
+    def test_absent_period_never_asks_llm_to_invent_dates(self):
+        self.assertEqual(self.real_extract_dates("Найди обращения о мошенничестве"), {"date_range": None})
+        self.mocks["def_ask_gigachat"].assert_not_called()
+
+    def test_natural_search_produces_normal_xlsx_and_hypotheses(self):
+        from openpyxl import load_workbook
+        with tempfile.TemporaryDirectory() as directory, patch.object(
+            reports, "export_complaints_excel", self.real_export,
+        ), patch.object(reports, "output_directory", return_value=Path(directory)), patch.object(
+            reports, "register_artifact",
+        ) as register:
+            result = self.run_report("Проанализируй жалобы клиентов на переводы")
+            self.assertIn("Готовый отчёт", result)
+            register.assert_called_once()
+            workbook = load_workbook(register.call_args.args[0])
+            self.assertEqual(workbook.active.max_row, 2)
+            workbook.close()
+        self.mocks["generate_complaint_hypothesis_narrative"].assert_awaited_once()
 
     def test_router_is_stdlib_only_and_never_invokes_parser(self):
         source = (SKILL / "utils/intent_router.py").read_text(encoding="utf-8")

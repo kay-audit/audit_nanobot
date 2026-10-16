@@ -37,7 +37,9 @@ class AppealsAnalyzerToolConfig(BaseModel):
             "type": "string",
             "description": ('Полный исходный запрос пользователя без сокращения. '
                             'Новый анализ: canonical «Анализ обращений», appeals_analysis JSON '
-                            'или legacy quoted CSV. '
+                            'legacy quoted CSV или обычный текст: «найди обращения», '
+                            '«проанализируй жалобы клиентов», «покажи обращения по теме». '
+                            'Свободный запрос не требует фильтров или специальной вкладки. '
                             'В сессии допускается обычный follow-up вопрос.'),
         },
         "session_id": {
@@ -98,7 +100,9 @@ class AppealsAnalyzerTool(Tool):
     @property
     def description(self) -> str:
         return ("Анализирует обращения клиентов и сотрудников: точный product/subproduct/channel prefilter, "
-                "гибридный поиск в Osiris, четыре гипотезы, XLSX-вложение и follow-up по выборке.")
+                "гибридный поиск в Osiris, четыре гипотезы, XLSX-вложение и follow-up по выборке. "
+                "Принимает обычные просьбы найти обращения или проанализировать жалобы; "
+                "без frontend-фильтров ищет по всему индексу. Не предназначен для общих вопросов вне обращений.")
 
     @staticmethod
     def _resolve_skill_dir(workspace_dir: Path) -> Path:
@@ -151,6 +155,9 @@ class AppealsAnalyzerTool(Tool):
                 )
             runner = self._load_runner()
             context = current_request_context()
+            original = getattr(context, "original_user_text", None)
+            if isinstance(original, str) and original.strip():
+                prompt = original
             request_session = current_request_session_key()
             if context is not None and not request_session:
                 raise RuntimeError("Current request has no session key")

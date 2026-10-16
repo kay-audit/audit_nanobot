@@ -230,7 +230,14 @@ def _parse_json_analytical_request(message: str) -> Optional[Dict[str, Any]]:
 
 
 def parse_structured_analytical_request(message: str) -> Dict[str, Any]:
-    """Parse canonical text, appeals_analysis JSON, then legacy quoted CSV."""
+    """Parse strict frontend envelopes, or a natural search without structural filters."""
+    from .intent_router import looks_like_new_analytical_request, is_natural_search_request
+
+    if not looks_like_new_analytical_request(message):
+        if not (message or "").lstrip().startswith(("{", "[")) and is_natural_search_request(message):
+            return {"format": "natural", "query": message, "products": [],
+                    "subproducts": [], "channels": [], "date_range": None}
+        raise ValueError("Укажите запрос на поиск обращений либо canonical/JSON/CSV сообщение анализа.")
     canonical_request = _parse_canonical_analytical_request(message)
     if canonical_request is not None:
         return canonical_request
@@ -269,8 +276,7 @@ def parse_structured_analytical_request(message: str) -> Dict[str, Any]:
 
 def is_structured_analytical_request(message: str) -> bool:
     try:
-        parse_structured_analytical_request(message)
-        return True
+        return parse_structured_analytical_request(message)["format"] != "natural"
     except ValueError:
         return False
 
