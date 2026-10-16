@@ -248,7 +248,8 @@ class RoutingTests(unittest.TestCase):
 
     def test_damaged_structured_requests_never_expand_to_global_search(self):
         for prompt in ("Анализ обращений\nНайди жалобы", '{"request_type":"appeals_analysis",',
-                       '"Кредиты", "", "найди жалобы"', "Продукт:\n- Кредиты\nЗапрос:\nНайди жалобы"):
+                       '"Кредиты", "", "найди жалобы"', "Продукт:\n- Кредиты\nЗапрос:\nНайди жалобы",
+                       "Кредиты, , , Найди жалобы", "Кредиты, Ипотека, СБОЛ, Найди жалобы"):
             with self.subTest(prompt=prompt):
                 self.selection()
                 self.assert_format_error(prompt)
