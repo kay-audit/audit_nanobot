@@ -817,7 +817,7 @@ async def run_ior_report(
     session_id: str,
     user_prompt: str = "",
     filters: Optional[dict] = None,
-    *, trusted_preset: bool = True,
+    *, trusted_preset: bool = True, on_clarification=None,
 ) -> str:
     """Главная точка входа выгрузки ИОР с поддержкой пресетов БЗ, динамических сложных запросов и BGE-M3 индекса."""
     logger.info("[ior_reports] incoming_preset=%s mode=request", preset_name)
@@ -851,6 +851,8 @@ async def run_ior_report(
     try:
         plan = build_plan(preset_name, user_prompt, trusted_preset=trusted_preset)
     except ClarificationRequired as outcome:
+        if on_clarification is not None:
+            on_clarification(outcome)
         return str(outcome)
     preset = plan.preset
     period = plan.period
