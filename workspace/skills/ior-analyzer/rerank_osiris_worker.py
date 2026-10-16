@@ -61,7 +61,7 @@ class IORRuntime:
         if kind=='search':
             state=self.indices.get(session)
             if not state or state['version']!=version:
-                raise ValueError('Extract/index version mismatch')
+                return {'version':version,'error':'session_index_unavailable','items':[]}
             allowed=set(payload['allowed_ids'])
             if allowed!={row['id'] for row in state['items']}:
                 raise ValueError('Extract/index population mismatch')
@@ -75,8 +75,10 @@ class IORRuntime:
         if kind=='rerank':
             items=payload['items']
             state=self.indices.get(session)
-            if not state or state['version']!=version or not {row['id'] for row in items}.issubset({row['id'] for row in state['items']}):
-                raise ValueError('Extract/index version or population mismatch')
+            if not state or state['version']!=version:
+                return {'version':version,'error':'session_index_unavailable','items':[]}
+            if not {row['id'] for row in items}.issubset({row['id'] for row in state['items']}):
+                raise ValueError('Extract/index population mismatch')
             raw=self.reranker.predict([(query,row['text']) for row in items])
             raw=np.asarray(raw).reshape(-1)
             if len(raw)!=len(items) or not np.isfinite(raw).all():

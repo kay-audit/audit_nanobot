@@ -8,6 +8,8 @@ the current nanobot ``Tool.enabled`` / ``Tool.create`` contract.
 from __future__ import annotations
 
 import logging
+import asyncio
+from collections import OrderedDict
 import hashlib
 import json
 import math
@@ -145,6 +147,7 @@ class IORAnalyzerTool(Tool):
     def __init__(self, *, config: IORAnalyzerToolConfig, message_tool: Any = None) -> None:
         self.config = config
         self._message_tool = message_tool
+        self._followup_requests = OrderedDict()
 
     @property
     def name(self) -> str:
@@ -164,6 +167,8 @@ class IORAnalyzerTool(Tool):
             "и добавит «Уточнение: <ответ>». "
             "Место происхождения и зона ответственности — разные фильтры. "
             "Для конкретных видов потерь направь пользователя во вкладку специального анализа ИОР."
+            " Ошибка follow-up является окончательным результатом текущего оборота: "
+            "покажи её пользователю и дождись нового сообщения; не меняй prompt для повторного вызова."
         )
 
     @staticmethod
@@ -220,15 +225,52 @@ class IORAnalyzerTool(Tool):
         return run_ior_report
 
     async def execute(
+        self, *, prompt: str, preset: str | None = None,
+        session_id: str | None = None, **_kwargs: Any,
+    ) -> str:
+        context = current_request_context()
+        original = getattr(context, "original_user_text", None)
+        # Standalone calls and all non-follow-up modes retain their existing behavior.
+        if context is None or not isinstance(original, str) or not original.strip():
+            return await self._execute_once(prompt=prompt, preset=preset, session_id=session_id)
+        try:
+            runner = self._load_runner()
+            from utils.resolve.request_plan import explicit_followup
+        except Exception:
+            return await self._execute_once(prompt=prompt, preset=preset, session_id=session_id)
+        if not explicit_followup(original):
+            return await self._execute_once(prompt=prompt, preset=preset, session_id=session_id, _runner=runner)
+        session = current_request_session_key()
+        turn = getattr(context, "message_id", None) or getattr(context, "turn_id", None)
+        if not session or not turn:
+            return ToolResult.error("Для поиска по выгрузке необходимы идентификаторы сессии и сообщения. Повторите запрос.")
+        key = (session, getattr(context, "sender_id", None), turn)
+        digest = hashlib.sha256(original.encode()).hexdigest()
+        state = self._followup_requests.setdefault(key, {"lock": asyncio.Lock(), "hash": digest})
+        for old in list(self._followup_requests)[:-64]:
+            if old != key and not self._followup_requests[old]["lock"].locked():
+                self._followup_requests.pop(old)
+        async with state["lock"]:
+            if state["hash"] != digest:
+                return ToolResult.error("Идентификатор сообщения ИОР повторно использован с другим исходным текстом.")
+            if "error" in state:
+                return state["error"]
+            result = await self._execute_once(prompt=prompt, preset=preset, session_id=session_id, _runner=runner)
+            if getattr(result, "is_error", False):
+                state["error"] = result
+            return result
+
+    async def _execute_once(
         self,
         *,
         prompt: str,
         preset: str | None = None,
         session_id: str | None = None,
+        _runner=None,
         **_kwargs: Any,
     ) -> str:
         try:
-            runner = self._load_runner()
+            runner = _runner if _runner is not None else self._load_runner()
             self._prepare_skill_utils_namespace(Path(__file__).resolve().parents[1] / "skills" / "ior-analyzer")
             from workspace.utils.session_key import safe_session_key
             from utils.ior_artifacts import artifact_scope
@@ -315,6 +357,8 @@ class IORAnalyzerTool(Tool):
                     user_prompt=prompt,
                     **runtime_options,
                 )
+            if getattr(report, "is_error", False):
+                return report
             if paths:
                 if request_context is not None:
                     if self._message_tool is None:

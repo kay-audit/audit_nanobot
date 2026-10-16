@@ -31,3 +31,20 @@ def test_ior_worker_imports_no_cuda_or_sdk_at_module_scope():
     tree=ast.parse(root.read_text(encoding='utf-8'))
     assert not any(isinstance(n,ast.Import) and any(a.name in {'torch','sentence_transformers','osiris'}
         for a in n.names) for n in tree.body)
+
+
+@pytest.mark.parametrize("operation", ["search", "rerank"])
+@pytest.mark.parametrize("stale", [False, True])
+def test_ior_worker_reports_lost_or_stale_index_without_running_models(operation, stale):
+    import importlib
+    import sys
+    before = list(sys.path)
+    try:
+        worker = importlib.import_module('workspace.skills.ior-analyzer.rerank_osiris_worker')
+    finally:
+        sys.path[:] = before
+    runtime = worker.IORRuntime(None, None)
+    if stale:
+        runtime.indices['session'] = {'version': 'old'}
+    result = runtime.dispatch('session', operation, 'query', {'version': 'new', 'items': []})
+    assert result == {'version': 'new', 'error': 'session_index_unavailable', 'items': []}

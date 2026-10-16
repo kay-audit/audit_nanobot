@@ -35,7 +35,10 @@ from utils.data_store import (
     get_data_store,
 )
 from utils.session_extract_manager import get_session_extract, set_session_extract
-from utils.bge_search_engine import build_and_cache_small_index, search_small_index
+from utils.bge_search_engine import (
+    build_and_cache_small_index, search_small_index,
+    IORSearchUnavailableError, IORSessionIndexUnavailableError,
+)
 from utils.dataframe_ops import aggregate_by_incident_id, prepare_df_for_excel
 from utils.ior_artifacts import output_directory, register_artifact
 from utils.excel_literal import force_literal_excel_cells
@@ -850,9 +853,22 @@ async def run_ior_report(
                     "Причину количества ИОР нельзя достоверно определить по одной итоговой выборке: "
                     "статистика этапов отбора и исключённых строк в сессии не сохранена. "
                     "Поиск по описаниям ИОР не объясняет причины отбора.")
-        matches = search_small_index(session_id, user_prompt)
+        from nanobot.agent.tools.base import ToolResult
+        try:
+            matches = search_small_index(session_id, user_prompt)
+        except IORSessionIndexUnavailableError:
+            return ToolResult.error(
+                "Поисковый индекс предыдущей выгрузки недоступен. "
+                "Для продолжения поиска необходимо восстановить индекс или повторить выгрузку."
+            )
+        except IORSearchUnavailableError:
+            return ToolResult.error(
+                "Не удалось выполнить поиск по предыдущей выгрузке ИОР: "
+                "поисковый сервис OSIRIS сейчас недоступен.\n\n"
+                "Предыдущая выгрузка сохранена. Повторите запрос после восстановления сервиса."
+            )
         if not matches:
-            return "Поиск в последней выгрузке недоступен или совпадений не найдено. Повторите поиск позже либо выполните новую выгрузку."
+            return "По вашему запросу в выбранных ИОР совпадений не найдено."
         return answer_follow_up_with_qwen(user_query=user_prompt, descriptions=matches)
     try:
         plan = build_plan(preset_name, user_prompt, trusted_preset=trusted_preset)

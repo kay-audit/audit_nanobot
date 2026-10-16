@@ -500,7 +500,8 @@ class IndexTests(unittest.TestCase):
             self.assertTrue(bge.build_and_cache_small_index(session,frame()))
         second=set_session_extract(session,frame().iloc[:0])
         self.assertNotEqual(first['version'],second['version'])
-        self.assertEqual(bge.search_small_index(session,'query'),[])
+        with self.assertRaises(bge.IORSessionIndexUnavailableError):
+            bge.search_small_index(session,'query')
         set_session_extract(session,frame())
         with patch.object(bge.osiris_client,'build_index',side_effect=RuntimeError('OSIRIS unavailable')):
             self.assertFalse(bge.build_and_cache_small_index(session,frame()))
@@ -513,7 +514,8 @@ class IndexTests(unittest.TestCase):
             self.assertEqual(bge.search_small_index(session,'найди'),['ИОР EVE-1: Первый'])
             self.assertEqual(search.call_args.args[1],extract['version']); rerank.assert_called_once()
         bge._SMALL_FAISS_SESSION_CACHE[session]['version']='old'
-        self.assertEqual(bge.search_small_index(session,'query'),[])
+        with self.assertRaises(bge.IORSessionIndexUnavailableError):
+            bge.search_small_index(session,'query')
 
 @pytest.mark.parametrize('prompt', ['Отменённые ИОР', 'Аннулированные ИОР', 'Кто отменил ИОР?'])
 def test_production_cancellation_routing_is_preserved(prompt):
