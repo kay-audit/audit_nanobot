@@ -24,10 +24,13 @@ def looks_like_new_analytical_request(prompt: str) -> bool:
             if re.search(r'"request_type"\s*:\s*"appeals_analysis"|"filters"\s*:', text):
                 return True
         else:
-            if isinstance(payload, dict) and payload.get("request_type") == "appeals_analysis":
+            if isinstance(payload, dict) and (payload.get("request_type") == "appeals_analysis" or "filters" in payload):
                 return True
+    if text.startswith(("{", "[")):
+        return False
     # A damaged CSV envelope must not silently become an unfiltered search.
-    return text.startswith('"')
+    return text.startswith('"') or bool(re.match(
+        r'^[^,\n]{0,80},\s*(?:"|,)|^[^,\n]+,[^,\n]*,[^,\n]*,\s*(?:найди|покажи|проанализируй)\b', text, re.I))
 
 
 def is_natural_search_request(prompt: str) -> bool:
