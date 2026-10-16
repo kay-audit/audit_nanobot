@@ -37,8 +37,8 @@ def _pending_input_kind(text: str, question: str) -> str:
     if re.search(r"\bнов\w*\s+(?:запрос|анализ|выгрузк)|\b(?:начни|начать)\s+заново", low):
         return "new"
     action = bool(re.search(r"\b(?:выгруз\w*|найди|покажи|проанализируй|сделай|сформируй)\b", low))
-    domain = bool(re.search(r"\b(?:иор\w*|инцидент\w*)\b", low))
-    constraints = bool(re.search(r"\b\d{4}\b|\b(?:q[1-4]|drp|eve)[-_\s]?\d*|финансов\w*\s+последств|возмещ|удал[её]н", low))
+    domain = bool(re.search(r"\b(?:иор\w*|инцидент\w*|(?:не)?финансов\w*\s+последств\w*|возмещ\w*)\b", low))
+    constraints = bool(re.search(r"\b\d{4}\b|\bq[1-4]\b|\b(?:drp|eve)[-_\s]?\d+", low))
     if re.search(r"год", expected) and re.fullmatch(r"(?:год\s*[:—-]?\s*)?\d{4}(?:\s*год\w*)?[.!\s]*", low):
         return "answer"
     if re.search(r"происхожд|ответствен|подраздел|блок", expected) and re.search(
@@ -53,6 +53,8 @@ def _pending_input_kind(text: str, question: str) -> str:
         return "answer"
     if domain and (action or constraints):
         return "new"
+    if constraints:
+        return "answer" if re.search(r"период|год", expected) and not domain and not action else "ambiguous"
     if not domain and not action and "?" not in low and len(text) <= 1000:
         return "answer"
     return "ambiguous"

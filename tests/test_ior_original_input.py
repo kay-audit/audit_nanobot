@@ -43,6 +43,17 @@ def ctx(text, *, session="postgres:A", sender="user-A", turn="turn-1"):
                           original_user_text=text, sender_id=sender, turn_id=turn, message_id=turn)
 
 
+@pytest.mark.parametrize("reply,question,expected", [
+    ("Выгрузи финансовые последствия за март 2026", "Уточните год", "new"),
+    ("за Q3 2026", "Место происхождения или зона ответственности?", "ambiguous"),
+    ("за Q3 2026", "Уточните период и год", "answer"),
+    ("ИОР по месту происхождения", "Место происхождения или зона ответственности?", "answer"),
+])
+def test_pending_answer_requires_its_expected_context(reply, question, expected):
+    from workspace.tools.ior_analyzer import _pending_input_kind
+    assert _pending_input_kind(reply, question) == expected
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("original,rewritten,preset", [
     ("ИОРы СРБ за Q3 2026", "Финансовые последствия за Q3 2026", "ior_hypothesis"),
