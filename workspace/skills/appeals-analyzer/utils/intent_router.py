@@ -51,7 +51,7 @@ def route_intent(prompt: str, has_selection: bool = False) -> Intent:
         r"\bнов\w*\s+(?:поиск|анализ|выгрузк)|\bпо\s+всем\s+(?:обращени|жалоб)", text
     ):
         return Intent.NEW_SEARCH
-    if has_selection and re.search(r"\b(?:id|обращени[ея])?\s*\d{5,}\b", text):
+    if has_selection and re.search(r"\b(?:id|обращени[еяюи])\s*[#№:]?\s*\d{5,}\b", text):
         return Intent.SPECIFIC_APPEAL
     if has_selection and re.search(r"среди\s+(?:них|этих|выборки|найденных|полученных)|(?:из|в|по)\s+(?:этой|этим|найденным|полученной|предыдущей|сохранённой)\s+(?:обращени|выборк|выгрузк)", text):
         return Intent.FOLLOWUP_SEARCH
