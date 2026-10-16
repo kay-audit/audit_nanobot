@@ -662,6 +662,22 @@ class WorkerInitializationTests(unittest.TestCase):
             with self.subTest(path=path):
                 old = subprocess.check_output(['git', 'show', f'c6f18b3:{path}'], cwd=ROOT)
                 current_bytes = (ROOT / path).read_bytes().replace(b'\r\n', b'\n')
+                if path.endswith('local_qwen.py'):
+                    # This pass explicitly adds safe status diagnostics. Preserve the
+                    # working GigaChat/HTTP contracts and provider selection order.
+                    old_tree = ast.parse(old.decode('utf-8'))
+                    new_tree = ast.parse(current_bytes.decode('utf-8'))
+                    for name in ('call_gigachat_sber_api', 'call_gigachat_sdk', '_post_json'):
+                        before = next(n for n in old_tree.body if getattr(n, 'name', None) == name)
+                        after = next(n for n in new_tree.body if getattr(n, 'name', None) == name)
+                        self.assertEqual(ast.dump(before), ast.dump(after))
+                    providers = {'call_agent_llm', 'call_gigachat_sber_api', 'call_gigachat_sdk'}
+                    def provider_calls(tree):
+                        entry = next(n for n in tree.body if getattr(n, 'name', None) == 'def_ask_gigachat')
+                        return [ast.dump(n) for n in ast.walk(entry) if isinstance(n, ast.Call)
+                                and isinstance(n.func, ast.Name) and n.func.id in providers]
+                    self.assertEqual(provider_calls(old_tree), provider_calls(new_tree))
+                    continue
                 marker = b'if (PROJECT_ROOT / "osiris_deployment.json")'
                 if path.endswith('osiris_config.py') and marker in current_bytes:
                     # Only the explicit shared binding is new; every byte of
