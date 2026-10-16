@@ -201,6 +201,10 @@ async def run_appeals_report(session_id: str, user_prompt: str = "", filters: Op
         logger.exception("Appeals Osiris startup unavailable")
         return _empty(_osiris_unavailable_message(), session_id)
     if final_df.empty:
+        if request["format"] == "natural" and date_range:
+            return _empty("В числе кандидатов семантического поиска за указанный период обращения не подтверждены. "
+                          "Это не доказывает отсутствие обращений за весь период: дата применяется после поиска, "
+                          "а число кандидатов ограничено. Уточните тему или задайте период через frontend-фильтры.", session_id)
         return _empty("Релевантные обращения не подтверждены.", session_id)
     export = await asyncio.to_thread(export_complaints_excel, final_df, query, session_id)
     narrative = await generate_complaint_hypothesis_narrative(

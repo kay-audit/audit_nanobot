@@ -518,10 +518,12 @@ def test_final_report_omits_sampling_and_uncertainty_disclosures(monkeypatch):
     prompts = []
     evidence_json = json.dumps(_valid_evidence_payload(["0"], ["0"]), ensure_ascii=False)
     def ask(messages):
-        prompt = messages[0]["content"]
+        assert [message["role"] for message in messages] == ["system", "user"]
+        prompt = "\n".join(message["content"] for message in messages)
         prompts.append(prompt)
         if "СТРОГО один JSON-объект" in prompt:
-            return evidence_json
+            identity = messages[1]["content"].split("ID: ", 1)[1].splitlines()[0]
+            return json.dumps(_valid_evidence_payload([identity], [identity]))
         detail = (
             "Что происходит: клиенты подробно описывают одну и ту же проблему в обслуживании. "
             "Что на это указывает: в обращениях повторяются одинаковые обстоятельства и последствия для клиента. "
@@ -541,11 +543,11 @@ def test_final_report_omits_sampling_and_uncertainty_disclosures(monkeypatch):
     assert final_prompts and "300 из 400" not in final_prompts[-1]
 
 
-def test_fallback_report_still_contains_four_detailed_hypotheses():
+def test_fallback_report_preserves_profile_without_unconfirmed_hypotheses():
     frame = pd.DataFrame([{"id": "1"}])
     result = hypothesis._build_fallback_narrative_report("query", frame, "profile")
-    assert all(f"Гипотеза {number}" in result for number in range(1, 5))
-    assert len(result) > 1200
+    assert not any(f"Гипотеза {number}" in result for number in range(1, 5))
+    assert "profile" in result and "Качественный анализ недоступен" in result
 
 
 def test_reranker_reduces_batch_after_cuda_oom(monkeypatch):

@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import hashlib
 import math
 import re
 from typing import Any, Dict, List, Optional, Sequence, Set
@@ -43,6 +44,41 @@ def _get_ask_llm_fn():
     return def_ask_gigachat
 
 
+class _PermanentLLMError(RuntimeError):
+    pass
+
+
+def _ask_analysis(ask, instructions, data):
+    messages = [{"role": "system", "content": instructions}, {"role": "user", "content": data}]
+    provider, status = None, None
+    try:
+        result = ask(messages)
+        if ask is def_ask_gigachat:
+            from ..utils.local_qwen import last_llm_status
+            provider, status = last_llm_status()
+        if status == 400 and not result:
+            raise _PermanentLLMError("LLM rejected the chat request (HTTP 400)")
+        return result
+    except Exception as exc:
+        status = getattr(getattr(exc, "response", None), "status_code", None) or getattr(exc, "code", None) or status
+        if status == 400:
+            raise _PermanentLLMError("LLM rejected the chat request (HTTP 400)") from None
+        raise
+    finally:
+        try:
+            from nanobot.agent.tools.context import current_request_context
+            ctx = current_request_context()
+        except ImportError:
+            ctx = None
+        logger.info("appeals_request %s", json.dumps({
+            "session_key": getattr(ctx, "session_key", None),
+            "original_message_id": getattr(ctx, "message_id", None),
+            "turn_id": getattr(ctx, "turn_id", None),
+            "original_prompt_hash": hashlib.sha256((getattr(ctx, "original_user_text", None) or "").encode()).hexdigest(),
+            "llm_provider": provider, "llm_http_status": status,
+        }, ensure_ascii=False))
+
+
 def _sanitize_narrative_percentages(text: str, total_count: int) -> str:
     if not text or total_count <= 0:
         return text
@@ -66,27 +102,12 @@ def validate_narrative_grounding(text: str, allowed_ids: Sequence[str]) -> tuple
 
 
 def _build_fallback_narrative_report(user_msg: str, df: pd.DataFrame, profile_text: str) -> str:
-    total = len(df)
     return (
-        f"### Аналитический отчёт\nПо запросу «{user_msg}» сформирована выгрузка из {total:,} обращений.\n\n"
-        f"{profile_text}\n\n### Гипотезы\n"
-        "\n**Гипотеза 1. Основная проблема сосредоточена в крупнейшей теме обращений.**\n"
-        "Что наблюдается: в математическом профиле одна или несколько тем заметно опережают остальные по числу обращений. "
-        "Это может означать, что клиентам регулярно мешает один и тот же этап обслуживания.\n"
-        "Что проверить: разобрать обращения крупнейшей темы по шагам клиентского пути, определить момент возникновения проблемы "
-        "и сравнить фактический порядок обслуживания с установленным.\n"
-        "\n**Гипотеза 2. Клиенты обращаются повторно, потому что вопрос не решается с первого раза.**\n"
-        "Что наблюдается: обращения могут описывать повторные запросы, ожидание ответа или необходимость снова предоставлять сведения. "
-        "Возможная причина — отсутствие понятного результата после первого контакта или несогласованные действия исполнителей.\n"
-        "Что проверить: найти повторные обращения одних клиентов, сопоставить даты и содержание ответов, проверить полноту первого решения.\n"
-        "\n**Гипотеза 3. Часть жалоб возникает из-за непонятных правил и объяснений.**\n"
-        "Что наблюдается: клиент может не понимать условия услуги, причину решения или дальнейшие действия. "
-        "Даже корректное решение в такой ситуации воспринимается как отказ или ошибка.\n"
-        "Что проверить: изучить шаблоны ответов и уведомлений, проверить, указаны ли причина решения, срок и следующий шаг клиента.\n"
-        "\n**Гипотеза 4. Рост обращений в отдельные периоды связан с изменением процесса или повышенной нагрузкой.**\n"
-        "Что наблюдается: временная динамика может показывать заметные пики относительно соседних периодов. "
-        "Причиной могут быть изменение условий, техническая проблема или увеличение времени обработки.\n"
-        "Что проверить: сопоставить даты пиков с релизами, изменениями правил и показателями нагрузки, затем отдельно разобрать темы этих обращений."
+        f"### Аналитический отчёт\nПо запросу «{user_msg}» сформирована выгрузка из {len(df):,} обращений.\n\n"
+        f"{profile_text}\n\n### Качественный анализ недоступен\n"
+        "Не удалось получить достаточные проверенные доказательства из текстов обращений. "
+        "Гипотезы не сформированы; причинные выводы не подтверждены. "
+        "Математический профиль и выгрузка сохранены."
     )
 
 
@@ -386,15 +407,14 @@ async def analyze_evidence_batch(
         + '. Каждый evidence item: {"statement":"...","appeal_ids":["..."]}. '
         "appeal_ids должны содержать только ID из текущего batch. "
         "Сгруппируй повторяющиеся темы, сохрани подтверждающие факты, контрпримеры и возможные действия. "
-        "Не придумывай counts, статистику или причинность: точные количества будут добавлены отдельно из полного массива.\n\n"
-        + "\n---\n".join(batch["items"])
+        "Не придумывай counts, статистику или причинность: точные количества будут добавлены отдельно из полного массива."
     )
     try:
-        raw = await asyncio.to_thread(ask, [{"role": "system", "content": prompt}])
+        raw = await asyncio.to_thread(_ask_analysis, ask, prompt, "Проанализируй текущие обращения:\n" + "\n---\n".join(batch["items"]))
         return validate_evidence_payload(_extract_json_object(raw), batch["ids"], batch_number)
     except Exception as exc:
-        logger.warning("Evidence batch %s failed: %s", batch_number, exc)
-        return _failed_evidence(batch_number, exc, batch.get("ids", []))
+        logger.warning("Evidence batch %s failed: %s", batch_number, type(exc).__name__)
+        return _failed_evidence(batch_number, type(exc).__name__, batch.get("ids", []))
 
 
 def _public_evidence(value: Any) -> Any:
@@ -420,16 +440,15 @@ async def reduce_structured_evidence(payloads: List[Dict[str, Any]], ask_llm=Non
             prompt = (
                 "Сведи structured evidence ниже в один СТРОГИЙ JSON с теми же полями. "
                 'Evidence item имеет schema {"statement":"...","appeal_ids":["..."]}. '
-                "Сохрани основные patterns, counterexamples, possible_actions и только source evidence IDs.\n"
-                + json.dumps(_public_evidence(group), ensure_ascii=False, default=str)
+                "Сохрани основные patterns, counterexamples, possible_actions и только source evidence IDs."
             )
             try:
-                raw = await asyncio.to_thread(ask, [{"role": "system", "content": prompt}])
+                raw = await asyncio.to_thread(_ask_analysis, ask, prompt, json.dumps(_public_evidence(group), ensure_ascii=False, default=str))
                 reduced.append(validate_evidence_payload(_extract_json_object(raw), allowed_ids, group_number))
             except Exception as exc:
                 # Explicitly retain every source group instead of silently dropping its tail.
                 reduced.append({
-                    "batch": group_number, "status": "reduce_failed", "error": str(exc),
+                    "batch": group_number, "status": "reduce_failed", "error": type(exc).__name__,
                     "_source_ids": allowed_ids,
                     "source_batches": group,
                     **{field: [] for field in EVIDENCE_FIELDS},
@@ -466,15 +485,23 @@ async def generate_complaint_hypothesis_narrative(
         await analyze_evidence_batch(batch, number, ask)
         for number, batch in enumerate(batches, 1)
     ]
+    if not evidence or any(payload.get("status") != "ok" or not any(
+        item.get("appeal_ids") for item in payload.get("evidence", [])
+    ) for payload in evidence):
+        return _build_fallback_narrative_report(user_msg, df, profile)
     reduced = await reduce_structured_evidence(evidence, ask)
-    hypothesis_prompt = (
+    if any(payload.get("status") != "ok" for payload in reduced):
+        return _build_fallback_narrative_report(user_msg, df, profile)
+    hypothesis_data = (
         f"Сформируй четыре подробные и разные гипотезы по запросу: {user_msg}\n"
         f"Ниже приведён точный математический профиль всех {total} обращений:\n{profile}\n"
         "Дополнительные точные распределения по полному массиву; любые количества можно брать только отсюда:\n"
         + format_loaded_columns_profile(columns_profile)
         + "\nСодержание и примеры из текстов обращений:\n"
         + json.dumps(_public_evidence(reduced), ensure_ascii=False, default=str)
-        + "\nВерни только четыре блока с заголовками «Гипотеза 1» — «Гипотеза 4», без вводного отчёта и таблиц. "
+    )
+    hypothesis_prompt = (
+        "Верни только четыре блока с заголовками «Гипотеза 1» — «Гипотеза 4», без вводного отчёта и таблиц. "
         "Каждая гипотеза должна быть самостоятельной и подробной: ясный заголовок; что именно происходит; "
         "какие факты и конкретные примеры на это указывают; простое объяснение возможной причины; "
         "какой ущерб или неудобство получает клиент; что конкретно проверить для подтверждения. "
@@ -494,7 +521,7 @@ async def generate_complaint_hypothesis_narrative(
                     "\nПредыдущая попытка не прошла проверку. Дай заново ровно четыре подробные гипотезы, "
                     "каждую начни с отдельной строки «Гипотеза N» и раскрой всеми обязательными пунктами."
                 )
-            result = str(await asyncio.to_thread(ask, [{"role": "system", "content": prompt}])).strip()
+            result = str(await asyncio.to_thread(_ask_analysis, ask, prompt, hypothesis_data)).strip()
             result = _normalize_hypothesis_language(_remove_sampling_disclosures(result))
             if result:
                 grounded, invalid_ids = validate_narrative_grounding(result, sample["id"].map(_normalize_id).tolist())
@@ -508,8 +535,11 @@ async def generate_complaint_hypothesis_narrative(
                     logger.warning("Final hypothesis contained invented IDs and was rejected: %s", invalid_ids)
                 else:
                     logger.warning("Final synthesis did not contain four sufficiently detailed hypotheses; retrying.")
+        except _PermanentLLMError:
+            logger.warning("Final hypothesis synthesis rejected: HTTP 400; no identical retry")
+            break
         except Exception as exc:
-            logger.warning("Final hypothesis synthesis attempt %s failed: %s", attempt + 1, exc)
+            logger.warning("Final hypothesis synthesis attempt %s failed: %s", attempt + 1, type(exc).__name__)
     return _build_fallback_narrative_report(user_msg, df, profile)
 
 
