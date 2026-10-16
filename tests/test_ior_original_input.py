@@ -1,5 +1,6 @@
 """Trusted user input and session-scoped clarification; no live SQL or LLM."""
 from importlib import import_module
+import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
@@ -34,7 +35,7 @@ def native_input(monkeypatch, tmp_path):
 
     monkeypatch.setattr(IORAnalyzerTool, "_load_runner", staticmethod(lambda: runner))
     return SimpleNamespace(tool=IORAnalyzerTool(config=IORAnalyzerToolConfig()), calls=calls,
-                           plans=plans, queries=queries, reports=reports)
+                           plans=plans, queries=queries, reports=reports, root=tmp_path)
 
 
 def ctx(text, *, session="postgres:A", sender="user-A", turn="turn-1"):
@@ -118,11 +119,91 @@ async def test_year_then_organization_clarification_and_same_turn_retry(native_i
         assert "По блоку" in first
         assert await native_input.tool.execute(prompt="forged second attempt") == first
     assert native_input.calls[-1]["user_prompt"] == original + "\nУточнение: 2026"
-    with request_context(ctx("место происхождения", turn="turn-3")):
+    with request_context(ctx("ИОР по месту происхождения", turn="turn-3")):
         assert await native_input.tool.execute(prompt="зона ответственности Финансы") == "готовый отчёт"
-    assert native_input.calls[-1]["user_prompt"] == original + "\nУточнение: 2026\nУточнение: место происхождения"
+    assert native_input.calls[-1]["user_prompt"] == original + "\nУточнение: 2026\nУточнение: ИОР по месту происхождения"
     assert native_input.plans[-1].period.intervals == [("2026-07-01", "2026-10-01")]
     assert {hit["category"] for hit in native_input.plans[-1].hits} == {"origin"}
+
+
+@pytest.mark.asyncio
+async def test_ambiguous_ior_reply_retains_pending_conditions(native_input):
+    with request_context(ctx("ИОРы за Q3 2826")):
+        await native_input.tool.execute(prompt="forged")
+    path = next(native_input.root.rglob("ior_clarification_*.json"))
+    before = path.read_bytes()
+    with request_context(ctx("ИОР", turn="turn-2")):
+        assert "новый запрос" in await native_input.tool.execute(prompt="Выгрузи новые ИОР за 2026")
+    assert path.read_bytes() == before
+    assert len(native_input.calls) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("broken", ["expired", "missing_timestamp", "malformed", "wrong_owner"])
+async def test_stale_or_corrupt_state_never_executes_old_request(native_input, broken):
+    with request_context(ctx("ИОРы за Q3 2826")):
+        await native_input.tool.execute(prompt="forged")
+    path = next(native_input.root.rglob("ior_clarification_*.json"))
+    data = json.loads(path.read_text(encoding="utf-8"))
+    assert data["created_at"] > 0
+    if broken == "expired":
+        data["created_at"] -= 3601
+    elif broken == "missing_timestamp":
+        data.pop("created_at")
+    elif broken == "wrong_owner":
+        data["owner"] = "another-user"
+    path.write_text("{invalid" if broken == "malformed" else json.dumps(data), encoding="utf-8")
+    with request_context(ctx("2026", turn="turn-2")):
+        result = await IORAnalyzerTool(config=IORAnalyzerToolConfig()).execute(prompt="ИОР за 2026")
+    assert result.is_error
+    assert not native_input.queries and len(native_input.calls) == 1
+    with request_context(ctx("Выгрузи ИОР за Q3 2026", turn="turn-3")):
+        assert await native_input.tool.execute(prompt="forged") == "готовый отчёт"
+    assert not path.exists()
+
+
+@pytest.mark.asyncio
+async def test_technical_error_preserves_pending_for_same_turn_retry(native_input, monkeypatch, caplog):
+    with request_context(ctx("ИОРы за Q3 2826")):
+        await native_input.tool.execute(prompt="forged")
+    path = next(native_input.root.rglob("ior_clarification_*.json"))
+    before = path.read_bytes()
+    runner = IORAnalyzerTool._load_runner()
+    failed = AsyncMock(side_effect=RuntimeError("PRIVATE ORIGINAL TEXT"))
+    monkeypatch.setattr(IORAnalyzerTool, "_load_runner", staticmethod(lambda: failed))
+    with request_context(ctx("2026", turn="turn-2")):
+        assert (await native_input.tool.execute(prompt="forged")).is_error
+        assert path.read_bytes() == before
+        monkeypatch.setattr(IORAnalyzerTool, "_load_runner", staticmethod(lambda: runner))
+        assert await native_input.tool.execute(prompt="forged retry") == "готовый отчёт"
+    assert not path.exists() and len(native_input.queries) == 1
+    assert "PRIVATE ORIGINAL TEXT" not in caplog.text
+
+
+@pytest.mark.parametrize("text", ["Выгрузи ИОРы за 2826", "Найди ИОРы за третий квартал 2826", "ИОРы за сентябрь 2826", "ИОР за Q3 2826", "ИОР за 2826 год"])
+def test_bad_year_in_date_context_requires_confirmation(native_input, text):
+    from utils.resolve.period_parser import parse_period
+    from utils.resolve.request_outcome import ClarificationRequired
+    with pytest.raises(ClarificationRequired, match="год"):
+        parse_period(text)
+
+
+@pytest.mark.parametrize("text", ["ИОР по DRP-2826", "Досье EVE-2826", "Финансовые последствия за 2826 рублей"])
+def test_numeric_ids_and_amounts_are_not_years(native_input, text):
+    from utils.resolve.period_parser import parse_period
+    assert parse_period(text) is None
+
+
+@pytest.mark.asyncio
+async def test_report_count_question_uses_existing_selection_without_semantic_search(native_input, monkeypatch):
+    import pandas as pd
+    monkeypatch.setattr(native_input.reports, "get_session_extract", lambda session: {"df": pd.DataFrame({"id": [1, 2]})})
+    search = Mock(side_effect=AssertionError("No semantic search for report metadata"))
+    monkeypatch.setattr(native_input.reports, "search_small_index", search)
+    monkeypatch.setattr(native_input.reports, "get_data_store", Mock(side_effect=AssertionError("No SQL")))
+    result = await native_input.reports.run_ior_report(None, "report", "Почему в прошлой выгрузке так мало ИОР?")
+    assert "2 строк" in result and "нельзя достоверно" in result
+    search.assert_not_called()
 
 
 @pytest.mark.asyncio

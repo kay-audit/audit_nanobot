@@ -844,6 +844,12 @@ async def run_ior_report(
             return "В этой сессии ещё нет выгрузки. Сначала выполните запрос по ИОР."
         if session_data["df"].empty:
             return "Последняя выгрузка пуста. ИОР для поиска в ней нет."
+        from utils.resolve.request_plan import report_metadata_question
+        if report_metadata_question(user_prompt):
+            return (f"В сохранённой выгрузке {len(session_data['df'])} строк. "
+                    "Причину количества ИОР нельзя достоверно определить по одной итоговой выборке: "
+                    "статистика этапов отбора и исключённых строк в сессии не сохранена. "
+                    "Поиск по описаниям ИОР не объясняет причины отбора.")
         matches = search_small_index(session_id, user_prompt)
         if not matches:
             return "Поиск в последней выгрузке недоступен или совпадений не найдено. Повторите поиск позже либо выполните новую выгрузку."
