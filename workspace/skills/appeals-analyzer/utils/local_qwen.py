@@ -8,6 +8,7 @@ import sys
 import json
 import logging
 import time
+from contextvars import ContextVar
 try:
     import requests
 except ImportError:  # closed contour may expose only the Python stdlib
@@ -45,6 +46,12 @@ except ImportError:  # закрытый контур: правила повто�
         return _THINK_BLOCKS.sub("", text).strip()
 
 logger = logging.getLogger(__name__)
+_LLM_STATUS = ContextVar("appeals_llm_status", default=(None, None))
+
+
+def last_llm_status():
+    """Diagnostics only; never changes provider selection or HTTP payloads."""
+    return _LLM_STATUS.get()
 
 # Точные настройки подключения GigaChat из ior_assistant
 GIGACHAT_API_URL = os.getenv("GIGACHAT_API_URL", "http://liveaccess/v1/gc/chat/completions")
@@ -205,10 +212,12 @@ def call_agent_llm(messages: List[Dict[str, str]],
     # пока он жил только на историческом имени, основной путь уходил в сеть
     # при APPEALS_DISABLE_VLLM=1. Навык запускают standalone, где сеть может
     # не быть вовсе, и пайплайн должен уметь завершиться тихо.
+    _LLM_STATUS.set((None, None))
     if os.getenv("APPEALS_DISABLE_VLLM", "").strip().casefold() in {"1", "true", "yes", "on"}:
         logger.info("Запрос к модели выключен APPEALS_DISABLE_VLLM")
         return ""
     endpoint = _agent_endpoint()
+    _LLM_STATUS.set((endpoint["provider"], None))
     payload = {
         "model": endpoint["model"],
         "messages": messages,
@@ -228,12 +237,13 @@ def call_agent_llm(messages: List[Dict[str, str]],
                 endpoint["chat_url"], endpoint["model"])
     status, response_json, body = _post_json(
         endpoint["chat_url"], headers, payload, timeout=120)
+    _LLM_STATUS.set((endpoint["provider"], status))
     if not (200 <= status < 300):
-        logger.warning("[%s] HTTP %s: %s", endpoint["provider"], status, body[:300])
+        logger.warning("appeals_request llm_provider=%s llm_http_status=%s", endpoint["provider"], status)
         return ""
     choices = response_json.get("choices", [])
     if not choices or "message" not in choices[0]:
-        logger.warning("[%s] пустой choices: %s", endpoint["provider"], body[:300])
+        logger.warning("[%s] empty choices", endpoint["provider"])
         return ""
     msg = choices[0]["message"]
     # Рассуждение может прийти и в content — отдаём только ответ.
@@ -273,11 +283,13 @@ def def_ask_gigachat(messages: List[Dict[str, str]]) -> str:
     logger.info("Основной эндпоинт не ответил, пробуем GigaChat")
 
     # Запрос к GigaChat Сбера (с автоподбором RBAC-моделей)
+    _LLM_STATUS.set(("gigachat", None))
     res_sber = call_gigachat_sber_api(messages)
     if res_sber:
         return res_sber
 
     # 2. Запрос к GigaChat SDK
+    _LLM_STATUS.set(("gigachat_sdk", None))
     res_sdk = call_gigachat_sdk(messages)
     if res_sdk:
         return res_sdk

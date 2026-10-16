@@ -28,6 +28,8 @@ def looks_like_new_analytical_request(prompt: str) -> bool:
                 return True
     if text.startswith(("{", "[")):
         return False
+    if not text.startswith('"') and is_natural_search_request(text.split(",", 1)[0]):
+        return False
     # A damaged CSV envelope must not silently become an unfiltered search.
     return text.startswith('"') or bool(re.match(
         r'^[^,\n]{0,80},\s*(?:"|,)|^[^,\n]+,[^,\n]*,[^,\n]*,\s*(?:найди|покажи|проанализируй)\b', text, re.I))
@@ -35,8 +37,10 @@ def looks_like_new_analytical_request(prompt: str) -> bool:
 
 def is_natural_search_request(prompt: str) -> bool:
     text = (prompt or "").casefold()
+    if re.match(r"\s*(?:что\s+(?:означает|значит|такое)|как\s+работает)\b", text):
+        return False
     return bool(re.search(r"\b(?:обращени\w*|жалоб\w*)", text) and re.search(
-        r"\b(?:найди|найти|покажи|показать|проанализируй|анализ\w*|поиск\w*)\b", text))
+        r"\b(?:найди|найти|покажи|показать|проанализируй|анализ\w*|аналитик\w*|поиск\w*|посмотри|проверь|какие|есть\s+ли)\b", text))
 
 
 def route_intent(prompt: str, has_selection: bool = False) -> Intent:
@@ -49,6 +53,8 @@ def route_intent(prompt: str, has_selection: bool = False) -> Intent:
         return Intent.NEW_SEARCH
     if has_selection and re.search(r"\b(?:id|обращени[ея])?\s*\d{5,}\b", text):
         return Intent.SPECIFIC_APPEAL
-    if has_selection and any(x in text for x in ("в каких", "среди них", "среди этих", "среди выборки", "найди", "покажи")):
+    if has_selection and re.search(r"среди\s+(?:них|этих|выборки|найденных|полученных)|(?:из|в|по)\s+(?:этой|этим|найденным|полученной|предыдущей|сохранённой)\s+(?:обращени|выборк|выгрузк)", text):
         return Intent.FOLLOWUP_SEARCH
+    if is_natural_search_request(prompt):
+        return Intent.NEW_SEARCH
     return Intent.REPORT_QUESTION if has_selection else Intent.NEW_SEARCH

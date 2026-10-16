@@ -7,6 +7,10 @@ Appeals orchestration lazily. Retrieval models and indexes live in Osiris.
 from __future__ import annotations
 
 import logging
+import asyncio
+import hashlib
+import json
+from collections import OrderedDict
 import sys
 from importlib import import_module
 from pathlib import Path
@@ -92,6 +96,7 @@ class AppealsAnalyzerTool(Tool):
     def __init__(self, *, config: AppealsAnalyzerToolConfig, message_tool: Any = None) -> None:
         self.config = config
         self._message_tool = message_tool
+        self._requests = OrderedDict()
 
     @property
     def name(self) -> str:
@@ -102,7 +107,9 @@ class AppealsAnalyzerTool(Tool):
         return ("Анализирует обращения клиентов и сотрудников: точный product/subproduct/channel prefilter, "
                 "гибридный поиск в Osiris, четыре гипотезы, XLSX-вложение и follow-up по выборке. "
                 "Принимает обычные просьбы найти обращения или проанализировать жалобы; "
-                "без frontend-фильтров ищет по всему индексу. Не предназначен для общих вопросов вне обращений.")
+                "без frontend-фильтров ищет по всему индексу. Не предназначен для общих вопросов вне обращений. "
+                "После готового отчёта передай его пользователю; не вызывай анализ повторно и не сужай выборку "
+                "без нового сообщения пользователя. Повтор в текущем запросе возвращает уже готовый результат.")
 
     @staticmethod
     def _resolve_skill_dir(workspace_dir: Path) -> Path:
@@ -142,6 +149,38 @@ class AppealsAnalyzerTool(Tool):
         return reports.run_appeals_report
 
     async def execute(self, *, prompt: str, session_id: str = "webui_session", **_kwargs: Any) -> str:
+        _kwargs.pop("_request_state", None)
+        context = current_request_context()
+        session = current_request_session_key()
+        message = getattr(context, "message_id", None)
+        turn = getattr(context, "turn_id", None)
+        original = getattr(context, "original_user_text", None)
+        if context is None or not session or not (message or turn):
+            return await self._execute_once(prompt=prompt, session_id=session_id, **_kwargs)
+        key = (session, getattr(context, "sender_id", None), message or turn)
+        digest = hashlib.sha256((original if isinstance(original, str) else prompt).encode()).hexdigest()
+        state = self._requests.setdefault(key, {"lock": asyncio.Lock(), "hash": digest})
+        # Bound per-tool memory without evicting executions currently in flight.
+        for old in list(self._requests)[:-64]:
+            if old != key and not self._requests[old]["lock"].locked():
+                self._requests.pop(old)
+        async with state["lock"]:
+            diagnostic = {"session_key": session, "original_message_id": message, "turn_id": turn,
+                "original_prompt_hash": digest, "tool_call_id": getattr(context, "attributes", {}).get("tool_call_id"),
+                "execution_kind": state.get("execution_kind"), "duplicate_call": "report" in state,
+                "report_delivered": state.get("delivered", False), "llm_provider": None, "llm_http_status": None}
+            logger.info("appeals_request %s", json.dumps(diagnostic, ensure_ascii=False))
+            if state["hash"] != digest:
+                return ToolResult.error("Идентификатор запроса обращений повторно использован с другим исходным текстом.")
+            if state.get("complete"):
+                return state["report"]
+            result = await self._execute_once(prompt=prompt, session_id=session_id, _request_state=state, **_kwargs)
+            diagnostic.update(execution_kind=state.get("execution_kind"), report_delivered=state.get("delivered", False),
+                              delivery_confirmation="message_tool" if state.get("delivered") else None)
+            logger.info("appeals_request %s", json.dumps(diagnostic, ensure_ascii=False))
+            return result
+
+    async def _execute_once(self, *, prompt: str, session_id: str = "webui_session", _request_state=None, **_kwargs: Any) -> str:
         try:
             runtime = log_skill_runtime("appeals-analyzer", logger)
             if runtime == "testing":
@@ -167,10 +206,23 @@ class AppealsAnalyzerTool(Tool):
             artifacts = import_module("appeals_analyzer_runtime.utils.appeals_artifacts")
             backend = import_module("appeals_analyzer_runtime.utils.data_store")
             paths: list[Path] = []
-            with backend.backend_scope("cache"), artifacts.artifact_scope(
-                artifacts.session_results(resolved_session), paths,
-            ):
-                report = await runner(session_id=resolved_session, user_prompt=prompt)
+            if _request_state is not None and "report" in _request_state:
+                report = _request_state["report"]
+                paths.extend(_request_state["paths"])
+            else:
+                if _request_state is not None:
+                    router = sys.modules.get("appeals_analyzer_runtime.utils.intent_router")
+                    sessions = sys.modules.get("appeals_analyzer_runtime.utils.session_extract_manager")
+                    if router is not None and sessions is not None:
+                        previous = sessions.get_session_extract(resolved_session)
+                        intent = router.route_intent(prompt, bool(previous and previous.get("final_ids")))
+                        _request_state["execution_kind"] = "new_search" if intent == router.Intent.NEW_SEARCH else "followup"
+                with backend.backend_scope("cache"), artifacts.artifact_scope(
+                    artifacts.session_results(resolved_session), paths,
+                ):
+                    report = await runner(session_id=resolved_session, user_prompt=prompt)
+                if _request_state is not None and isinstance(report, str) and "сервис обработки недоступен" not in report:
+                    _request_state.update(report=report, paths=list(paths))
             if paths and context is not None:
                 from lib.utils.verbatim_report import verbatim_report_context
                 with verbatim_report_context(context, 'appeals_analyzer', report):
@@ -179,9 +231,13 @@ class AppealsAnalyzerTool(Tool):
                     )
                 if getattr(delivery, "is_error", False):
                     raise RuntimeError("Appeals artifact delivery failed")
+                if _request_state is not None:
+                    _request_state["delivered"] = True
+            if _request_state is not None and "report" in _request_state:
+                _request_state["complete"] = True
             return report
         except Exception as exc:
-            logger.exception("Appeals analysis failed")
+            logger.error("Appeals analysis failed: %s", type(exc).__name__)
             from workspace.utils.appeals_structural_cache import AppealsStructuralCacheError
             if isinstance(exc, AppealsStructuralCacheError):
                 return ToolResult.error(str(exc))

@@ -111,7 +111,7 @@ class RoutingTests(unittest.TestCase):
 
     def test_followup_existing_selection(self):
         saved = self.selection()
-        for prompt in ("Покажи обращения, связанные с блокировкой карты", "Какие основные причины жалоб среди них?"):
+        for prompt in ("Покажи среди этих обращений блокировки карты", "Какие основные причины жалоб среди них?"):
             with patch.object(reports, "_run_follow_up", new=AsyncMock(return_value="followup")) as followup:
                 self.assertEqual(self.run_report(prompt), "followup")
                 followup.assert_awaited_once_with(self.keys[0], prompt, saved)
@@ -301,11 +301,33 @@ class RoutingTests(unittest.TestCase):
         self.mocks["fetch_candidate_ids_by_product"].assert_not_called()
 
     def test_ordinary_followup_is_not_a_new_envelope(self):
-        for prompt in ("Найди жалобы на карты", "Какие основные причины жалоб среди них?",
+        self.assertFalse(router.looks_like_new_analytical_request("Найди жалобы на карты"))
+        self.assertEqual(router.route_intent("Найди жалобы на карты", True), router.Intent.NEW_SEARCH)
+        for prompt in ("Какие основные причины жалоб среди них?",
                        "Расскажи подробнее об обращении 123456", "Что означает Анализ обращений?",
                        '{"request_type":"other","prompt":"appeals_analysis"}'):
             self.assertFalse(router.looks_like_new_analytical_request(prompt))
             self.assertNotEqual(router.route_intent(prompt, True), router.Intent.NEW_SEARCH)
+
+    def test_new_topic_without_reference_is_global_and_natural_variants_are_accepted(self):
+        for prompt in ("Найди обращения с жалобами на ипотеку", "Есть ли обращения с жалобами на блокировку карт?",
+                       "Посмотри обращения по мошенничеству", "Проверь жалобы клиентов на комиссии",
+                       "Какие обращения связаны с переводами?", "Нужна аналитика обращений о проблемах с кредитами",
+                       "Найди обращения о комиссиях, переводах, блокировках и мошенничестве"):
+            with self.subTest(prompt=prompt):
+                self.selection()
+                self.assertEqual(router.route_intent(prompt, True), router.Intent.NEW_SEARCH)
+                self.assertEqual(parser.parse_structured_analytical_request(prompt)["format"], "natural")
+                self.assertIn("Готовый отчёт", self.run_report(prompt))
+                self.mocks["_search_population"].assert_awaited_with(self.keys[0], prompt, None, None, structural_filters={})
+        self.mocks["fetch_candidate_ids_by_product"].assert_not_called()
+
+    def test_found_earlier_reference_is_followup_and_date_empty_result_is_qualified(self):
+        self.assertEqual(router.route_intent("А среди найденных ранее есть мошенничество?", True), router.Intent.FOLLOWUP_SEARCH)
+        self.mocks["extract_search_params"].return_value = {"date_range": ("2026-01-01", "2026-12-31")}
+        self.mocks["_search_population"].return_value = pd.DataFrame()
+        result = self.run_report("Найди обращения по мошенничеству за 2026 год")
+        self.assertIn("не доказывает отсутствие", result)
 
     def test_new_all_formats_always_override_saved_selection(self):
         self.selection()
