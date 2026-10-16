@@ -114,7 +114,8 @@ async def test_ior_xlsx_survives_rejected_osiris_create(shared, monkeypatch, tmp
         finally:
             workbook.close()
         assert len(get_session_extract('osiris-degraded-regression')['df']) == 1
-        assert bge.search_small_index('osiris-degraded-regression', 'повторный поиск') == []
+        with pytest.raises(bge.IORSessionIndexUnavailableError):
+            bge.search_small_index('osiris-degraded-regression', 'повторный поиск')
         sdk.create.assert_called_once()
         sdk.delete.assert_not_called()
         no_wait.assert_not_called()
