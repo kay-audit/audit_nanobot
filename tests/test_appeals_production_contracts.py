@@ -634,19 +634,26 @@ class ProtocolTests(unittest.TestCase):
 
 
 class WorkerInitializationTests(unittest.TestCase):
-    def test_baseline_worker_install_models_and_ml_contracts_are_unchanged(self):
+    def test_baseline_worker_models_and_ml_contracts_are_unchanged(self):
         result = subprocess.run(['git', 'show', 'c6f18b3:workspace/skills/appeals-analyzer/rerank_osiris_worker.py'],
                                 cwd=ROOT, capture_output=True, text=True, encoding='utf-8')
         if result.returncode:
             self.skipTest('c6f18b3 is unavailable in this checkout')
         baseline = ast.parse(result.stdout)
         current = ast.parse((SKILL / 'rerank_osiris_worker.py').read_text(encoding='utf-8'))
-        names = ['install_runtime_packages', 'load_runtime', 'ExistingAppealsRetrieval',
+        # The installer is intentionally changed; preserve model and algorithm contracts.
+        names = ['load_runtime', 'ExistingAppealsRetrieval',
                  'predict_with_retry', 'sigmoid', 'embed_items', '_paths']
         for name in names:
             with self.subTest(name=name):
                 old = next(node for node in baseline.body if getattr(node, 'name', None) == name)
                 new = next(node for node in current.body if getattr(node, 'name', None) == name)
+                # NumPy now imports lazily, after startup package installation.
+                for node in (old, new):
+                    node.body = [statement for statement in node.body
+                                 if not (isinstance(statement, ast.Import)
+                                         and len(statement.names) == 1
+                                         and statement.names[0].name == 'numpy')]
                 self.assertEqual(ast.dump(old), ast.dump(new))
         for path in ['workspace/skills/appeals-analyzer/utils/osiris_config.py',
                      'workspace/skills/appeals-analyzer/utils/local_qwen.py',
