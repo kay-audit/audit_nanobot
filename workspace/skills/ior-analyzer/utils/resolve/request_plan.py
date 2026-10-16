@@ -114,4 +114,6 @@ def build_plan(preset,prompt, *, trusted_preset=False):
                        'trusted_explicit_preset' if trusted_preset and preset else 'query_intent' if subjects(prompt) or money or any(h['category']=='eve' for h in hits) else 'general_default')
 
 def explicit_followup(prompt):
+    if re.search(r'\b(?:что|какие|почему|расскажи|поясни|объясни)\b.{0,100}\b(?:прошл|предыдущ|последн|полученн)\w*\s+(?:выгруз|выбор|отч[её]т)', prompt.lower(), re.S):
+        return True
     return bool(re.search(r'\b(?:в|из)\s+(?:этой|полученной|прошлой|последней)\s+(?:выборк[еи]|выгрузк[еи])\b|\bсреди\s+выгруженных\s+выше\b|\bв\s+предыдущем\s+отч[её]те\b|\b(?:среди|из)\s+этих\s+иор\b',prompt.lower()))

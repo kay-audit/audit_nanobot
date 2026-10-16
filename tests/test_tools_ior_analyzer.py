@@ -38,6 +38,7 @@ async def test_native_ior_marks_only_its_real_message_publication(monkeypatch, t
 
     monkeypatch.setattr(IORAnalyzerTool, '_load_runner', staticmethod(lambda: runner))
     context = RequestContext(channel='postgres', chat_id='chat', message_id='m-1', session_key='postgres:chat',
+                             original_user_text='ИОР',
                              metadata={'origin_message_id': 'm-1', 'answer_id': 'a-1', '_verbatim_report_source': 'untrusted'})
     original = dict(context.metadata)
     tool = IORAnalyzerTool(config=IORAnalyzerToolConfig(), message_tool=MessageTool(send_callback=send, workspace=tmp_path))
@@ -179,7 +180,7 @@ async def test_execute_delivers_exact_artifacts_to_request_session(monkeypatch, 
 
     monkeypatch.setattr(IORAnalyzerTool, "_load_runner", staticmethod(lambda: fake_runner))
     tool = IORAnalyzerTool(config=IORAnalyzerToolConfig(), message_tool=MessageTool())
-    context = RequestContext(channel="postgres", chat_id="chat-1", session_key="postgres:current")
+    context = RequestContext(channel="postgres", chat_id="chat-1", session_key="postgres:current", original_user_text="ИОР")
     with request_context(context):
         assert await tool.execute(prompt="ИОР", session_id="other-session") == "Отчёт без ссылки"
     assert scope_directories[0].name == "results"

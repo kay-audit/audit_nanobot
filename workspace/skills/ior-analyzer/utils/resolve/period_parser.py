@@ -250,6 +250,32 @@ def parse_period(text: str, column: str = DEFAULT_DATE_COLUMN, *, today=None) ->
     from datetime import datetime
     from zoneinfo import ZoneInfo
     t=(text or '').lower().replace('ё','е')
+    # Keep the request verbatim outside this parser. Only a confirmed answer
+    # may replace a previously supplied year in the effective period text.
+    parts = re.split(r'уточнение:', t)
+    t = parts[0]
+    for answer in parts[1:]:
+        year_answer = re.fullmatch(r'\s*(?:год\s*[:—-]?\s*)?(\d{4})(?:\s*год\w*)?[.!\s]*', answer)
+        if year_answer:
+            years = set(re.findall(r'(?<![\w-])\d{4}(?![\w-])', t))
+            if len(years) == 1:
+                t = re.sub(r'(?<![\w-])' + next(iter(years)) + r'(?![\w-])', year_answer[1], t)
+            elif not years:
+                t += ' ' + year_answer[1]
+            else:
+                raise ClarificationRequired('Уточните полный период: даты начала и окончания либо квартал и год.')
+        elif re.search(r'\b20\d{2}\b', answer) and re.search(r'квартал|\bq\s*[1-4]|месяц|\d[./-]\d|' + '|'.join(pattern for pattern, _, _ in _MONTHS), answer):
+            t = answer
+    # Do not silently ignore a mistyped year while parsing a valid quarter/month.
+    date_years = re.findall(r'(?<![\w-])(\d{4})(?=\s*год)', t)
+    date_years += re.findall(r'(?:квартал\w*|\bq\s*[1-4])\s+(\d{4})\b', t)
+    for month_pattern, _, _ in _MONTHS:
+        date_years += re.findall(r'\b' + month_pattern + r'\s+(\d{4})\b', t)
+    date_years += re.findall(r'\b(\d{4})-\d{1,2}-\d{1,2}\b|\b\d{1,2}[./](?:\d{1,2})[./](\d{4})\b', t)
+    for value in date_years:
+        for year in (value if isinstance(value, tuple) else (value,)):
+            if year and not 2000 <= int(year) <= 2099:
+                raise ClarificationRequired(f'Уточните год периода: указан {year}. Укажите год от 2000 до 2099.')
     # Convert only explicit day + named month + year; month-only ranges stay intact.
     for month_pattern, month, _ in _MONTHS:
         def named_date(match):

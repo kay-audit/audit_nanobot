@@ -8,7 +8,12 @@ the current nanobot ``Tool.enabled`` / ``Tool.create`` contract.
 from __future__ import annotations
 
 import logging
+import hashlib
+import json
+import os
+import re
 import sys
+import uuid
 from importlib import import_module
 from pathlib import Path
 from typing import Any, ClassVar
@@ -55,7 +60,7 @@ class IORAnalyzerToolConfig(BaseModel):
                 "сохраняют свой preset даже с EVE, DRP, периодом или ПАО. "
                 "SBR-фильтрация не поддерживается. Если tool вернул уточняющий "
                 "вопрос, задай его пользователю, дождись ответа и повтори вызов, "
-                "сохранив исходный запрос и добавив 'Уточнение: <ответ>'. "
+                "передав ответ пользователя; исходный запрос сохраняет инструмент. "
                 "Конкретные виды потерь запускаются во вкладке специального анализа."
             ),
         },
@@ -121,7 +126,8 @@ class IORAnalyzerTool(Tool):
             "report_period_specific_ior выбирается только для конкретного EVE-ID; "
             "DRP и период являются фильтрами; SBR-коды не поддерживаются. "
             "Если результат содержит уточняющий вопрос, задай его пользователю "
-            "и повтори вызов с исходным prompt и дописанным «Уточнение: <ответ>». "
+            "и повтори вызов с ответом пользователя; инструмент сам сохранит исходный запрос "
+            "и добавит «Уточнение: <ответ>». "
             "Место происхождения и зона ответственности — разные фильтры. "
             "Для конкретных видов потерь направь пользователя во вкладку специального анализа ИОР."
         )
@@ -201,13 +207,68 @@ class IORAnalyzerTool(Tool):
             paths: list[Path] = []
             workspace = Path(__file__).resolve().parents[1]
             output = workspace / "data_store" / "cache" / "sessions" / safe_session_key(resolved_session) / "results"
+            runtime_options = {}
+            pending_path = None
+            clarification = False
+            if request_context is not None:
+                original = getattr(request_context, "original_user_text", None)
+                if not isinstance(original, str) or not original.strip():
+                    return ToolResult.error("В текущем запросе отсутствует исходный текст пользователя. Повторите запрос по ИОР.")
+                # Scope pending answers by the real session AND sender, never an LLM session_id.
+                owner = str(getattr(request_context, "sender_id", None) or "")
+                key = hashlib.sha256((resolved_session + "\0" + owner).encode()).hexdigest()[:24]
+                pending_path = output.parent / f"ior_clarification_{key}.json"
+                turn = getattr(request_context, "turn_id", None) or getattr(request_context, "message_id", None)
+                new_request = bool(re.search(r"\b(?:выгруз\w*|покажи|найди|проанализируй|сделай|сформируй|анализ|иор\w*|инцидент\w*)\b", original, re.I))
+                try:
+                    pending = json.loads(pending_path.read_text(encoding="utf-8"))
+                    if not isinstance(pending, dict) or not isinstance(pending.get("prompt"), str):
+                        raise ValueError("Invalid pending clarification")
+                except FileNotFoundError:
+                    pending = None
+                except (ValueError, OSError):
+                    if not new_request:
+                        return ToolResult.error("Не удалось прочитать состояние уточнения ИОР. Повторите полный исходный запрос.")
+                    pending = None
+                from utils.resolve.request_plan import explicit_followup
+                if pending and pending.get("session") == resolved_session and pending.get("owner") == owner and not new_request and not explicit_followup(original):
+                    if turn and pending.get("turn") == turn:
+                        prompt = pending["prompt"]
+                    elif "?" not in original and len(original) <= 1000:
+                        prefix = "\n" if re.match(r"\s*уточнение:", original, re.I) else "\nУточнение: "
+                        prompt = pending["prompt"] + prefix + original
+                    else:
+                        return "Ожидается ответ на уточнение ИОР: " + pending.get("question", "Повторите полный запрос.")
+                else:
+                    prompt = original
+                if re.fullmatch(r"\s*(?:год\s*[:—-]?\s*)?\d{4}(?:\s*год\w*)?[.!\s]*", prompt):
+                    return ToolResult.error("Нет ожидающего уточнения ИОР. Сформулируйте полный запрос по ИОР.")
+                # An agent-supplied preset is not a trusted source of user intent.
+                preset = None
+
+                def save_clarification(question):
+                    nonlocal clarification
+                    clarification = True
+                    pending_path.parent.mkdir(parents=True, exist_ok=True)
+                    temporary = pending_path.with_name(pending_path.name + "." + uuid.uuid4().hex + ".tmp")
+                    try:
+                        temporary.write_text(json.dumps({"session": resolved_session, "owner": owner,
+                            "turn": turn, "prompt": prompt, "question": str(question)}, ensure_ascii=False), encoding="utf-8")
+                        os.replace(temporary, pending_path)
+                    finally:
+                        temporary.unlink(missing_ok=True)
+
+                runtime_options["on_clarification"] = save_clarification
             with artifact_scope(output, paths):
                 report = await runner(
                     trusted_preset=False,
                     preset_name=preset,
                     session_id=resolved_session,
                     user_prompt=prompt,
+                    **runtime_options,
                 )
+            if pending_path is not None and not clarification:
+                pending_path.unlink(missing_ok=True)
             if paths:
                 if request_context is not None:
                     if self._message_tool is None:
