@@ -32,18 +32,18 @@ DEFAULT_DATE_COLUMN = "incdnt_entry_dt"
 
 # Месяц: стем (для именительного и родительного: январь/января) -> номер + им. название.
 _MONTHS = [
-    (r"январ\w*", 1, "январь"),
-    (r"феврал\w*", 2, "февраль"),
-    (r"март\w*", 3, "март"),
-    (r"апрел\w*", 4, "апрель"),
+    (r"январ(?:ь|я|е|ю|ем)\b", 1, "январь"),
+    (r"феврал(?:ь|я|е|ю|ем)\b", 2, "февраль"),
+    (r"март(?:а|е|у|ом)?\b", 3, "март"),
+    (r"апрел(?:ь|я|е|ю|ем)\b", 4, "апрель"),
     (r"ма[йяе]\b", 5, "май"),
-    (r"июн\w*", 6, "июнь"),
-    (r"июл\w*", 7, "июль"),
-    (r"август\w*", 8, "август"),
-    (r"сентябр\w*", 9, "сентябрь"),
-    (r"октябр\w*", 10, "октябрь"),
-    (r"ноябр\w*", 11, "ноябрь"),
-    (r"декабр\w*", 12, "декабрь"),
+    (r"июн(?:ь|я|е|ю|ем)\b", 6, "июнь"),
+    (r"июл(?:ь|я|е|ю|ем)\b", 7, "июль"),
+    (r"август(?:а|е|у|ом)?\b", 8, "август"),
+    (r"сентябр(?:ь|я|е|ю|ем)\b", 9, "сентябрь"),
+    (r"октябр(?:ь|я|е|ю|ем)\b", 10, "октябрь"),
+    (r"ноябр(?:ь|я|е|ю|ем)\b", 11, "ноябрь"),
+    (r"декабр(?:ь|я|е|ю|ем)\b", 12, "декабрь"),
 ]
 
 _QUARTER_WORD = {"перв": 1, "втор": 2, "трет": 3, "четверт": 4, "четвёрт": 4}
@@ -54,8 +54,52 @@ _CARDINALS = {'один': 1, 'одна': 1, 'одно': 1, 'два': 2, 'две'
 _QUARTER_ORDINAL = r'(?:перв\w*|втор\w*|трет\w*|четв[её]рт\w*)'
 
 # Явные даты: DD.MM.YYYY (рус. формат, день первый) и ISO YYYY-MM-DD.
-_DMY = re.compile(r"\b(\d{1,2})[\.\-/](\d{1,2})[\.\-/](20\d\d|\d\d)\b")
-_YMD = re.compile(r"\b(20\d\d)-(\d{1,2})-(\d{1,2})\b")
+_DMY = re.compile(r"\b(\d{1,2})[\.\-/](\d{1,2})[\.\-/](\d{4}|\d\d)\b")
+_YMD = re.compile(r"\b(\d{4})-(\d{1,2})-(\d{1,2})\b")
+
+
+def _temporal_text(text):
+    """Mask IDs and amounts before every date branch, preserving positions."""
+    t=(text or '').lower().replace('ё','е')
+    patterns=(r'\b(?:от\s+)?\d+(?:[.,]\d+)?\s*(?:до|[-–—])\s*\d+(?:[.,]\d+)?\s*(?:руб\w*|тыс\w*|млн\w*|млрд\w*|доллар\w*|евро)',
+              r'\b(?:сумм\w*|потер\w*|последств\w*)\s+(?:от|до|не\s+менее|не\s+более)\s+\d+(?:[.,]\d+)?(?:\s*до\s*\d+(?:[.,]\d+)?)?(?!\d|\s*г(?:од|\.))',
+              r'(?<!\w)(?:drp|eve)[-_\s]?\d+(?:[-_]\d+)*\b',
+              r'(?<!\w)[пp]-?\d+\b',
+              r'(?<!\w)\d[\d\s.,]*\s*(?:руб\w*|тыс\w*|млн\w*|млрд\w*|доллар\w*|евро|%)',
+              r'\b(?:свыше|более|больше|менее|меньше)\s+\d+(?:[.,]\d+)?(?!\d|\s*г(?:од|\.))')
+    for pattern in patterns:
+        t=re.sub(pattern,lambda match:' '*len(match[0]),t)
+    return t
+
+
+def _year_matches(text):
+    """Four digits are a year only inside a temporal expression."""
+    candidates=list(re.finditer(r'(?<!\w)\d{4}(?!\d)',text))
+    dates=list(_DMY.finditer(text))+list(_YMD.finditer(text))
+    months='|'.join(r'\b'+pattern for pattern,_,_ in _MONTHS)
+    confirmed=[]
+    pure=bool(re.fullmatch(r'\s*\d{4}(?:\s*(?:,|и|[-–—]|по|до)\s*\d{4})*\s*[.!]?\s*',text))
+    for match in candidates:
+        before,after=text[:match.start()],text[match.end():]
+        context=(pure or any(d.start()<=match.start()<d.end() for d in dates)
+                 or re.search(r'\b(?:за|с|от|до|по)\s*$',before)
+                 or re.match(r'\s*г(?:од\w*\b|\.|\b)',after)
+                 or re.search(r'(?:квартал\w*|\bq\s*[1-4]|полугод\w*|'+months+r')\s*$',before)
+                 or re.match(r'\s+(?:г\.?\s*)?(?:квартал|q\s*[1-4]|полугод)',after))
+        if context:
+            confirmed.append(match)
+    # A shared temporal noun/year applies to the complete list or year range.
+    changed=True
+    while changed:
+        changed=False
+        for match in candidates:
+            if match in confirmed:
+                continue
+            for other in confirmed:
+                a,b=sorted((match,other),key=lambda value:value.start())
+                if re.fullmatch(r'\s*(?:г(?:од\w*)?\.?)?\s*(?:,|и|[-–—]|по|до)\s*',text[a.end():b.start()]):
+                    confirmed.append(match); changed=True; break
+    return sorted(confirmed,key=lambda match:match.start())
 
 
 def _find_explicit_dates(text: str) -> list:
@@ -107,7 +151,7 @@ def _find_months(text: str) -> list:
     """Все месяцы в порядке появления: [(pos, num, name), ...]."""
     found = []
     for pat, num, name in _MONTHS:
-        for mt in re.finditer(pat, text):
+        for mt in re.finditer(r'\b'+pat, text):
             found.append((mt.start(), num, name))
     found.sort()
     return found
@@ -149,7 +193,7 @@ def _parse_single_period(text: str, column: str = DEFAULT_DATE_COLUMN) -> Option
     """Главная функция разбора периода. None – если периода в тексте нет."""
     if not text:
         return None
-    t = text.lower().replace("  ", " ")
+    t = _temporal_text(text)
 
     # Обработка периодов типа "первые N дней/суток месяца года"
     _GENITIVE_MONTHS = {
@@ -170,7 +214,7 @@ def _parse_single_period(text: str, column: str = DEFAULT_DATE_COLUMN) -> Option
     if days_m:
         raw_val = days_m.group(1) or days_m.group(2)
         days_count = int(raw_val) if raw_val.isdigit() else _WORD_NUMBERS.get(raw_val, 1)
-        years = [int(y) for y in re.findall(r"\b(20\d\d)\b", t)]
+        years = [int(match[0]) for match in _year_matches(t)]
         months = _find_months(t)
         if years and months:
             year = years[-1]
@@ -194,7 +238,7 @@ def _parse_single_period(text: str, column: str = DEFAULT_DATE_COLUMN) -> Option
             lbl = f"{start.strftime('%d.%m.%Y')}-{end_incl.strftime('%d.%m.%Y')}"
         return Period(column, start.isoformat(), end.isoformat(), lbl, "range")
 
-    years = [int(y) for y in re.findall(r"\b(20\d\d)\b", t)]
+    years = [int(match[0]) for match in _year_matches(t)]
     if not years:
         return None
     year = years[-1]
@@ -249,34 +293,29 @@ def parse_period(text: str, column: str = DEFAULT_DATE_COLUMN, *, today=None) ->
     import calendar
     from datetime import datetime
     from zoneinfo import ZoneInfo
-    t=(text or '').lower().replace('ё','е')
+    t=_temporal_text(text)
     # Keep the request verbatim outside this parser. Only a confirmed answer
     # may replace a previously supplied year in the effective period text.
     parts = re.split(r'уточнение:', t)
     t = parts[0]
     for answer in parts[1:]:
-        year_answer = re.fullmatch(r'\s*(?:год\s*[:—-]?\s*)?(\d{4})(?:\s*год\w*)?[.!\s]*', answer)
+        year_answer = re.fullmatch(r'\s*(?:год\s*[:—-]?\s*)?(\d{4})(?:\s*(?:год\w*|г\.?))?[.!\s]*', answer)
         if year_answer:
-            years = set(re.findall(r'(?<![\w-])\d{4}(?![\w-])', t))
+            temporal_years=_year_matches(t)
+            years = {match[0] for match in temporal_years}
             if len(years) == 1:
-                t = re.sub(r'(?<![\w-])' + next(iter(years)) + r'(?![\w-])', year_answer[1], t)
+                for match in reversed(temporal_years):
+                    t=t[:match.start()]+year_answer[1]+t[match.end():]
             elif not years:
-                t += ' ' + year_answer[1]
+                t += ' ' + year_answer[1]+' год'
             else:
                 raise ClarificationRequired('Уточните полный период: даты начала и окончания либо квартал и год.')
         elif re.search(r'\b20\d{2}\b', answer) and re.search(r'квартал|\bq\s*[1-4]|месяц|\d[./-]\d|' + '|'.join(pattern for pattern, _, _ in _MONTHS), answer):
             t = answer
     # Do not silently ignore a mistyped year while parsing a valid quarter/month.
-    date_years = re.findall(r'(?<![\w-])(\d{4})(?=\s*год)', t)
-    date_years += re.findall(r'\bза\s+(\d{4})(?![\w-]|\s*(?:руб|млн|тыс|млрд|доллар|евро|%))', t)
-    date_years += re.findall(r'(?:квартал\w*|\bq\s*[1-4])\s+(\d{4})\b', t)
-    for month_pattern, _, _ in _MONTHS:
-        date_years += re.findall(r'\b' + month_pattern + r'\s+(\d{4})\b', t)
-    date_years += re.findall(r'\b(\d{4})-\d{1,2}-\d{1,2}\b|\b\d{1,2}[./](?:\d{1,2})[./](\d{4})\b', t)
-    for value in date_years:
-        for year in (value if isinstance(value, tuple) else (value,)):
-            if year and not 2000 <= int(year) <= 2099:
-                raise ClarificationRequired(f'Уточните год периода: указан {year}. Укажите год от 2000 до 2099.')
+    for match in _year_matches(t):
+        if not 2000 <= int(match[0]) <= 2099:
+            raise ClarificationRequired(f'Уточните год периода: указан {match[0]}. Укажите год от 2000 до 2099.')
     # Convert only explicit day + named month + year; month-only ranges stay intact.
     for month_pattern, month, _ in _MONTHS:
         def named_date(match):
@@ -297,6 +336,23 @@ def parse_period(text: str, column: str = DEFAULT_DATE_COLUMN, *, today=None) ->
         year,month=divmod(d.year*12+d.month-1+n,12)
         return date(year,month+1,min(d.day,calendar.monthrange(year,month+1)[1]))
 
+    # Validate endpoints before relative periods can return early.
+    for match in _YMD.finditer(t):
+        try:
+            date(int(match[1]),int(match[2]),int(match[3]))
+        except ValueError as exc:
+            raise ClarificationRequired('Уточните даты периода: одна из дат некорректна.') from exc
+    for match in _DMY.finditer(_YMD.sub('',t)):
+        try:
+            year=int(match[3]); year=year+2000 if year<100 else year
+            date(year,int(match[2]),int(match[1]))
+        except ValueError as exc:
+            raise ClarificationRequired('Уточните даты периода: одна из дат некорректна.') from exc
+    if re.search(r'(?:прошл|предыдущ|текущ|этот|последн)\w*\s+(?:\S+\s+)?(?:год|месяц|дн|день)',t) and (
+        _year_matches(t) or _find_explicit_dates(t) or re.search(r'\bq\s*\d|квартал',t)
+    ):
+        raise ClarificationRequired('Уточните единый период: относительный период или явные даты и год.')
+
     if re.search(r'(?:прошл|предыдущ)\w*\s+год',t):
         return make([(date(today.year-1,1,1),date(today.year,1,1))],['прошлый год'],'year')
     if re.search(r'(?:текущ\w*|этот)\s+год',t):
@@ -315,19 +371,6 @@ def parse_period(text: str, column: str = DEFAULT_DATE_COLUMN, *, today=None) ->
         end=today+timedelta(days=1)
         start=shift_month(today,-n) if relative[2].startswith('месяц') else end-timedelta(days=n)
         return make([(start,end)],[relative.group()],'range')
-    # Validate every explicit date; a malformed endpoint must not widen a query.
-    for match in _YMD.finditer(t):
-        try:
-            date(int(match[1]), int(match[2]), int(match[3]))
-        except ValueError as exc:
-            raise ClarificationRequired("Уточните даты периода: одна из дат некорректна.") from exc
-    without_iso = _YMD.sub("", t)
-    for match in _DMY.finditer(without_iso):
-        try:
-            year=int(match[3]); year=year+2000 if year<100 else year
-            date(year, int(match[2]), int(match[1]))
-        except ValueError as exc:
-            raise ClarificationRequired("Уточните даты периода: одна из дат некорректна.") from exc
     try:
         explicit=_find_explicit_dates(t)
     except ValueError as exc:
@@ -340,7 +383,7 @@ def parse_period(text: str, column: str = DEFAULT_DATE_COLUMN, *, today=None) ->
             if first>last:
                 raise ClarificationRequired('Дата начала периода позже окончания. Уточните даты.')
         return _parse_single_period(t,column)
-    years=[int(y) for y in re.findall(r'\b(20\d\d)\b',t)]
+    years=[int(match[0]) for match in _year_matches(t)]
     months=_find_months(t)
     quarters=_find_quarters(t)
     if any(int(q)>4 or int(q)<1 for q in re.findall(r'\bq\s*(\d+)\b',t)):
@@ -362,8 +405,8 @@ def parse_period(text: str, column: str = DEFAULT_DATE_COLUMN, *, today=None) ->
         dated=[]
         for i,(pos,m,name) in enumerate(months):
             stop=months[i+1][0] if i+1<len(months) else len(t)
-            local=re.search(r'\b20\d\d\b',t[pos:stop])
-            y=int(local.group()) if local else years[-1]
+            local=_year_matches(t[pos:stop])
+            y=int(local[-1][0]) if local else years[-1]
             dated.append((date(y,m,1),_first_day_next_month(y,m),f'{name} {y}'))
         if len(dated)>1 and re.search(r'[-–—]|\b(?:с|по|до)\b',t[months[0][0]:months[-1][0]]):
             start,end=dated[0][0],dated[-1][1]
@@ -377,6 +420,8 @@ def parse_period(text: str, column: str = DEFAULT_DATE_COLUMN, *, today=None) ->
     if len(years)>1:
         continuous=re.search(r'(?:с\s+)?20\d\d\s*(?:[-–—]|по|до)\s*20\d\d',t)
         if continuous:
+            if years[0]>years[-1]:
+                raise ClarificationRequired('Дата начала периода позже окончания. Уточните годы.')
             return make([(date(min(years),1,1),date(max(years)+1,1,1))],[f'{min(years)}–{max(years)}'],'year')
         return make([(date(y,1,1),date(y+1,1,1)) for y in years],[f'{y} год' for y in years],'year')
     if years:

@@ -81,7 +81,7 @@ class RequestPlan:
             col=h['column']
             value=h['value'].replace("'","''")
             predicate=f"UPPER(TRIM({col})) = '{value.upper()}'" if h['op']=='eq' else f"UPPER({col}) LIKE '%{value.upper()}%'"
-            grouped.setdefault(h['category'],[]).append(predicate)
+            grouped.setdefault(col,[]).append(predicate)
         clauses.extend('('+' OR '.join(v)+')' for v in grouped.values())
         if self.pao:
             clauses.append("SUBSTR(UPPER(org_struct_id), 1, 4) IN ('SBR_', 'EXT_', 'GRC_', 'MON_', 'BPS_')")
@@ -94,8 +94,14 @@ class RequestPlan:
 
 def build_plan(preset,prompt, *, trusted_preset=False):
     resolved=resolve_preset(preset,prompt, trusted_preset=trusted_preset)
-    period=parse_period(prompt)
-    hits=ground_query(prompt)
+    low=prompt.lower()
+    pao='пао сбербанк' in low or resolved=='ior_period_pao_sberbank'
+    try:
+        period=parse_period(prompt)
+        hits=ground_query(prompt,pao_scope=True) if pao else ground_query(prompt)
+    except ClarificationRequired as question:
+        question.preset=resolved
+        raise
     if resolved=='report_period_specific_ior' and 'уточнение:' in prompt.lower():
         chosen=re.findall(r'\beve[-_\s]?(\d+)\b',prompt.lower().rsplit('уточнение:',1)[1],re.I)
         if len(set(chosen))==1:
@@ -110,7 +116,7 @@ def build_plan(preset,prompt, *, trusted_preset=False):
     status='deleted' if resolved=='deleted_ior' else statuses
     if re.search(r'не\s*закрыт|незакрыт',low):
         raise ClarificationRequired('Укажите нужные статусы ИОР явно: например «Черновик» или «Исследование».')
-    return RequestPlan(resolved,period,hits,money,status,'пао сбербанк' in low or resolved=='ior_period_pao_sberbank',
+    return RequestPlan(resolved,period,hits,money,status,pao,
                        'trusted_explicit_preset' if trusted_preset and preset else 'query_intent' if subjects(prompt) or money or any(h['category']=='eve' for h in hits) else 'general_default')
 
 def explicit_followup(prompt):

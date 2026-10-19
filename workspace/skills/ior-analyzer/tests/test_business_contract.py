@@ -450,7 +450,7 @@ class FlowTests(unittest.IsolatedAsyncioTestCase):
         with patch.object(IORAnalyzerTool,'_load_runner',return_value=reports.run_ior_report),patch.object(ground,'load_catalog',return_value=CAT),patch.object(reports,'get_data_store') as store:
             result=await tool.execute(prompt='ИОРы по блоку Риски',session_id='native-clarify')
             self.assertIsInstance(result,str)
-            self.assertIn('возникли',result)
+            self.assertIn('где они произошли',result)
             store.assert_not_called()
 
     async def test_internal_sort_without_limit_preserves_population(self):
@@ -468,7 +468,7 @@ class FlowTests(unittest.IsolatedAsyncioTestCase):
     async def test_clarification_has_no_side_effects(self):
         with patch.object(ground,'load_catalog',return_value=CAT), patch.object(reports,'get_data_store') as store, patch.object(reports,'generate_hypothesis_narrative') as narrative:
             result=await reports.run_ior_report(None,'clarify','ИОРы по блоку Риски')
-            self.assertIn('возникли',result)
+            self.assertIn('где они произошли',result)
             store.assert_not_called(); narrative.assert_not_called()
     async def test_new_requests_ignore_old_index(self):
         with patch.object(ground,'load_catalog',return_value=CAT),patch.object(reports,'get_session_extract',return_value={'df':frame()}),patch.object(reports,'search_small_index') as search,patch.object(reports,'get_data_store',side_effect=RuntimeError('fresh query requested')):

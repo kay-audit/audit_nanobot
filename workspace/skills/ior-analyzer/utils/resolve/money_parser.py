@@ -52,11 +52,15 @@ def parse_amount(text, inherited_unit=''):
 
 def parse_money(text):
     t = text.lower()
+    # A year range with an explicit year suffix is never a monetary range,
+    # including the abbreviated form where NUMBER cannot consume "2025г.".
+    t=re.sub(r'\b(?:от|с)\s+\d{4}\s+(?:до|по)\s+\d{4}\s*г(?:од\w*|\.)',
+             lambda match:' '*len(match[0]),t)
     conditions=[]
     occupied=[]
     pattern=rf'\bот\s+({AMOUNT})\s+до\s+({AMOUNT})|({NUMBER})\s*[-–—]\s*({NUMBER})\s*({UNIT})'
     for m in re.finditer(pattern,t):
-        if m.group(1) and re.fullmatch(r'20\d\d',m.group(1).strip()) and re.fullmatch(r'20\d\d',m.group(2).strip()) and re.search(r'год|период',t):
+        if m.group(1) and re.fullmatch(r'20\d\d',m.group(1).strip()) and re.fullmatch(r'20\d\d',m.group(2).strip()) and re.match(r'\s*(?:год\w*|г\b)',t[m.end():]):
             occupied.append(m.span())
             continue
         if m.group(1):
@@ -75,10 +79,10 @@ def parse_money(text):
         if any(a<=m.start()<b for a,b in occupied):
             continue
         # Date ranges are not monetary comparisons.
-        if re.match(r'\d{4}\b',m.group(2)) and re.search(r'год|квартал|месяц',t) and not re.search(UNIT,m.group(2)):
+        if m.group(1) in {'от','до'} and re.fullmatch(r'\d{4}',m.group(2).strip()) and re.match(r'\s*(?:год\w*|г\b)',t[m.end():]):
             occupied.append(m.span())
             continue
-        if re.search(r'\d{1,2}[.]\d{1,2}[.]\d{4}',t) and not re.search(UNIT,m.group(2)):
+        if m.group(1) in {'от','до'} and any(d.start()<=m.start(2)<d.end() for d in re.finditer(r'\b\d{1,2}[./]\d{1,2}[./]\d{4}\b|\b\d{4}-\d{1,2}-\d{1,2}\b',t)):
             occupied.append(m.span())
             continue
         if m.end()<len(t) and re.match(r'[\w.,]',t[m.end()]):
