@@ -12,10 +12,12 @@ from typing import Any, Dict, List, Optional, Sequence, Set
 import pandas as pd
 
 try:
+    from ..utils import local_qwen as llm_runtime
     from ..utils.local_qwen import def_ask_gigachat
     from ..utils.pipeline_config import CONFIG
     from ..utils.appeal_text import canonical_appeal_text
 except ImportError:
+    from utils import local_qwen as llm_runtime
     from utils.local_qwen import def_ask_gigachat
     from utils.pipeline_config import CONFIG
     from utils.appeal_text import canonical_appeal_text
@@ -44,25 +46,48 @@ def _get_ask_llm_fn():
     return def_ask_gigachat
 
 
-class _PermanentLLMError(RuntimeError):
-    pass
+class _LLMStageError(RuntimeError):
+    def __init__(self, reason):
+        self.reason = reason
+        super().__init__(reason)
 
 
-def _ask_analysis(ask, instructions, data):
+class _PermanentLLMError(_LLMStageError):
+    """The same HTTP 400 payload must not be retried."""
+
+
+class _EvidenceJSONError(ValueError):
+    """The final LLM text is not a complete JSON object."""
+
+
+def _ask_analysis(ask, instructions, data, stage="analysis"):
     messages = [{"role": "system", "content": instructions}, {"role": "user", "content": data}]
     provider, status = None, None
+    diagnostics = {}
     try:
         result = ask(messages)
-        if ask is def_ask_gigachat:
-            from ..utils.local_qwen import last_llm_status
-            provider, status = last_llm_status()
-        if status == 400 and not result:
-            raise _PermanentLLMError("LLM rejected the chat request (HTTP 400)")
+        if ask is llm_runtime.def_ask_gigachat:
+            provider, status = llm_runtime.last_llm_status()
+            diagnostics = llm_runtime.last_llm_diagnostics()
+        if status == 400:
+            raise _PermanentLLMError('http_400')
+        if status is not None and not 200 <= status < 300:
+            raise _LLMStageError('http_error')
+        if not result:
+            raise _LLMStageError(diagnostics.get('reason') or 'empty_response')
+        if not isinstance(result, str):
+            raise _LLMStageError('invalid_response_type')
         return result
+    except _LLMStageError:
+        raise
     except Exception as exc:
         status = getattr(getattr(exc, "response", None), "status_code", None) or getattr(exc, "code", None) or status
         if status == 400:
-            raise _PermanentLLMError("LLM rejected the chat request (HTTP 400)") from None
+            raise _PermanentLLMError('http_400') from None
+        if status is not None:
+            raise _LLMStageError('http_error') from None
+        if isinstance(exc, (OSError, TimeoutError)):
+            raise _LLMStageError('network_error') from None
         raise
     finally:
         try:
@@ -76,6 +101,7 @@ def _ask_analysis(ask, instructions, data):
             "turn_id": getattr(ctx, "turn_id", None),
             "original_prompt_hash": hashlib.sha256((getattr(ctx, "original_user_text", None) or "").encode()).hexdigest(),
             "llm_provider": provider, "llm_http_status": status,
+            "stage": stage, **diagnostics,
         }, ensure_ascii=False))
 
 
@@ -183,7 +209,7 @@ def _extract_json_object(raw: Any) -> Dict[str, Any]:
                 return parsed
         except (TypeError, ValueError, json.JSONDecodeError):
             continue
-    raise ValueError("LLM evidence response contains no valid JSON object")
+    raise _EvidenceJSONError("invalid_json")
 
 
 def _ground_ids(value: Any, allowed_ids: Set[str], invalid_ids: Set[str], key: str = "") -> Any:
@@ -255,7 +281,8 @@ def validate_evidence_payload(payload: Dict[str, Any], allowed_ids: Sequence[str
             result[field] = evidence
         else:
             result[field] = _ground_ids(value, allowed, invalid_ids, field)
-    if any(isinstance(value, (dict, list)) for value in payload.get("representative_ids", []) if isinstance(payload.get("representative_ids"), list)):
+    representatives = payload.get("representative_ids")
+    if isinstance(representatives, list) and any(isinstance(value, (dict, list)) for value in representatives):
         schema_errors.append("representative_ids must contain scalar IDs")
         result["representative_ids"] = []
     result["representative_ids"] = list(dict.fromkeys(result["representative_ids"]))
@@ -406,20 +433,34 @@ async def analyze_evidence_batch(
         + ", ".join(EVIDENCE_FIELDS)
         + '. Каждый evidence item: {"statement":"...","appeal_ids":["..."]}. '
         "appeal_ids должны содержать только ID из текущего batch. "
+        'Пример структуры (замени факты и ID данными batch): '
+        '{"observed_patterns":[],"root_cause_signals":[],"evidence":[{"statement":"Факт из текста",'
+        '"appeal_ids":["ID из batch"]}],"representative_ids":[],"counterexamples":[],"possible_actions":[]}. '
+        "Пиши кратко: сгруппированные факты с ID, без пересказа каждого обращения. "
         "Сгруппируй повторяющиеся темы, сохрани подтверждающие факты, контрпримеры и возможные действия. "
         "Не придумывай counts, статистику или причинность: точные количества будут добавлены отдельно из полного массива."
     )
+    raw = ''
     try:
-        raw = await asyncio.to_thread(_ask_analysis, ask, prompt, "Проанализируй текущие обращения:\n" + "\n---\n".join(batch["items"]))
-        return validate_evidence_payload(_extract_json_object(raw), batch["ids"], batch_number)
+        raw = await asyncio.to_thread(_ask_analysis, ask, prompt, "Проанализируй текущие обращения:\n" + "\n---\n".join(batch["items"]), f'evidence:{batch_number}')
+        result = validate_evidence_payload(_extract_json_object(raw), batch["ids"], batch_number)
+        reason = 'invalid_schema' if result['status'] != 'ok' else (
+            'invalid_ids' if result.get('invalid_ids_removed') else 'ok')
+        logger.info('Appeals evidence batch=%s reason=%s response_chars=%s schema_errors=%s invalid_ids=%s',
+                    batch_number, reason, len(raw), result.get('schema_errors', []), len(result.get('invalid_ids_removed', [])))
+        return result
     except Exception as exc:
-        logger.warning("Evidence batch %s failed: %s", batch_number, type(exc).__name__)
-        return _failed_evidence(batch_number, type(exc).__name__, batch.get("ids", []))
+        reason = (exc.reason if isinstance(exc, _LLMStageError) else
+                  'invalid_json' if isinstance(exc, _EvidenceJSONError) else 'parser_error')
+        logger.warning("Appeals evidence batch=%s reason=%s exception_type=%s response_chars=%s",
+                       batch_number, reason, type(exc).__name__, len(raw))
+        return _failed_evidence(batch_number, reason, batch.get("ids", []))
 
 
 def _public_evidence(value: Any) -> Any:
     if isinstance(value, dict):
-        return {key: _public_evidence(item) for key, item in value.items() if not key.startswith("_")}
+        return {key: _public_evidence(item) for key, item in value.items()
+                if not key.startswith("_") and key != 'invalid_ids_removed'}
     if isinstance(value, list):
         return [_public_evidence(item) for item in value]
     return value
@@ -438,13 +479,19 @@ async def reduce_structured_evidence(payloads: List[Dict[str, Any]], ask_llm=Non
                 for value in payload.get("_source_ids", [])
             ))
             prompt = (
-                "Сведи structured evidence ниже в один СТРОГИЙ JSON с теми же полями. "
+                "Сведи structured evidence ниже в один СТРОГИЙ JSON с массивами "
+                + ', '.join(EVIDENCE_FIELDS) + '. '
                 'Evidence item имеет schema {"statement":"...","appeal_ids":["..."]}. '
                 "Сохрани основные patterns, counterexamples, possible_actions и только source evidence IDs."
             )
             try:
-                raw = await asyncio.to_thread(_ask_analysis, ask, prompt, json.dumps(_public_evidence(group), ensure_ascii=False, default=str))
+                raw = await asyncio.to_thread(_ask_analysis, ask, prompt, json.dumps(_public_evidence(group), ensure_ascii=False, default=str), f'reduce:{group_number}')
                 reduced.append(validate_evidence_payload(_extract_json_object(raw), allowed_ids, group_number))
+                if reduced[-1]['status'] != 'ok' or not any(
+                    item.get('appeal_ids') for item in reduced[-1].get('evidence', [])
+                ):
+                    logger.warning('Appeals reducer stopped: reason=invalid_evidence group=%s', group_number)
+                    return reduced + current[start + 8:]
             except Exception as exc:
                 # Explicitly retain every source group instead of silently dropping its tail.
                 reduced.append({
@@ -453,11 +500,30 @@ async def reduce_structured_evidence(payloads: List[Dict[str, Any]], ask_llm=Non
                     "source_batches": group,
                     **{field: [] for field in EVIDENCE_FIELDS},
                 })
+                # Any failed group prevents grounded synthesis; do not call the
+                # same failing backend for the remaining groups.
+                return reduced + current[start + 8:]
         current = reduced
     return current
 
 
 async def generate_complaint_hypothesis_narrative(
+    user_msg: str, df: pd.DataFrame, file_info: dict = None,
+    total_db_count: int = None, **kwargs: Any,
+) -> str:
+    """Bound the entire qualitative stage, including reducer and synthesis."""
+    seconds = min(480.0, max(.01, float(getattr(CONFIG, 'hypothesis_timeout_sec', 240))))
+    try:
+        with llm_runtime.generation_budget(seconds):
+            return await asyncio.wait_for(_generate_complaint_hypothesis_narrative(
+                user_msg, df, file_info, total_db_count, **kwargs), timeout=seconds)
+    except asyncio.TimeoutError:
+        logger.warning('Appeals qualitative analysis reason=time_budget seconds=%s', seconds)
+        profile = profile_complaints_dataframe(df, df_batch=pd.DataFrame(), total_db_count=len(df))
+        return _build_fallback_narrative_report(user_msg, df, profile)
+
+
+async def _generate_complaint_hypothesis_narrative(
     user_msg: str,
     df: pd.DataFrame,
     file_info: dict = None,
@@ -481,16 +547,22 @@ async def generate_complaint_hypothesis_narrative(
         sum(len(batch["ids"]) for batch in batches), len(columns_profile["columns"]),
     )
     ask = _get_ask_llm_fn()
-    evidence = [
-        await analyze_evidence_batch(batch, number, ask)
-        for number, batch in enumerate(batches, 1)
-    ]
+    evidence = []
+    for number, batch in enumerate(batches, 1):
+        payload = await analyze_evidence_batch(batch, number, ask)
+        evidence.append(payload)
+        if payload.get('status') != 'ok' or not any(item.get('appeal_ids') for item in payload.get('evidence', [])):
+            logger.warning('Appeals qualitative analysis stopped: stage=evidence batch=%s reason=%s',
+                           number, (payload.get('error') or payload.get('status')) if payload.get('status') != 'ok' else 'no_grounded_evidence')
+            break
     if not evidence or any(payload.get("status") != "ok" or not any(
         item.get("appeal_ids") for item in payload.get("evidence", [])
     ) for payload in evidence):
         return _build_fallback_narrative_report(user_msg, df, profile)
     reduced = await reduce_structured_evidence(evidence, ask)
-    if any(payload.get("status") != "ok" for payload in reduced):
+    if any(payload.get("status") != "ok" or not any(
+        item.get('appeal_ids') for item in payload.get('evidence', [])
+    ) for payload in reduced):
         return _build_fallback_narrative_report(user_msg, df, profile)
     hypothesis_data = (
         f"Сформируй четыре подробные и разные гипотезы по запросу: {user_msg}\n"
@@ -521,7 +593,7 @@ async def generate_complaint_hypothesis_narrative(
                     "\nПредыдущая попытка не прошла проверку. Дай заново ровно четыре подробные гипотезы, "
                     "каждую начни с отдельной строки «Гипотеза N» и раскрой всеми обязательными пунктами."
                 )
-            result = str(await asyncio.to_thread(_ask_analysis, ask, prompt, hypothesis_data)).strip()
+            result = str(await asyncio.to_thread(_ask_analysis, ask, prompt, hypothesis_data, f'synthesis:{attempt + 1}')).strip()
             result = _normalize_hypothesis_language(_remove_sampling_disclosures(result))
             if result:
                 grounded, invalid_ids = validate_narrative_grounding(result, sample["id"].map(_normalize_id).tolist())
@@ -532,11 +604,14 @@ async def generate_complaint_hypothesis_narrative(
                         f"из {total:,} обращений.\n\n{profile}\n\n### Гипотезы\n\n{hypotheses}"
                     )
                 if invalid_ids:
-                    logger.warning("Final hypothesis contained invented IDs and was rejected: %s", invalid_ids)
+                    logger.warning("Final hypothesis contained invented IDs and was rejected: count=%s", len(invalid_ids))
                 else:
                     logger.warning("Final synthesis did not contain four sufficiently detailed hypotheses; retrying.")
         except _PermanentLLMError:
             logger.warning("Final hypothesis synthesis rejected: HTTP 400; no identical retry")
+            break
+        except _LLMStageError as exc:
+            logger.warning('Final hypothesis synthesis stopped: reason=%s', exc.reason)
             break
         except Exception as exc:
             logger.warning("Final hypothesis synthesis attempt %s failed: %s", attempt + 1, type(exc).__name__)

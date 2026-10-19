@@ -4,6 +4,9 @@ import ast
 import importlib
 import json
 import subprocess
+import time
+import copy
+from dataclasses import replace
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
@@ -190,6 +193,257 @@ def payload(identity="1"):
     return {"observed_patterns": [], "root_cause_signals": [],
             "evidence": [{"statement": "confirmed", "appeal_ids": [identity]}],
             "representative_ids": [identity], "counterexamples": [], "possible_actions": []}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("prefix", ["", "</think>\n", "<think>internal reasoning</think>\n"])
+async def test_qwen_final_json_survives_reasoning_cleanup(bundle, monkeypatch, prefix):
+    monkeypatch.setattr(bundle.local, "_agent_endpoint", lambda: {
+        "provider": "vllm", "model": "configured-qwen", "chat_url": "http://fixture/v1/chat/completions",
+        "api_key": "", "extra_body": {}})
+    monkeypatch.delenv("APPEALS_DISABLE_VLLM", raising=False)
+    response = {"choices": [{"message": {"content": prefix + json.dumps(payload()),
+                 "reasoning_content": "PRIVATE REASONING"}, "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 500, "completion_tokens": 180}}
+    monkeypatch.setattr(bundle.local, "_post_json", lambda *args: (200, response, "PRIVATE BODY"))
+    result = await bundle.hypothesis.analyze_evidence_batch(
+        {"ids": ["1"], "items": ["ID: 1\nТекст обращения: fixture"]}, 1, bundle.local.def_ask_gigachat)
+    assert result["status"] == "ok"
+    assert result["evidence"] == [{"statement": "confirmed", "appeal_ids": ["1"]}]
+
+
+@pytest.fixture
+def qwen_chat(bundle, monkeypatch):
+    for name in ('APPEALS_DISABLE_VLLM', 'APPEALS_VLLM_ENABLE_THINKING', 'APPEALS_VLLM_JSON_MODE',
+                 'APPEALS_VLLM_MAX_TOKENS', 'APPEALS_VLLM_JSON_MAX_TOKENS',
+                 'APPEALS_VLLM_API_URL', 'VLLM_API_URL', 'APPEALS_VLLM_MODEL', 'VLLM_MODEL_NAME'):
+        monkeypatch.delenv(name, raising=False)
+    resolver = bundle.local._agent_endpoint
+    endpoint = {'provider': 'vllm', 'model': 'agent-selected-qwen', 'api_key': 'SECRET_KEY',
+                'chat_url': 'http://fixture/v1/chat/completions',
+                'extra_body': {'chat_template_kwargs': {'custom_template_option': 'fixture', 'enable_thinking': True}}}
+    monkeypatch.setattr(bundle.local, '_agent_endpoint', lambda: endpoint)
+    monkeypatch.setenv('APPEALS_USE_GIGACHAT', '1')  # Even explicit legacy opt-in must have no effect.
+    gigachat = Mock(side_effect=AssertionError('GigaChat is forbidden'))
+    monkeypatch.setattr(bundle.local, 'call_gigachat_sber_api', gigachat)
+    state = SimpleNamespace(status=200, content=json.dumps(payload()), reasoning='', finish='stop')
+    def post(url, headers, body, timeout):
+        return state.status, {'choices': [{'message': {'content': state.content,
+            'reasoning_content': state.reasoning}, 'finish_reason': state.finish}],
+            'usage': {'prompt_tokens': 500, 'completion_tokens': 200}}, 'SECRET_RESPONSE_BODY'
+    http = Mock(side_effect=post)
+    monkeypatch.setattr(bundle.local, '_post_json', http)
+    return SimpleNamespace(state=state, http=http, endpoint=endpoint, gigachat=gigachat, resolver=resolver)
+
+
+def test_local_vllm_uses_agent_config_and_preserves_template_options(bundle, qwen_chat, monkeypatch):
+    import lib.services.llm_config as llm_config
+    monkeypatch.setattr(bundle.local, '_AGENT_ENDPOINT', None)
+    monkeypatch.setattr(bundle.local, '_agent_endpoint', qwen_chat.resolver)
+    configured = {**qwen_chat.endpoint, 'api_base': 'http://fixture/v1'}
+    resolve = Mock(return_value=configured)
+    monkeypatch.setattr(llm_config, 'agent_endpoint', resolve)
+    messages = [{'role': 'system', 'content': 'Return strict JSON'}, {'role': 'user', 'content': 'Fixture input'}]
+    assert bundle.local.def_ask_gigachat(messages)
+    body = qwen_chat.http.call_args.args[2]
+    assert body['model'] == 'agent-selected-qwen' and body['messages'] == messages
+    assert qwen_chat.http.call_args.args[0] == 'http://fixture/v1/chat/completions'
+    resolve.assert_called_once()
+    assert body['chat_template_kwargs'] == {'custom_template_option': 'fixture', 'enable_thinking': False}
+    assert 'response_format' not in body
+    qwen_chat.gigachat.assert_not_called()
+
+
+def test_guided_json_capability_retry_changes_payload_once(bundle, qwen_chat, monkeypatch):
+    monkeypatch.setenv('APPEALS_VLLM_JSON_MODE', '1')
+    seen = []
+    original = qwen_chat.http.side_effect
+    def post(url, headers, body, timeout):
+        seen.append(copy.deepcopy(body))
+        if len(seen) == 1:
+            return 400, {'error': {'message': 'response_format is unsupported'}}, 'SECRET_ERROR_BODY'
+        return original(url, headers, body, timeout)
+    qwen_chat.http.side_effect = post
+    result = bundle.local.def_ask_gigachat([{'role': 'system', 'content': 'Верни СТРОГО JSON'},
+                                           {'role': 'user', 'content': 'Fixture'}])
+    assert json.loads(result) == payload()
+    assert len(seen) == 2 and seen[0] != seen[1]
+    assert seen[0]['response_format'] == {'type': 'json_object'} and 'response_format' not in seen[1]
+    assert seen[0]['max_tokens'] == 4096
+    qwen_chat.gigachat.assert_not_called()
+
+
+def test_configured_cloud_provider_is_not_used_or_replaced_by_guess(bundle, qwen_chat, monkeypatch):
+    import lib.services.llm_config as llm_config
+    monkeypatch.setattr(bundle.local, '_AGENT_ENDPOINT', None)
+    monkeypatch.setattr(bundle.local, '_agent_endpoint', qwen_chat.resolver)
+    monkeypatch.setattr(llm_config, 'agent_endpoint', lambda: {
+        'provider': 'minimax', 'api_base': 'https://cloud.invalid/v1', 'model': 'cloud-model'})
+    assert bundle.local.def_ask_gigachat([{'role': 'user', 'content': 'Fixture'}]) == ''
+    qwen_chat.http.assert_not_called()
+    qwen_chat.gigachat.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('kind,expected', [
+    ('markdown', 'ok'), ('reasoning_and_final', 'ok'),
+    ('reasoning_only', 'reasoning_only'), ('empty', 'empty_response'),
+    ('length', 'token_limit'), ('invalid_json', 'invalid_json'),
+    ('invalid_schema', 'invalid_schema'), ('invalid_ids', 'invalid_ids'),
+    ('parser', 'parser_error'), ('400', 'http_400'), ('500', 'http_error'),
+    ('network', 'network_error'),
+])
+async def test_qwen_evidence_diagnostics_and_no_gigachat(bundle, qwen_chat, monkeypatch, caplog, kind, expected):
+    caplog.set_level('INFO')
+    qwen_chat.state.reasoning = 'SECRET_REASONING'
+    if kind == 'markdown':
+        qwen_chat.state.content = '```json\n' + json.dumps(payload()) + '\n```'
+    elif kind == 'reasoning_only':
+        qwen_chat.state.content = None
+    elif kind == 'empty':
+        qwen_chat.state.content = ''
+        qwen_chat.state.reasoning = ''
+    elif kind == 'length':
+        qwen_chat.state.content = '{"evidence": ['
+        qwen_chat.state.finish = 'length'
+    elif kind == 'invalid_json':
+        qwen_chat.state.content = 'SECRET_INVALID_JSON'
+    elif kind == 'invalid_schema':
+        qwen_chat.state.content = json.dumps({**payload(), 'representative_ids': None})
+    elif kind == 'invalid_ids':
+        qwen_chat.state.content = json.dumps(payload('SECRET_INVENTED_ID'))
+    elif kind == 'parser':
+        monkeypatch.setattr(bundle.hypothesis, '_extract_json_object', Mock(side_effect=ValueError('SECRET_PARSER_DATA')))
+    elif kind in {'400', '500'}:
+        qwen_chat.state.status = int(kind)
+    elif kind == 'network':
+        qwen_chat.http.side_effect = OSError('SECRET_CONNECTION_DETAILS')
+    result = await bundle.hypothesis.analyze_evidence_batch(
+        {'ids': ['1'], 'items': ['ID: 1\nSECRET_APPEAL_TEXT']}, 1, bundle.local.def_ask_gigachat)
+    assert expected in caplog.text
+    assert qwen_chat.http.call_count == 1
+    if expected == 'ok':
+        assert result['status'] == 'ok'
+    elif expected == 'invalid_schema':
+        assert result['status'] == 'invalid_schema'
+        assert 'representative_ids must be an array' in caplog.text
+    elif expected == 'invalid_ids':
+        assert not result['evidence'][0]['appeal_ids']
+    else:
+        assert result['status'] == 'failed' and result['error'] == expected
+    assert 'stage' in caplog.text and 'evidence:1' in caplog.text
+    assert 'http_status' in caplog.text and 'finish_reason' in caplog.text
+    assert 'SECRET_' not in caplog.text
+    qwen_chat.gigachat.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('kind', ['400', '500', 'invalid_json', 'invalid_schema', 'invalid_ids', 'length'])
+async def test_systemic_evidence_failure_stops_after_first_batch(bundle, qwen_chat, monkeypatch, kind):
+    frame = pd.DataFrame({'id': [str(i) for i in range(1, 201)], 'req_desc': ['Fixture complaint'] * 200})
+    monkeypatch.setattr(bundle.hypothesis, '_get_ask_llm_fn', lambda: bundle.local.def_ask_gigachat)
+    if kind in {'400', '500'}:
+        qwen_chat.state.status = int(kind)
+    elif kind == 'invalid_json':
+        qwen_chat.state.content = 'invalid JSON'
+    elif kind == 'invalid_schema':
+        qwen_chat.state.content = '{}'
+    elif kind == 'invalid_ids':
+        qwen_chat.state.content = json.dumps(payload('unavailable-id'))
+    else:
+        qwen_chat.state.finish = 'length'
+    result = await bundle.hypothesis.generate_complaint_hypothesis_narrative('Fixture request', frame)
+    assert 'Качественный анализ недоступен' in result and 'Математический' in result
+    assert qwen_chat.http.call_count == 1
+    qwen_chat.gigachat.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_failed_qwen_preserves_native_export_and_delivery(bundle, qwen_chat, monkeypatch):
+    qwen_chat.state.status = 500
+    monkeypatch.setattr(bundle.hypothesis, '_get_ask_llm_fn', lambda: bundle.local.def_ask_gigachat)
+    bundle.calls['narrative'].side_effect = bundle.hypothesis.generate_complaint_hypothesis_narrative
+    with request_context(context()):
+        result = await bundle.tool.execute(prompt='rewritten')
+    assert 'Качественный анализ недоступен' in result and 'Выгрузка: report.xlsx' in result
+    assert_pipeline_counts(bundle, 1)
+    assert bundle.delivery.execute.await_count == qwen_chat.http.call_count == 1
+    assert bundle.delivery.execute.call_args.kwargs['media'][0].endswith('report.xlsx')
+    qwen_chat.gigachat.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('content', ['{}', 'invalid JSON', json.dumps({**payload(), 'evidence': []})])
+async def test_failed_reducer_stops_without_dropping_source_groups(bundle, qwen_chat, monkeypatch, content):
+    monkeypatch.setattr(bundle.hypothesis, 'CONFIG', replace(bundle.hypothesis.CONFIG, hypothesis_reduce_char_budget=1))
+    qwen_chat.state.content = content
+    evidence = [bundle.hypothesis.validate_evidence_payload(payload(), ['1'], i) for i in range(16)]
+    result = await bundle.hypothesis.reduce_structured_evidence(evidence, bundle.local.def_ask_gigachat)
+    assert qwen_chat.http.call_count == 1
+    if content == 'invalid JSON':
+        assert result[0]['source_batches'] == evidence[:8]
+    assert result[1:] == evidence[8:]
+
+
+@pytest.mark.asyncio
+async def test_qualitative_budget_bounds_await_and_http_timeout(bundle, qwen_chat, monkeypatch):
+    monkeypatch.setattr(bundle.hypothesis, 'CONFIG', replace(bundle.hypothesis.CONFIG, hypothesis_timeout_sec=.03))
+    monkeypatch.setattr(bundle.hypothesis, '_get_ask_llm_fn', lambda: bundle.local.def_ask_gigachat)
+    original_post = qwen_chat.http.side_effect
+    def slow(*args):
+        time.sleep(.15)  # Deliberately ignores the transport timeout to exercise the outer bound.
+        return original_post(*args)
+    qwen_chat.http.side_effect = slow
+    started = time.monotonic()
+    result = await bundle.hypothesis.generate_complaint_hypothesis_narrative('Fixture request', bundle.frame)
+    elapsed = time.monotonic() - started
+    assert elapsed < .14 and 'Качественный анализ недоступен' in result
+    assert qwen_chat.http.call_count == 1 and 0 < qwen_chat.http.call_args.args[3] <= .030001
+    await asyncio.sleep(.16)  # Let the test-only blocking thread finish before fixture teardown.
+    assert qwen_chat.http.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_qwen_four_grounded_hypotheses_through_native_tool_with_xlsx(bundle, qwen_chat, monkeypatch):
+    facts = (
+        'Клиент ID: 1 сообщает, что после выбора бонусной категории приложение показывает прежнюю категорию.',
+        'Клиент ID: 1 повторно обращается за подтверждением выбора категории, поскольку результат не отображается.',
+        'Клиент ID: 2 не находит описание срока начисления бонусов после покупки.',
+        'Клиент ID: 2 получает ответ без следующего шага и просит объяснить порядок проверки начисления.',
+    )
+    narrative = '\n\n'.join(f'Гипотеза {i}. {title}\n{fact}\n{explanation}' for i, (title, fact, explanation) in enumerate(zip(
+        ('Не отображается результат выбора', 'Не хватает подтверждения операции',
+         'Неясен срок начисления', 'Ответ не объясняет дальнейшие действия'), facts,
+        ('Возможная причина — задержка обновления отображения. Это предположение требует проверки: '
+         'сопоставить сохранённый выбор и показанную категорию по журналу операций. '
+         'Пока проверка не выполнена, технический сбой не установлен. Клиент не понимает, сохранён ли выбор.',
+         'Отсутствие видимого подтверждения может вести к повторному обращению. '
+         'Проверить, какое подтверждение получает клиент, и сопоставить его с фактом сохранения операции. '
+         'Повторный контакт сам по себе не доказывает отказ системы или финансовый ущерб.',
+         'Возможна недостаточная ясность объяснения правил. Проверить текст условий и уведомление '
+         'после покупки: содержит ли оно применимый срок начисления и условия проверки. '
+         'Из обращения нельзя заключить, что бонусы начислены неверно или что возникла потеря денег.',
+         'Возможная причина — неполный ответ поддержки. Проверить содержание ответа и наличие '
+         'понятного следующего действия для клиента. Утверждать нарушение регламента до проверки '
+         'нельзя; обращение подтверждает только потребность клиента в дополнительном объяснении.')), 1))
+    grounded = {**payload(), 'evidence': [{'statement': fact, 'appeal_ids': ['1' if i < 2 else '2']}
+                                        for i, fact in enumerate(facts)]}
+    def post(url, headers, body, timeout):
+        content = json.dumps(grounded) if 'JSON' in body['messages'][0]['content'] else narrative
+        return 200, {'choices': [{'message': {'content': content, 'reasoning_content': 'SECRET_REASONING'},
+                                  'finish_reason': 'stop'}]}, 'SECRET_BODY'
+    qwen_chat.http.side_effect = post
+    monkeypatch.setattr(bundle.hypothesis, '_get_ask_llm_fn', lambda: bundle.local.def_ask_gigachat)
+    bundle.calls['narrative'].side_effect = bundle.hypothesis.generate_complaint_hypothesis_narrative
+    with request_context(context()):
+        result = await bundle.tool.execute(prompt='rewritten')
+    assert all(f'Гипотеза {i}' in result for i in range(1, 5))
+    assert len(narrative) >= 1200 and 'Качественный анализ недоступен' not in result
+    assert_pipeline_counts(bundle, 1)
+    assert qwen_chat.http.call_count == 2
+    assert bundle.delivery.execute.await_count == 1
+    assert bundle.delivery.execute.call_args.kwargs['media'][0].endswith('report.xlsx')
+    qwen_chat.gigachat.assert_not_called()
 
 
 @pytest.mark.asyncio

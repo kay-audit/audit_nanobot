@@ -22,6 +22,7 @@ class PipelineConfig:
     hypothesis_reduce_char_budget: int = 45_000
     hypothesis_profile_max_columns: int = 15
     hypothesis_profile_top_values: int = 12
+    hypothesis_timeout_sec: float = 240.0
 
 
 CONFIG = PipelineConfig()
