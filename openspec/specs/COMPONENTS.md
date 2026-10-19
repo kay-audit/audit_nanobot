@@ -170,3 +170,11 @@
 
 `[~]` — работа по регистрации спеки сделана, шаблон `component-model` не применён.
 Доведение до `[x]` требует миграции разделов, а не только отметки.
+
+
+### SQL Assistant
+
+| Компонент | Реализация | Спецификация | Статус |
+|---|---|---|---|
+| SqlAssistantIntegration | `lib/services/sql_assistant_runtime.py` | [`skills/sql-assistant-integration`](skills/sql-assistant-integration/spec.md) | partial |
+| SubscriptionResolver | `lib/services/subscription_resolver.py` | [`skills/sql-subscriptions`](skills/sql-subscriptions/spec.md) | partial |

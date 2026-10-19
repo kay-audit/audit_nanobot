@@ -24,3 +24,6 @@ chardet==5.2.0
  
 # SQL AST security guard (lib/utils/sql_safety.py)
 sqlglot==30.17.0
+
+# SQL Assistant lexical indexes; BGE inference uses shared OSIRIS
+bm25s==0.3.8

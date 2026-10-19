@@ -230,3 +230,7 @@ DDL **не хранится** рядом с кодом компонента (`li
 
 Удалите `DISTRIBUTED BY (...)` и замените `gen_random_uuid()` на
 `uuid_generate_v4()` из `uuid-ossp`. Всё остальное совместимо.
+
+## SQL Assistant KB
+
+`sql_assistant/001_create_kb.sql` — DDL трёх KB-таблиц в существующей схеме `s_grnplm_ld_audit_da_project_34`. Применяется оператором после согласования; индексы создаются однократно. Новая схема не создаётся, подписные вьюхи не изменяются. Bootstrap и полная постраничная индексация описаны в [SQL_ASSISTANT.md](../docs/SQL_ASSISTANT.md).

@@ -148,6 +148,12 @@ def canonical_project_tools() -> list[ToolSpec]:
     UNEXPECTED в баннере старта и DRIFT в ``tools/diagnose_startup.py``.
     """
     return [
+        ToolSpec(name="sql_analyzer", module="sql_analyzer", required=False, description="SQL Assistant D1", config_key="gateway.sql_analyzer.enable"),
+        ToolSpec(name="kb_search", module="kb_search", required=False, description="SQL Assistant D1", config_key="gateway.kb_search.enable"),
+        ToolSpec(name="kb_describe", module="kb_describe", required=False, description="SQL Assistant D1", config_key="gateway.kb_describe.enable"),
+        ToolSpec(name="sql_generate", module="sql_generate", required=False, description="SQL Assistant D1", config_key="gateway.sql_generate.enable"),
+        ToolSpec(name="sql_validate", module="sql_validate", required=False, description="SQL Assistant D1", config_key="gateway.sql_validate.enable"),
+        ToolSpec(name="sql_facts", module="sql_facts", required=False, description="SQL Assistant D1", config_key="gateway.sql_facts.enable"),
         ToolSpec(
             name="compact_context",
             module="compact_context",

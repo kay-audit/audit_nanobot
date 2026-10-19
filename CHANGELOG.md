@@ -8,6 +8,11 @@
 
 ## [Unreleased]
 
+### Added
+
+- SQL Assistant D1: READY verbatim, grounded generation, адресные подписки и proxy SQL; используется shared OSIRIS без отдельной GPU-job. Корпоративный ID требует операторской проверки до включения генерации.
+
+
 ### Fixed
 
 - `lib/services/schema_validation.py`: `SchemaValidationService.expected_table_names()`

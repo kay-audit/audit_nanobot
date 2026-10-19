@@ -1,5 +1,39 @@
 # Agent Instructions
 
+## SQL Assistant ready-script final-delivery protocol
+
+This protocol applies only to the `READY_EXISTING_SCRIPT` flow of `sql_assistant`.
+It must not change the behavior of other skills, tools, or SQL Assistant flows.
+
+Activate it only when both conditions are true:
+
+1. the active skill is `sql_assistant` in READY_EXISTING_SCRIPT flow after a successful `sql_analyzer` call;
+2. `workspace/skills/sql_assistant/SKILL.md` contains the exact marker
+   `FINAL_DELIVERY_MODE: SQL_ASSISTANT_READY_VERBATIM_V1`.
+
+Do not activate this protocol after `kb_search`, `kb_describe`, `sql_generate`,
+`sql_validate`, or `sql_facts`. Generated SQL requires normal synthesis and
+the grounded explanation required by the skill.
+
+Pass the user's complete original prompt to the selected analyzer.
+Do not summarize, rewrite, shorten, or replace it with a generated query.
+
+After a successful `sql_analyzer` ready-script result, the returned user-facing
+report is already the final answer. Deliver it in full, in the original order.
+Do not summarize, paraphrase, shorten, reorganize, filter, or add an additional
+analysis, introduction, conclusion, recommendation, or follow-up question.
+
+Preserve Markdown, SQL, identifiers, tables, values, explanations, and all
+user-facing sections. Transport-level handling such as attaching generated
+files is allowed, but must not alter or replace the report text.
+
+If a hard channel limit prevents one-message delivery, split the original
+report into sequential parts without summarizing or omitting content.
+
+On a later turn, if the user explicitly asks to summarize, shorten, explain,
+compare, or otherwise transform the previous result, normal transformation is allowed.
+
+
 ## File Storage Policy
 
 New files must be saved under `data_store/cache/` (e.g. `data_store/cache/report.csv`).

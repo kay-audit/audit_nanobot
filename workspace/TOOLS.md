@@ -376,3 +376,8 @@ gateway держит этот файл открытым весь свой жиз
 это не «навык сломался», а раздутый контекст от повторных попыток;
 см. `agents.defaults.contextWindowTokens`.
 
+
+
+## SQL Assistant
+
+Шесть native tools: sql_analyzer (READY verbatim), kb_search, kb_describe, sql_generate, sql_validate, sql_facts. Для нового SQL нужны реальные table_ids; identity_unavailable и другие subscription_blocked статусы требуют объяснения без SQL. Точные правила — skills/sql_assistant/SKILL.md.

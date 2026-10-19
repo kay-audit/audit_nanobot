@@ -502,3 +502,8 @@ chore(bench): удалить устаревшие отчёты прогонов 
 - **Не продолжать разработку в `release/vX.Y`** — фиксы только через cherry-pick,
   вся новая функциональность — в `master`.
 - **Не создавать PATCH-ветку** (`release/vX.Y.Z`) — патчи идут в существующую `release/vX.Y`.
+
+
+## SQL Assistant D1
+
+`workspace/skills/sql_assistant/`, шесть native tools sql_analyzer/kb_search/kb_describe/sql_generate/sql_validate/sql_facts; runtime в `lib/services/sql_assistant_runtime.py`, KB в kb_store.py, статическая проверка sql_static.py, dialect rules sql_dialects/, retrieval hybrid_search/. `lib/services/subscription_resolver.py` выполняет адресные проверки без кэша пользовательских данных. `gateway.sql_subscriptions.identity_confirmed=false` до проверки user_id=sudir_login; `catalog_mapping_confirmed=true` подтверждает meta_code=schema_name. Postgres sender_id не подменяется chat_id. D1 использует shared OSIRIS appeals embed/rerank, без создания GPU-job. Документация — docs/SQL_ASSISTANT.md.

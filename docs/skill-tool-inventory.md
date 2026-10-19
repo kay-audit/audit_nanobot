@@ -113,3 +113,5 @@ flowchart LR
 Process/baseline/inventory-артефакты перенесены в [`_archive/`](_archive/) —
 на актуальное состояние не ссылаться. Сводка изменений проекта — в
 [`CHANGELOG.md`](../CHANGELOG.md).
+
+SQL Assistant: `workspace/skills/sql_assistant/`, шесть tools в `workspace/tools/`, KbStore и SqlAssistantRuntime; действующие подписки через SubscriptionResolver. READY verbatim отдельно от generation/validation.

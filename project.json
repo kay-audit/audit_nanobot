@@ -165,6 +165,30 @@
   //  на уровне gateway.sync.* (общая для всех skills). См. ниже.
   // ---------------------------------------------------------------------------
   "skills": {
+    "sql_assistant": {
+      "enabled": true,
+      "tables": [
+        {
+          "name": "s_grnplm_ld_audit_da_project_34.kb_tables",
+          "label": "kb_tables",
+          "tracking_column": "updated_at"
+        },
+        {
+          "name": "s_grnplm_ld_audit_da_project_34.kb_columns",
+          "label": "kb_columns",
+          "tracking_column": "updated_at"
+        },
+        {
+          "name": "s_grnplm_ld_audit_da_project_34.kb_examples",
+          "label": "kb_examples",
+          "tracking_column": "updated_at"
+        }
+      ],
+      "llm": {
+        "max_tokens": 8192,
+        "temperature": 0.1
+      }
+    },
     "ior-analyzer": {
       "enabled": true,
       "tables": [
@@ -458,6 +482,48 @@
   //  gateway.* — настройки gateway-сервера (gateway.py)
   // ---------------------------------------------------------------------------
   "gateway": {
+    "sql_analyzer": {
+      "enable": true
+    },
+    "kb_search": {
+      "enable": true,
+      "index_root": "data_store/sql_assistant_indexes",
+      "score_floor": 0.4,
+      "max_top_k": 20,
+      "dense_enabled": true,
+      "reranker_enabled": true,
+      "dense_model": "BAAI/bge-m3",
+      "reranker_model": "BAAI/bge-reranker-v2-m3",
+      "device": "auto",
+      "model_cache_dir": null,
+      "osiris": {
+        "service_name": "appeals",
+        "heartbeat_max_age_sec": 12,
+        "request_timeout_sec": 1800,
+        "batch_size": 256
+      }
+    },
+    "kb_describe": {
+      "enable": true,
+      "max_columns": 50,
+      "live_timeout_sec": 30
+    },
+    "sql_generate": {
+      "enable": true,
+      "max_repairs": 2,
+      "timeout_sec": 180
+    },
+    "sql_validate": {
+      "enable": true,
+      "explain_timeout_sec": 60
+    },
+    "sql_facts": {
+      "enable": true
+    },
+    "sql_subscriptions": {
+      "identity_confirmed": false,
+      "catalog_mapping_confirmed": true
+    },
     "ior_analyzer": {
       "enable": true
     },
