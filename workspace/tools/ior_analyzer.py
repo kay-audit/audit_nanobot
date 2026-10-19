@@ -38,13 +38,13 @@ def _pending_input_kind(text: str, question: str) -> str:
         return "answer"
     if re.search(r"\bнов\w*\s+(?:запрос|анализ|выгрузк)|\b(?:начни|начать)\s+заново", low):
         return "new"
-    action = bool(re.search(r"\b(?:выгруз\w*|найди|покажи|проанализируй|сделай|сформируй)\b", low))
+    action = bool(re.search(r"\b(?:выгруз\w*|вывед\w*|найди|покажи|проанализируй|сделай|сформируй)\b", low))
     domain = bool(re.search(r"\b(?:иор\w*|инцидент\w*|(?:не)?финансов\w*\s+последств\w*|возмещ\w*)\b", low))
     constraints = bool(re.search(r"\b\d{4}\b|\bq[1-4]\b|\b(?:drp|eve)[-_\s]?\d+", low))
     if re.search(r"год", expected) and re.fullmatch(r"(?:год\s*[:—-]?\s*)?\d{4}(?:\s*год\w*)?[.!\s]*", low):
         return "answer"
     if re.search(r"происхожд|ответствен|подраздел|блок", expected) and re.search(
-        r"происхожд|ответствен", low
+        r"происхожд|ответствен|владел\w*\s+процесс|мест\w*,?\s+где|произошл", low
     ) and not action and not constraints and "?" not in low:
         return "answer"
     if "eve" in expected and re.fullmatch(r"(?:иор\s+)?eve[-_\s]?\d+[.!\s]*", low):
@@ -53,7 +53,7 @@ def _pending_input_kind(text: str, question: str) -> str:
         r"(?:возмещения|удал[её]нные иор|(?:не)?финансовые последствия)(?:\s+по иор)?[.!\s]*", low
     ):
         return "answer"
-    if domain and (action or constraints):
+    if domain and (action or constraints or not re.fullmatch(r'иор\w*[.!\s]*',low)):
         return "new"
     if constraints:
         return "answer" if re.search(r"период|год", expected) and not domain and not action else "ambiguous"
@@ -147,7 +147,7 @@ class IORAnalyzerTool(Tool):
     def __init__(self, *, config: IORAnalyzerToolConfig, message_tool: Any = None) -> None:
         self.config = config
         self._message_tool = message_tool
-        self._followup_requests = OrderedDict()
+        self._requests = OrderedDict()
 
     @property
     def name(self) -> str:
@@ -230,34 +230,26 @@ class IORAnalyzerTool(Tool):
     ) -> str:
         context = current_request_context()
         original = getattr(context, "original_user_text", None)
-        # Standalone calls and all non-follow-up modes retain their existing behavior.
+        # Standalone calls retain their direct-call contract.
         if context is None or not isinstance(original, str) or not original.strip():
             return await self._execute_once(prompt=prompt, preset=preset, session_id=session_id)
-        try:
-            runner = self._load_runner()
-            from utils.resolve.request_plan import explicit_followup
-        except Exception:
-            return await self._execute_once(prompt=prompt, preset=preset, session_id=session_id)
-        if not explicit_followup(original):
-            return await self._execute_once(prompt=prompt, preset=preset, session_id=session_id, _runner=runner)
         session = current_request_session_key()
         turn = getattr(context, "message_id", None) or getattr(context, "turn_id", None)
         if not session or not turn:
-            return ToolResult.error("Для поиска по выгрузке необходимы идентификаторы сессии и сообщения. Повторите запрос.")
+            return ToolResult.error("Для анализа ИОР необходимы идентификаторы сессии и сообщения. Повторите запрос.")
         key = (session, getattr(context, "sender_id", None), turn)
         digest = hashlib.sha256(original.encode()).hexdigest()
-        state = self._followup_requests.setdefault(key, {"lock": asyncio.Lock(), "hash": digest})
-        for old in list(self._followup_requests)[:-64]:
-            if old != key and not self._followup_requests[old]["lock"].locked():
-                self._followup_requests.pop(old)
+        state = self._requests.setdefault(key, {"lock": asyncio.Lock(), "hash": digest})
+        for old in list(self._requests)[:-64]:
+            if old != key and not self._requests[old]["lock"].locked():
+                self._requests.pop(old)
         async with state["lock"]:
             if state["hash"] != digest:
                 return ToolResult.error("Идентификатор сообщения ИОР повторно использован с другим исходным текстом.")
-            if "error" in state:
-                return state["error"]
-            result = await self._execute_once(prompt=prompt, preset=preset, session_id=session_id, _runner=runner)
-            if getattr(result, "is_error", False):
-                state["error"] = result
+            if "result" in state:
+                return state["result"]
+            result = await self._execute_once(prompt=prompt, preset=preset, session_id=session_id)
+            state["result"] = result
             return result
 
     async def _execute_once(
@@ -294,7 +286,7 @@ class IORAnalyzerTool(Tool):
                 owner = str(getattr(request_context, "sender_id", None) or "")
                 key = hashlib.sha256((resolved_session + "\0" + owner).encode()).hexdigest()[:24]
                 pending_path = output.parent / f"ior_clarification_{key}.json"
-                turn = getattr(request_context, "turn_id", None) or getattr(request_context, "message_id", None)
+                turn = getattr(request_context, "message_id", None) or getattr(request_context, "turn_id", None)
                 new_request = _pending_input_kind(original, "") == "new" or original.startswith("Анализ ИОР")
                 try:
                     pending = json.loads(pending_path.read_text(encoding="utf-8"))
@@ -343,6 +335,11 @@ class IORAnalyzerTool(Tool):
                     try:
                         temporary.write_text(json.dumps({"session": resolved_session, "owner": owner,
                             "turn": turn, "prompt": prompt, "question": str(question),
+                            "original_prompt": pending.get("original_prompt", pending["prompt"]) if continuing else original,
+                            "stage": getattr(question,"stage",None) or ("period" if re.search(r"год|период|дат",str(question),re.I) else "analysis"),
+                            "category": getattr(question,"category",None) or (pending.get("category") if continuing else None),
+                            "field": getattr(question,"column",None) or (pending.get("field") if continuing else None),
+                            "preset": getattr(question,"preset",None),
                             "created_at": pending["created_at"] if continuing else time.time()}, ensure_ascii=False), encoding="utf-8")
                         os.replace(temporary, pending_path)
                     finally:

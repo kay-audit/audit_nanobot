@@ -180,7 +180,7 @@ async def test_execute_delivers_exact_artifacts_to_request_session(monkeypatch, 
 
     monkeypatch.setattr(IORAnalyzerTool, "_load_runner", staticmethod(lambda: fake_runner))
     tool = IORAnalyzerTool(config=IORAnalyzerToolConfig(), message_tool=MessageTool())
-    context = RequestContext(channel="postgres", chat_id="chat-1", session_key="postgres:current", original_user_text="ИОР")
+    context = RequestContext(channel="postgres", chat_id="chat-1", session_key="postgres:current", original_user_text="ИОР", message_id="fixture-message")
     with request_context(context):
         assert await tool.execute(prompt="ИОР", session_id="other-session") == "Отчёт без ссылки"
     assert scope_directories[0].name == "results"
