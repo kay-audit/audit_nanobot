@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import math
+import os
 import uuid
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -42,10 +44,17 @@ class OsirisModels:
 
     def _profile(self, capability: str) -> ServiceProfile:
         cfg = self.settings
+        root = Path(__file__).resolve().parents[4]
+        if (root / "osiris_deployment.json").exists() or "OSIRIS_SHARED_CONFIG" in os.environ:
+            from workspace.utils.osiris_runtime.deployment import bind_profile, load_deployment
+            deployment, services = load_deployment()
+            if "appeals" not in services:
+                raise OsirisModelUnavailable("Shared BGE service appeals is not declared")
+            return bind_profile(replace(deployment.profile, service_name="appeals", capabilities=(capability,)))
         return ServiceProfile(
             service_name=str(cfg.get("service_name", "appeals")),
             job_name=str(cfg.get("job_name", "srbd3")),
-            image="", pool="", worker_script=DEFAULT_WORKER, num_gpus=1,
+            image=str(cfg.get("image", "registry.ca.sbrf.ru/ci02684173/ci02697916/notebooks/python3.12/cuda12.4/d-04.000.00:d-04.000.00-geometric")), pool=str(cfg.get("pool", "common")), worker_script=DEFAULT_WORKER, num_gpus=1,
             nfs_root=Path(cfg.get("nfs_root", DEFAULT_NFS_ROOT)),
             capabilities=(capability,),
             heartbeat_max_age_sec=float(cfg.get("heartbeat_max_age_sec", 12)),

@@ -16,8 +16,8 @@
 | data | 2 | 0 | 2 | 0 | 0 |
 | documentation | 1 | 0 | 0 | 1 | 0 |
 | validation | 1 | 0 | 0 | 1 | 0 |
-| skills | 1 | 0 | 1 | 0 | 0 |
-| **Итого** | **9** | **0** | **7** | **2** | **0** |
+| skills | 2 | 0 | 2 | 0 | 0 |
+| **Итого** | **10** | **0** | **8** | **2** | **0** |
 
 ## Компоненты
 
@@ -26,6 +26,8 @@
 | Компонент | Реализация | Спецификация | Статус |
 |-----------|------------|--------------|--------|
 | SqlAssistantIntegration | `workspace/skills/sql_assistant/scripts/osiris_adapter.py`, `lib/services/sql_assistant_runtime.py` | [`skills/sql-assistant-integration`](skills/sql-assistant-integration/spec.md) | partial |
+
+| SubscriptionResolver | `lib/services/subscription_resolver.py` | [`skills/sql-subscriptions`](skills/sql-subscriptions/spec.md) | partial |
 
 ### Architecture
 

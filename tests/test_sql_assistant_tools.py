@@ -61,7 +61,6 @@ def test_all_tools_can_be_created_from_gateway_sections():
 
 
 def test_all_six_tools_register_through_native_project_loader(tmp_path, monkeypatch):
-    from lib.services.runtime_patcher import RuntimePatcher
     from nanobot.agent.tools.registry import ToolRegistry
 
     names = {cls.config_key for cls in SQL_ASSISTANT_TOOLS}
@@ -77,7 +76,14 @@ def test_all_six_tools_register_through_native_project_loader(tmp_path, monkeypa
     agent = SimpleNamespace(tools=ToolRegistry(), tools_config=SimpleNamespace(), workspace=str(tmp_path))
     provider = Provider()
     try:
-        ok, message = RuntimePatcher().patch_project_tools(agent, tmp_path, settings=settings, cache_store=provider)
+        try:
+            from lib.services.project_tool_loader import register_project_tools
+        except ImportError:
+            from lib.services.runtime_patcher import RuntimePatcher
+            ok, message = RuntimePatcher().patch_project_tools(agent, tmp_path, settings=settings, cache_store=provider)
+        else:
+            result = register_project_tools(agent, tmp_path, settings=settings, cache_store=provider)
+            ok, message = not result.failed, result.detail
         assert ok, message
         assert "6 project tools registered" in message
         for name in names:

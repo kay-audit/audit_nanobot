@@ -3,6 +3,7 @@ import pytest
 from lib.services.sql_assistant_runtime import SqlAssistantRuntime, _indexed_ids_matching
 from lib.services.kb_store import KbStoreError
 from lib.services.hybrid_search import HybridIndex, prepare_from_frame
+from lib.services.subscription_resolver import SubscriptionResolver
 
 
 TABLE={"id":1,"table_name":"db.orders","group_key":"orders","layer":"dm","description":"orders","columns_summary":"id and amount","row_count":10,"dialect":"spark","updated_at":"now"}
@@ -36,12 +37,13 @@ async def test_fake_end_to_end_retrieval_generation_validation_facts(monkeypatch
     monkeypatch.setattr("lib.services.sql_assistant_runtime._default_llm_config",lambda: {"model":"fake","api_base":"http://fake","api_key":"","max_tokens":100,"temperature":0})
     docs=prepare_from_frame([TABLE],text_fields=("description","columns_summary","table_name"),group_field="group_key")
     monkeypatch.setattr("lib.services.sql_assistant_runtime.load_index",lambda *_a,**_k:(HybridIndex(docs),{"build_id":"test","source_signature":"{\"max_updated_at\":\"now\",\"row_count\":1}"}))
-    runtime=SqlAssistantRuntime(Provider(),index_root="unused",score_floor=0.1)
+    subscriptions = SubscriptionResolver(identity_confirmed=True, identity=lambda: "1", fetch=lambda *_a: [{"schema_name": "db", "sub_alias": "test"}])
+    runtime=SqlAssistantRuntime(Provider(),index_root="unused",score_floor=0.1,subscription_resolver=subscriptions)
     search=runtime.search("orders amount",corpus="tables")
     result=await runtime.generate(question="total amount",dialect="spark",table_ids=[1],example_ids=[101,999])
     assert search["items"][0]["id"] == 1
     assert result["status"] == "valid" and result["validation"]["valid"] and result["publishable"]
-    assert result["facts"]["tables"] == ["db.orders"]
+    assert result["facts"]["tables"] == ["prx_test_db.orders"]
     assert result["facts"]["example_notes"][0]["script_id"] == 338
     assert result["missing_example_ids"] == ["999"]
     assert len(calls) == 1

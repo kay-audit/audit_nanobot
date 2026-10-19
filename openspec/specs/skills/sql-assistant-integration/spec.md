@@ -98,4 +98,15 @@ workspace/skills/sql_assistant/scripts/_pg_admin.py; build_index.py.
 ## Проверка
 
 Fake unit tests для delivery, DSN, Osiris correlation и corpus completeness.
-Официальная OpenSpec CLI-проверка недоступна на внешней машине.
+Change d1-subscriptions проверяется OpenSpec CLI; реальные корпоративные сервисы требуют операторской проверки.
+
+## Требования
+
+### Требование: сохранение delivery gate
+
+Нормативные требования и сценарии содержатся в Requirements выше.
+
+#### Scenario: невалидный результат
+
+- **КОГДА** SQL не прошёл проверку
+- **ТОГДА** публикуются только диагностические причины, без SQL.

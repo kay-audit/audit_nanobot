@@ -7,7 +7,7 @@ from typing import Any, Mapping
 
 from lib.services.sql_dialects.sanitize import sanitize_sql
 
-_WRITE_KEYS = {"insert", "update", "delete", "merge", "create", "drop", "alter", "truncate", "grant", "revoke", "command", "copy", "call", "use", "attach", "detach", "load", "install", "export"}
+_WRITE_KEYS = {"insert", "update", "delete", "merge", "create", "drop", "alter", "truncate", "grant", "revoke", "command", "copy", "call", "use", "attach", "detach", "load", "install", "export", "into", "transaction", "commit", "rollback"}
 _DEPENDENCY_WORD = re.compile(r"[\w$]+")
 _DEPENDENCY_DOLLAR = re.compile(r"\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$")
 
@@ -340,27 +340,6 @@ def validate_sql(sql: str, *, dialect: str = "spark", schema: Mapping[str, Mappi
         if unknown:
             target = result["issues"] if generated else result["warnings"]
             target.append({"code": "unknown_table", "tables": sorted(set(unknown)), "message": "Physical tables are unknown to the selected KB grounding"})
-        aliases: dict[str, str] = {}
-        for node in physical_table_nodes:
-            full = _table_name(node)
-            matched = _match_table(full, known)
-            if matched:
-                aliases[node.alias_or_name.casefold()] = matched
-                aliases[node.name.casefold()] = matched
-        for col in tree.find_all(exp.Column):
-            name = col.name
-            qualifier = col.table.casefold() if col.table else ""
-            if qualifier and qualifier in aliases:
-                table = aliases[qualifier]
-                if name.casefold() not in known[table]:
-                    result["issues"].append({"code": "unknown_column", "column": col.sql(), "table": table, "message": f"Unknown column {name} in {table}"})
-            elif not qualifier:
-                query_tables = [matched for source in source_tables if (matched := _match_table(source, known))]
-                candidates = [table for table in query_tables if name.casefold() in known[table]]
-                if len(candidates) == 0 and source_tables:
-                    result["issues"].append({"code": "unknown_column", "column": name, "message": f"Unknown column {name}"})
-                elif len(candidates) > 1 and len(source_tables) > 1:
-                    result["issues"].append({"code": "ambiguous_column", "column": name, "tables": candidates, "message": f"Ambiguous unqualified column {name}"})
         if not unknown:
             try:
                 from sqlglot.optimizer.qualify import qualify
@@ -376,6 +355,13 @@ def validate_sql(sql: str, *, dialect: str = "spark", schema: Mapping[str, Mappi
             except Exception as exc:
                 message = str(exc)
                 code = "ambiguous_column" if "ambiguous" in message.lower() else "unknown_column"
+                if code == "unknown_column":
+                    from sqlglot.optimizer.scope import traverse_scope
+                    for scope in traverse_scope(tree):
+                        scoped_tables = [_match_table(_table_name(source), known) for _, source in scope.selected_sources.values() if isinstance(source, exp.Table)]
+                        if any(not column.table and sum(column.name.casefold() in known[table] for table in scoped_tables if table) > 1 for column in scope.columns):
+                            code = "ambiguous_column"
+                            break
                 if not any(issue.get("code") == code and issue.get("message") == message for issue in result["issues"]):
                     result["issues"].append({"code": code, "message": message})
     result["valid"] = not result["issues"]

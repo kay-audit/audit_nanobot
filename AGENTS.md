@@ -5,6 +5,8 @@
 
 ## Project Layout
 
+- `lib/services/subscription_resolver.py` — адресное разрешение действующих подписок D1, trusted RequestContext и AST mapping; без кэша пользовательских данных.
+
 - `lib/` — кастомные сервисы поверх библиотеки `nanobot 0.3.0` (core/cli/lifecycle/services/session/channels/utils + hooks).
   - `lib/hooks/` — фреймворковые хуки (общий каркас `base_tool_tracking`, `tool_audit`, `database_logging` + `terminal_tool_print`), провязываются явно через `AgentFactory`/`ApplicationContext`.
   - `lib/core/agent_factory.py` — фабрика AgentLoop с хуками; `lib/core/bus_factory.py` — создание MessageBus.
@@ -78,6 +80,9 @@ SQL Assistant integration: `workspace/skills/sql_assistant/scripts/osiris_adapte
 - **Не используй `>`, `>>` в `exec` для создания файлов** — `session_file_redirect_hook` их не перехватывает.
 
 ## Configuration
+
+- `gateway.sql_subscriptions.identity_confirmed` (bool, false): включается оператором после проверки user_id=sudir_login; иначе identity_unavailable. `catalog_mapping_confirmed` (bool, true): подтверждённое правило meta_code=schema_name. Подробности — docs/SQL_ASSISTANT.md.
+
 
 - Настройки нано-агента (`channels.*`, `skills.*`, `cli`, `benchmark`, `streamlit`, `gateway`, `logging.db`) — в `project.json` (JSONC, с комментариями).
 - Очистка журнала событий `agent_gateway_logs` / `agent_question_runs`: подсекция `logging.db` (`logging.db.enabled` — вкл/выкл записи):

@@ -43,7 +43,7 @@ class TestToolAdapters(unittest.IsolatedAsyncioTestCase):
         report = {"status": "invalid", "valid": False, "sql": "SELECT missing", "issues": [{"code": "unknown_column"}], "warnings": []}
         with patch.object(sql_assistant_runtime, "validate_sql", return_value=report):
             result = json.loads(await tool.execute(sql="SELECT missing", dialect="spark"))
-        self.assertEqual(result["status"], "invalid")
+        self.assertEqual(result["status"], "grounding_error")
         self.assertFalse(result["publishable"])
         self.assertEqual(result["sql"], "")
 

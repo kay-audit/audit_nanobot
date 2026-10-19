@@ -139,11 +139,11 @@ This is a tool/skill-level gate, not a new generic outbound filter.
 ## Existing Osiris integration
 
 The shared NFS transport/profile/lifecycle helpers are reused from d3_nanobot.
-The existing `workspace/skills/appeals-analyzer/rerank_osiris_worker.py` gains
-`embed` and retains retrieve/rerank. No new osiris_job.py, image, service name,
+В исходной ветке D1 existing `workspace/skills/appeals-analyzer/rerank_osiris_worker.py` gains
+`embed` and retains retrieve/rerank. В finalize используется уже существующая реализация этих handlers; shared файлы не заменяются. No new osiris_job.py, image, service name,
 NFS service or GPU job is created by SQL Assistant.
 
-`gateway.kb_search.osiris` defaults:
+`gateway.kb_search.osiris` legacy standalone defaults (ветка D1 без shared deployment):
 - service_name: appeals; job_name: srbd3
 - nfs_root: /home/datalab/nfs/audit_nanobot/workspace/data_store/osiris/srb_d3
 - heartbeat_max_age_sec: 12; request_timeout_sec: 1800; batch_size: 256
@@ -298,3 +298,32 @@ Osiris BGE-M3/reranker weights, CUDA memory, shared NFS and inference latency
 metastore and memory smoke; Greenplum example quality and GP6 compatibility;
 hold-out labels/expert review. The exporter can derive facts from available
 examples, but does not fabricate missing golden labels.
+
+
+## Подписки пользователей
+
+`lib/services/subscription_resolver.py` разрешает физическую схему в подписную. Два адресных SELECT через общий `workspace.utils.db.fetch` читают только действующие подписки текущего пользователя и каталог необходимых отсутствующих схем. Пользовательские ID и подписки не сохраняются в KB, DuckDB, FAISS или общем кэше. Состояние resolver не содержит результат предыдущего запроса.
+
+Идентичность берётся только из `RequestContext.sender_id` канала postgres: непустая строка из ASCII-цифр (1–32), без параметров tool или текста пользователя. PostgresChannel передаёт настоящий `user_id`; при отсутствии отправляет пустой sender_id, никогда chat_id. Бизнес-соответствие user_id=sudir_login ещё требует проверки оператором; `gateway.sql_subscriptions.identity_confirmed` по умолчанию false. До подтверждения generation/validate возвращают identity_unavailable, не проверяют подписки и не публикуют SQL. `catalog_mapping_confirmed=true` отражает подтверждённое пользователем правило meta_code=schema_name.
+
+После подтверждения выполняется `sudir_login = %s AND lower(schema_name) = ANY(%s)`. Статус подписки отдельно не фильтруется: вьюха уже содержит только действующие. Один schema access покрывает все её таблицы. Среди действующих алиасов выбирается первый lowercase в сортировке; альтернативы сохраняются. Для отсутствующих схем каталог запрашивается по `lower(meta_code) = ANY(%s)`. Возвращаются все реальные варианты sub_name/sub_alias; они не используются в SQL до оформления.
+
+Результаты: subscribed, not_subscribed (только успешное чтение active и найденные варианты catalog), identity_unavailable, catalog_unavailable, subscription_check_error, subscription_mapping_unknown (нет связи каталога или некорректные идентификаторы). Неизвестное состояние блокирует выдачу, не означает отсутствия подписки. Сообщаются проблемы всех выбранных источников.
+
+`SubscriptionResolution.rewrite` изменяет scoped external tables AST и schema-qualified column references; литералы, комментарии и CTE-ссылки не заменяются текстом. Выход: `prx_<действующий alias>_<physical schema>.<table>` в lowercase. Чужие алиасы, catalog-qualified и неподтверждённые источники отклоняются. `public_to_physical` сохраняет соответствие с KB; валидатор получает копию KB-колонок и типов под разрешёнными public-ключами. Физические данные KB не меняются.
+
+Проверка выполняется до LLM и повторно при валидации/repair. Даже `generated=false` или отсутствие table_ids не позволяют обойти generated delivery gate. READY возвращает исходный SQL verbatim и не вызывает resolver.
+
+## Shared OSIRIS при интеграции
+
+При наличии `osiris_deployment.json` D1 загружает deployment и binding logical service `appeals`, используя его существующие embed/rerank handlers BGE-M3 и BGE reranker. Profile строится из валидного physical deployment (image/pool не пусты). job_name/nfs_root из старой секции D1 в этом режиме не используются. Корреляция request UUID, session, generation, heartbeat и namespaces остаётся в общем transport; `auto_recover=false`. D1 не создаёт, не перезапускает GPU-job и не загружает модели в gateway. В finalize deployment остаётся nanobot_gpu/nanobot-shared; D3/D6 worker и конфигурации не заменяются.
+
+## Проверка в закрытом контуре до включения генерации
+
+1. Проверить `information_schema.columns` и права SELECT на dvb_kav_repl_test, dvb_kav_subs_list и dvb_kav_user_subs. Подтвердить реальные типы schema_name, sub_alias, sub_name, meta_code и строковый sudir_login; новые колонки не предполагаются. DDL из sql/sql_assistant поставляется для согласованного применения оператором, локальная разработка его не применяет.
+2. Отправить сообщение из двух тестовых корпоративных учётных записей и сопоставить настоящий agent_conversation_messages.user_id с RequestContext.sender_id и их sudir_login в dvb_kav_user_subs. Использовать известные учётные записи с разными активными алиасами одной схемы; числового формата самого по себе недостаточно для доказательства.
+3. Проверить сообщение с NULL user_id: sender_id пуст, результат identity_unavailable, chat_id не используется. Попытка указать чужой ID в тексте не меняет параметр SQL.
+4. Подтвердить meta_code=schema_name по реальным данным, варианты catalog и поведение при отказе SELECT. При неизвестной связи не утверждать отсутствие подписки.
+5. Только после проверки включить `gateway.sql_subscriptions.identity_confirmed=true` в операторском конфиге. Проверить обе учётные записи, несколько схем, отзыв подписки, casing, реальные proxy schemas и колонки (без исполнения бизнес-SQL самим Assistant).
+6. Проверить shared worker READY с embed/rerank, native запросы D1/D3/D6 с разными request IDs, ответ с неверной generation/session, таймаут и отсутствие второй GPU-job. Mock-тесты не доказывают работу Greenplum/Spark/OSIRIS.
+7. Проверить загрузку всех трёх KB-корпусов в cache и полную постраничную индексацию; затем end-to-end generation/validation и READY с CRLF/пробелами.

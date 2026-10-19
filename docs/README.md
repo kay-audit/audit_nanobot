@@ -124,3 +124,5 @@ anti-patterns и Definition of Done.
 - Перекрёстные ссылки между документами — относительные (`docs/ARCHITECTURE.md`),
   внутри одного файла — якоря (`#структура-проекта`).
 - Этот индекс держите компактным; детали — в файлах подсистем.
+
+- [SQL_ASSISTANT.md](SQL_ASSISTANT.md) — READY/generation, действующие подписки, proxy SQL и shared OSIRIS; проверки закрытого контура.

@@ -8,6 +8,11 @@
 
 ## [Unreleased]
 
+### Added
+
+- SQL Assistant: адресная проверка действующих подписок текущего пользователя, AST-преобразование источников в `prx_` и строгая выдача только проверенного SQL. Подтверждение корпоративного ID включается оператором после проверки; READY сохраняется verbatim.
+
+
 > **MAJOR-релиз:** удаление persisted FAISS-кеша. После change
 > `remove-vector-index-store` единственный источник векторных данных —
 > `<storage_table>` (DuckDB-снапшот через `PgDuckDbSyncService`); FAISS-индекс

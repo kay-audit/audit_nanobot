@@ -824,7 +824,7 @@ class PostgresChannel(BaseChannel):
         user_msg_id = str(row["id"])
         self._leases.add(user_msg_id)
         chat_id = str(row["chat_id"]) if row["chat_id"] else str(row["user_id"])
-        user_id = str(row["user_id"]) if row["user_id"] else chat_id
+        user_id = str(row["user_id"]) if row["user_id"] else ""
         self._lifecycle_log("priority_claimed", user_msg_id, chat_id=chat_id)
 
         # Race-fix: после claim повторно проверяем статус (между SELECT
@@ -1228,7 +1228,7 @@ class PostgresChannel(BaseChannel):
         user_msg_id = str(row["id"])
         self._leases.add(user_msg_id)
         chat_id = str(row["chat_id"]) if row["chat_id"] else str(row["user_id"])
-        user_id = str(row["user_id"]) if row["user_id"] else chat_id
+        user_id = str(row["user_id"]) if row["user_id"] else ""
         self._lifecycle_log("claimed", user_msg_id, chat_id=chat_id)
 
         # user_stop_signal: re-check после claim. Если user-сообщение уже

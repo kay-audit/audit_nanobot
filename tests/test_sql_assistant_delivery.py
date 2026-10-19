@@ -23,8 +23,12 @@ def validation(sql, valid=False):
 class TestDelivery(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.runtime = module.SqlAssistantRuntime(Provider())
+        resolution = SimpleNamespace(allowed=True, rewrite=lambda sql, **kw: sql,
+                                     public_schema=lambda schema: schema,
+                                     public_to_physical={"db.orders": "db.orders"}, report=lambda: {"status": "subscribed"})
+        self.runtime.subscriptions = SimpleNamespace(resolve=AsyncMock(return_value=resolution))
         self.runtime.store.schema_for_tables = Mock(return_value={"db.orders": {"id": "BIGINT"}})
-        self.runtime.describe = AsyncMock(return_value={"tables": [{"id": 1}], "examples": []})
+        self.runtime.describe = AsyncMock(return_value={"tables": [{"id": 1, "table_name": "db.orders"}], "examples": []})
         self.runtime.facts = Mock(return_value={"tables": ["db.orders"]})
 
     async def test_invalid_validation_withholds_sql_and_ast(self):

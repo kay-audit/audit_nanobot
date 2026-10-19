@@ -14,6 +14,7 @@ from lib.services.spark_backend import SparkBackend
 from lib.services.sql_dialects.greenplum import generation_rules as greenplum_rules
 from lib.services.sql_dialects.spark import generation_rules as spark_rules
 from lib.services.sql_static import sql_facts, validate_sql
+from lib.services.subscription_resolver import SubscriptionResolver, configured_resolver
 
 NOT_FOUND = "Подходящий готовый скрипт в базе не найден."
 logger = logging.getLogger(__name__)
@@ -45,13 +46,14 @@ def markdown_fence(sql: str) -> str:
 
 
 class SqlAssistantRuntime:
-    def __init__(self, provider: Any, *, index_root: str | Path | None = None, score_floor: float = 0.4, embedder: Any = None, reranker: Any = None, model_key: str = "default") -> None:
+    def __init__(self, provider: Any, *, index_root: str | Path | None = None, score_floor: float = 0.4, embedder: Any = None, reranker: Any = None, model_key: str = "default", subscription_resolver: SubscriptionResolver | None = None) -> None:
         self.store = KbStore(provider)
         self.index_root = Path(index_root) if index_root else None
         self.score_floor = float(score_floor)
         self.embedder = embedder
         self.reranker = reranker
         self.model_key = model_key
+        self.subscriptions = subscription_resolver or configured_resolver()
 
     def ready(self, prompt: str) -> dict[str, Any]:
         hint = exact_hint(prompt)
@@ -212,8 +214,24 @@ class SqlAssistantRuntime:
 
     async def _validate_for_repair(self, sql: str, *, dialect: str, table_ids: Iterable[Any] = (), live_analyze: bool = False, generated: bool = True, timeout_sec: float = 60.0) -> dict[str, Any]:
         ids = list(table_ids)
+        selected = self.store.tables_by_ids(ids) if ids else []
+        known_ids = {str(row.get("id")) for row in selected}
+        if any(str(value) not in known_ids for value in ids):
+            return {"status": "grounding_error", "valid": False, "sql": "", "issues": [{"code": "unknown_table_id", "message": "Every selected table ID must exist in KB"}], "warnings": []}
         schema = self.store.schema_for_tables(ids) if ids else {}
-        result = validate_sql(sql, dialect=dialect, schema=schema, generated=generated)
+        if not schema or not generated:
+            return {"status": "grounding_error", "valid": False, "sql": "", "issues": [{"code": "grounding_required", "message": "Generated delivery requires selected KB tables and read-only validation"}], "warnings": []}
+        resolution = await self.subscriptions.resolve(schema)
+        if not resolution.allowed:
+            return _subscription_failure(resolution.report())
+        try:
+            from lib.services.sql_dialects.sanitize import sanitize_sql
+            public_sql = resolution.rewrite(sanitize_sql(sql, dialect=dialect), dialect=dialect)
+        except Exception:
+            return {"status": "invalid", "valid": False, "sql": "", "issues": [{"code": "unauthorized_source", "message": "Cannot resolve all external sources within the authorized grounding"}], "warnings": [], "subscriptions": resolution.report()}
+        result = validate_sql(public_sql, dialect=dialect, schema=resolution.public_schema(schema), generated=True)
+        result["subscriptions"] = resolution.report()
+        result["source_mapping"] = resolution.public_to_physical
         result["spark"] = {"status": "not_requested"}
         if result["valid"] and live_analyze and dialect == "spark":
             result["spark"] = await SparkBackend.analyze(result["sql"], timeout_sec=timeout_sec)
@@ -248,11 +266,17 @@ class SqlAssistantRuntime:
         if missing_table_ids or not resolved_tables:
             return {"status": "grounding_error", "error_type": "unknown_table_id", "requested_table_ids": requested_table_ids, "missing_table_ids": missing_table_ids or requested_table_ids, "error": "One or more requested table_ids are absent from the SQL Assistant KB"}
 
+        resolution = await self.subscriptions.resolve(row["table_name"] for row in resolved_tables)
+        if not resolution.allowed:
+            return _delivery_gate(_subscription_failure(resolution.report()))
+
         requested_example_ids = _normalized_ids(example_ids)
         resolved_examples = self.store.examples_by_ids(requested_example_ids) if requested_example_ids else []
         resolved_example_ids = {str(row.get("id")) for row in resolved_examples}
         missing_example_ids = [value for value in requested_example_ids if value not in resolved_example_ids]
         cards = await self.describe(table_ids=requested_table_ids, example_ids=sorted(resolved_example_ids), detail="full", column_query=column_query)
+        forward = {physical: public for public, physical in resolution.public_to_physical.items()}
+        cards["tables"] = [{**card, "physical_table_name": card["table_name"], "table_name": forward[str(card["table_name"]).lower()]} for card in cards["tables"]]
         rules = spark_rules() if dialect == "spark" else greenplum_rules()
         payload = {"question": question, "dialect": dialect, "tables": cards["tables"], "examples": cards["examples"], "prior_sql": prior_sql, "feedback": feedback}
         prompt = rules + "\nReturn only SQL, preferably in a sql markdown fence.\nGrounding:\n" + json.dumps(payload, ensure_ascii=False, default=str)
@@ -286,10 +310,17 @@ class SqlAssistantRuntime:
         if validation["valid"] and validation.get("sql"):
             try:
                 facts = self.facts(validation["sql"], dialect=dialect, table_ids=requested_table_ids, example_ids=sorted(resolved_example_ids))
+                schema = self.store.schema_for_tables(requested_table_ids)
+                public_schema = {public: schema[next(key for key in schema if key.lower() == physical)] for public, physical in validation["source_mapping"].items()}
+                facts.update(sql_facts(validation["sql"], dialect=dialect, schema=public_schema))
             except Exception as exc:
                 facts = {"status": "invalid", "error": str(exc), "error_type": type(exc).__name__}
         public_validation = _delivery_gate(validation)
         return {"status": public_validation["status"], "valid": public_validation["valid"], "publishable": public_validation["publishable"], "sql": public_validation["sql"], "delivery": public_validation["delivery"], "validation": public_validation, "repair_attempts": attempts, "facts": facts, "missing_example_ids": missing_example_ids, "grounding_warnings": ([{"code": "unknown_example_id", "ids": missing_example_ids}] if missing_example_ids else [])}
+
+
+def _subscription_failure(report: dict[str, Any]) -> dict[str, Any]:
+    return {"status": "subscription_blocked", "valid": False, "sql": "", "issues": [{"code": "subscriptions_unresolved", "message": "Не все подписки подтверждены. Сообщи статусы каждого источника и реальные варианты оформления; не выдавай SQL и не считай ошибку проверки отсутствием подписки."}], "warnings": [], "subscriptions": report}
 
 
 def _delivery_gate(validation: Mapping[str, Any]) -> dict[str, Any]:

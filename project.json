@@ -432,6 +432,11 @@
       "live_timeout_sec": 30
     },
 
+    "sql_subscriptions": {
+      "identity_confirmed": false,
+      "catalog_mapping_confirmed": true
+    },
+
     "sql_generate": {
       "enable": true,
       "max_repairs": 2,

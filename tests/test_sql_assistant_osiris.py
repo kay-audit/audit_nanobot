@@ -79,7 +79,8 @@ class TestOsirisAdapter(unittest.TestCase):
     def test_request_uses_existing_transport_without_auto_recovery(self):
         with patch.object(module, "service_status", return_value={"heartbeat ready": True, "Osiris state": "running"}), patch.object(ServiceProfile, "heartbeat_ready", return_value=True), patch.object(ServiceProfile, "read_heartbeat", return_value={}), patch.object(transport, "submit_request", return_value="request") as submit, patch.object(transport, "wait_result", return_value={"fake": True}) as wait:
             self.assertEqual(self.models._request("embed", "", {"items": []}), {"fake": True})
-        self.assertEqual(submit.call_args.args[0].job_name, "srbd3")
+        profile = submit.call_args.args[0]
+        self.assertEqual(profile.job_name, "nanobot-shared" if getattr(profile, "deployment", None) else "srbd3")
         self.assertFalse(wait.call_args.kwargs["auto_recover"])
 
     def test_timeout_has_no_local_model_fallback(self):
@@ -119,7 +120,7 @@ class TestExistingWorker(unittest.TestCase):
         for kind in ("embed", "rerank"):
             with self.subTest(kind=kind), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
-                profile = ServiceProfile("appeals", "srbd3", "", "", "existing-worker", 1, root, ("embed", "rerank"))
+                profile = ServiceProfile("appeals", "srbd3", "test-image", "common", "existing-worker", 1, root, ("embed", "rerank"))
                 payload = {"model": "BAAI/bge-m3" if kind == "embed" else "BAAI/bge-reranker-v2-m3",
                            "items": [{"id": "0", "text": "monthly"}], "response_format": "records"}
                 request_id = transport.submit_request(profile, "test", kind, "query", payload)

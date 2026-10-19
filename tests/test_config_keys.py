@@ -168,6 +168,8 @@ def _required_keys():
         ("gateway.kb_describe.enable", True),
         ("gateway.kb_describe.max_columns", 50),
         ("gateway.kb_describe.live_timeout_sec", 30),
+        ("gateway.sql_subscriptions.identity_confirmed", False),
+        ("gateway.sql_subscriptions.catalog_mapping_confirmed", True),
         ("gateway.sql_generate.enable", True),
         ("gateway.sql_generate.max_repairs", 2),
         ("gateway.sql_generate.timeout_sec", 180),
