@@ -19,6 +19,88 @@ from utils import bge_search_engine as bge
 from utils.session_extract_manager import set_session_extract,get_session_extract
 from preset_analysis.slices import render_slices
 import pytest
+from types import SimpleNamespace
+from utils.resolve.request_plan import RequestPlan
+from preset_analysis import slices as slice_report
+
+
+def _slice_hit(column, value):
+    return {'category': 'responsibility', 'column': column, 'value': value, 'op': 'eq'}
+
+
+@pytest.mark.parametrize('column', sorted(slice_report.SLICE_COLUMNS))
+def test_slices_use_actual_hit_column_and_count_unique_statuses(column):
+    first, second = 'П1234 Эквайринг торговый', 'П2608 Эквайринг интернет'
+    df = pd.DataFrame({
+        column: [first, first, first, second, second, None],
+        'incdnt_sid': ['EVE-1', 'EVE-1', 'EVE-2', 'EVE-3', 'EVE-4', 'EVE-5'],
+        'incdnt_status_name': ['Утверждён', 'Утверждён', 'Черновик', 'Утверждение', 'Утвержден', 'Утверждён'],
+    })
+    if column != 'funct_block_lvl_3_name':
+        df['funct_block_lvl_3_name'] = 'Другой функциональный блок'
+    before = df.copy(deep=True)
+    plan = RequestPlan('ior_hypothesis', hits=[_slice_hit(column, first), _slice_hit(column, second)])
+    text = render_slices(df, plan)
+    sections = text.split('#### ')[1:]
+    assert len(sections) == 2
+    for section, value, approved in zip(sections, [first, second], [1, 2]):
+        expected = df.loc[df[column].eq(value), 'incdnt_sid'].nunique()
+        assert section.startswith(value)
+        assert f'Уникальных ИОР в срезе (все статусы): {expected}.' in section
+        assert f'Из них утверждённых: {approved}.' in section
+        assert f'**Количество ИОР в полной выборке**: {expected}' in section
+    pd.testing.assert_frame_equal(df, before)
+
+
+def test_slices_keep_or_within_columns_and_and_with_other_columns_and_period():
+    df = pd.DataFrame({
+        'incdnt_sid': ['EVE-' + str(i) for i in range(7)],
+        'incdnt_status_name': ['Утверждён'] * 7,
+        'process_lvl_4_name': ['П1 Эквайринг', 'П2 Эквайринг', 'П1 Эквайринг', 'П2 Эквайринг', 'П1 Эквайринг', 'П3 Иное', 'П1 Эквайринг'],
+        'org_struct_lvl_4_name': ['Место А', 'Место Б', 'Чужое', 'Место А', 'Место Б', 'Место А', 'Место А'],
+        'risk_profile_id': ['DRP-1', 'DRP-2', 'DRP-1', 'DRP-3', 'DRP-2', 'DRP-1', 'DRP-1'],
+        'incdnt_entry_dt': ['2025-01-01', '2025-07-01', '2025-01-02', '2025-01-02', '2024-01-01', '2025-01-01', '2025-04-01'],
+    })
+    hits = [_slice_hit(column, value) for column, values in {
+        'process_lvl_4_name': ['П1 Эквайринг', 'П2 Эквайринг'],
+        'org_struct_lvl_4_name': ['Место А', 'Место Б'],
+        'risk_profile_id': ['DRP-1', 'DRP-2'],
+    }.items() for value in values]
+    period = parse_period('за Q1 и Q3 2025')
+    text = render_slices(df, RequestPlan('ior_hypothesis', period=period, hits=hits))
+    sections = text.split('#### ')[1:]
+    assert len(sections) == 8
+    assert all('Уникальных ИОР в срезе (все статусы): 1.' in section for section in sections)
+    assert all('Из них утверждённых: 1.' in section for section in sections)
+    for label in ['П1 Эквайринг', 'П2 Эквайринг', 'Место А', 'Место Б', 'DRP-1', 'DRP-2', 'Q1 2025', 'Q3 2025']:
+        assert any(section.startswith(label) for section in sections)
+
+
+def test_slices_limit_text_only_and_do_not_prepare_omitted_processes():
+    values = [f'П{i:04d} Эквайринг' for i in range(150)]
+    df = pd.DataFrame({'process_lvl_4_name': values, 'incdnt_sid': values})
+    plan = RequestPlan('ior_hypothesis', hits=[_slice_hit('process_lvl_4_name', value) for value in values])
+    analyzer = Mock()
+    analyzer.prepare.return_value = SimpleNamespace(incident_all_df=df.iloc[:1], approved_count=1, full_header='Заголовок')
+    with patch.object(slice_report, 'get_analyzer', return_value=analyzer):
+        text = render_slices(df, plan)
+    assert analyzer.prepare.call_count == slice_report.MAX_TEXT_SLICES
+    assert len(text) <= slice_report.MAX_TEXT_CHARS
+    assert 'Показано срезов: 20 из 150' in text
+    assert len(df) == len(plan.hits) == 150
+    for i, call in enumerate(analyzer.prepare.call_args_list):
+        assert call.args[0].incdnt_sid.tolist() == [values[i]]
+
+
+def test_slices_character_budget_reports_omissions():
+    df = pd.DataFrame({'process_lvl_4_name': ['П1', 'П2']})
+    plan = RequestPlan('ior_hypothesis', hits=[_slice_hit('process_lvl_4_name', value) for value in df.process_lvl_4_name])
+    analyzer = Mock()
+    analyzer.prepare.return_value = SimpleNamespace(incident_all_df=df.iloc[:1], approved_count=0, full_header='Я' * 30000)
+    with patch.object(slice_report, 'get_analyzer', return_value=analyzer):
+        text = render_slices(df, plan)
+    assert len(text) <= slice_report.MAX_TEXT_CHARS
+    assert 'Показано срезов: 0 из 2' in text
 
 CAT={ground.ORIGIN:['Среднерусский банк','Московская региональная дирекция','Риски','Люди и культура'],
      ground.RESPONSIBILITY:['Риски','Люди и культура']}
