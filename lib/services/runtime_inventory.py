@@ -189,6 +189,13 @@ def canonical_project_tools() -> list[ToolSpec]:
             config_key="tools.vector_search.enable",
         ),
         ToolSpec(
+            name="legal_summarizer_history",
+            module="legal_summarizer_history",
+            required=True,
+            description="история изменений закона и доставка отчёта текущей сессии",
+            config_key="tools.legal_summarizer_history.enable",
+        ),
+        ToolSpec(
             name="legal_summarizer_query",
             module="legal_summarizer_query",
             required=True,

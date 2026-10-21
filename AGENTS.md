@@ -71,6 +71,8 @@
 
 ## File Storage Policy
 
+- D7 history: `workspace/tools/legal_summarizer_history.py` — доверенный dispatcher и media-доставка; новые `scripts/{application,cache,document,llm,output}/history.py`, `document/history_archive.py`, `cli_history.py` внутри legal_summarizer. Policy `skills.legal_summarizer.history` валидируется `SkillHistorySettings`; `tools.legal_summarizer_history` задаёт enable/timeout_sec. Background worker использует общий LLM и SessionFileStore; OSIRIS/GPU job не создаётся. Контракт — `references/doc_history.md` навыка.
+
 - `workspace/utils/osiris_runtime/` — общий OSIRIS lifecycle/NFS transport (перенос из `d3_nanobot` без изменений). IOR использует отдельный `ServiceProfile` и worker; контракт — `workspace/skills/ior-analyzer/knowledge_base/RUNTIME_CONTRACT.md`. Gateway не загружает BGE/reranker.
 
 - `workspace/utils/osiris_runtime/` — общий OSIRIS backend: `ServiceRegistry`,

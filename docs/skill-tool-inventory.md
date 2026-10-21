@@ -115,3 +115,12 @@ Process/baseline/inventory-артефакты перенесены в [`_archive
 [`CHANGELOG.md`](../CHANGELOG.md).
 
 SQL Assistant: `workspace/skills/sql_assistant/`, шесть tools в `workspace/tools/`, KbStore и SqlAssistantRuntime; действующие подписки через SubscriptionResolver. READY verbatim отдельно от generation/validation.
+
+## D7: история изменений закона
+
+`legal_summarizer_history` — добавочный native tool (`workspace/tools/legal_summarizer_history.py`).
+Выбор одной пары закон/обзор, проверка ZIP/DOCX, фон и semantic batches живут
+в skill; tool владеет RequestContext, проверкой session paths и вызовом
+MessageTool(media=...). Конфигурация `skills.legal_summarizer.history` и
+`tools.legal_summarizer_history`; старый legal_summarizer_query не меняется.
+См. `workspace/skills/legal_summarizer/references/doc_history.md`.

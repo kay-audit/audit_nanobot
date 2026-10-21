@@ -311,6 +311,16 @@
     // -------------------------------------------------------------------------
     "legal_summarizer": {
       "enabled": true,
+      "history": {
+        "batch_input_ratio": 0.45,
+        "max_output_tokens": 4096,
+        "max_retries": 2,
+        "chars_per_token": 3.5,
+        "safety_margin_ratio": 0.15,
+        "event_max_chars": 12000,
+        "timeout_sec": 120,
+        "temperature": 0.1
+      },
 
       "cli": {                                       // legal_summarize --length ...
         "default_length": "brief",                   // brief | detailed (medium удалён в Phase 2B+)
@@ -755,6 +765,7 @@
     }
   },
   "tools": {
+    "legal_summarizer_history": {"enable": true, "timeout_sec": 60},
     "follow_up": {
       "enable": true
     },

@@ -21,11 +21,18 @@ integration:
   - branch: feature/osiris
     sha: 4fa10d27da83ac9b9ac9b588dfc0cae0c5c4b24a
     manifest: workspace/data_store/cache/sessions/finalize_nanobot_20261015/evidence/feature-osiris.yaml
+  - branch: feature/d7_finalizer
+    sha: 8c89e232f51b3409bb892631b80efe09673b08e6
+    inventory: docs/d7-history-integration.md
 requires:
   nanobot_version: '>=2.5.4'
   system_deps:
   - python>=3.14
 skills:
+- name: legal_summarizer
+  path: workspace/skills/legal_summarizer
+  pattern: full
+  config_section: skills.legal_summarizer
 - name: ior-analyzer
   path: workspace/skills/ior-analyzer
   pattern: full
@@ -39,6 +46,10 @@ skills:
   pattern: full
   config_section: skills.appeals_analyzer
 tools:
+- name: legal_summarizer_history
+  path: workspace/tools/legal_summarizer_history.py
+  config_key: legal_summarizer_history
+  config_section: tools.legal_summarizer_history
 - name: ior_analyzer
   path: workspace/tools/ior_analyzer.py
   config_key: ior_analyzer
@@ -202,3 +213,13 @@ tests:
 - path: tests/test_tools_appeals_analyzer.py
 - path: tests/test_osiris_runtime.py
 - path: tests/test_tools_osiris.py
+
+legal_summarizer_history_integration:
+  base: e6ce974a791f7cbe5f350d35615e9873487fe928
+  source_commits:
+  - b23cef21ce397bad4800b0c28e2f9eaefbb46452
+  - 8c89e232f51b3409bb892631b80efe09673b08e6
+  apply_method: reviewed_cherry_pick
+  old_skill_tree: ff2869ae985d52322ec8c19175908b47bbc53e3d
+  real_model_e2e: not_executed
+  new_gpu_jobs: 0

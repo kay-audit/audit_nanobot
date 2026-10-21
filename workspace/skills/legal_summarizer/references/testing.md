@@ -118,3 +118,15 @@ Estimator (`application/estimation.py`) и actual reducer
 python scripts/cli.py --help
 python scripts/cli_query.py --operation-id <id> --field stats
 ```
+## Добавочные проверки истории изменений
+
+См. [doc_history.md](doc_history.md). Четыре теста архива плюс
+`test_history_security_delivery.py` проверяют синтетические DOCX/ZIP,
+фоновый CLI с mock LLM, независимые батчи, resume, OS lock и реальные
+MessageTool outbound media. Реальные ConsultantPlus fixtures опциональны.
+Это не real-model E2E. В серверном сценарии обязателен RequestContext.
+Для pytest явно инициализируйте `config._initialize_settings("test")`:
+workspace-тесты не наследуют `tests/conftest.py`. На Windows используйте
+короткий basetemp в TEMP, чтобы не смешивать MAX_PATH с регрессиями кода.
+В baseline перед D7: 762 passed, 24 failed, 1 skipped; старые падения
+сохранены в отчёте, тесты не отключены и summary-алгоритм не переписан.
