@@ -5,7 +5,8 @@
 
 ## Project Layout
 
-- `lib/services/subscription_resolver.py` — адресное разрешение действующих подписок D1, trusted RequestContext и AST mapping; без кэша пользовательских данных.
+- `lib/services/manual_snapshots.py` — полные ручные группы общего DuckDB-снимка, manifest/UTC/generation, восстановление и приватный адресный API; `tools/refresh_d1_subscriptions.py` — операторская атомарная публикация двух справочников из GP/offline при остановленном gateway.
+- `lib/services/subscription_resolver.py` — адресное разрешение действующих подписок D1, trusted RequestContext и AST mapping; только внутренний API общего DuckDB manual snapshot, без runtime GP.
 
 - `lib/` — кастомные сервисы поверх библиотеки `nanobot 0.3.0` (core/cli/lifecycle/services/session/channels/utils + hooks).
   - `lib/hooks/` — фреймворковые хуки (общий каркас `base_tool_tracking`, `tool_audit`, `database_logging` + `terminal_tool_print`), провязываются явно через `AgentFactory`/`ApplicationContext`.

@@ -63,6 +63,12 @@ class IndexIntegrityError(Exception):
 class CacheProvider(ABC):
     """Абстрактный провайдер кэша данных (SQL-кеш + векторные индексы)."""
 
+    def read_manual_snapshot(self, group: str, queries: list) -> dict:
+        """Internal private-resource capability, unavailable unless implemented by storage."""
+        from lib.services.manual_snapshots import SnapshotUnavailable
+        raise SnapshotUnavailable("This cache provider does not support private manual snapshots")
+
+
     # -- lifecycle ------------------------------------------------------
 
     @abstractmethod

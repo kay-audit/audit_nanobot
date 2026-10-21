@@ -302,17 +302,100 @@ examples, but does not fabricate missing golden labels.
 
 ## Подписки пользователей
 
-`lib/services/subscription_resolver.py` разрешает физическую схему в подписную. Два адресных SELECT через общий `workspace.utils.db.fetch` читают только действующие подписки текущего пользователя и каталог необходимых отсутствующих схем. Пользовательские ID и подписки не сохраняются в KB, DuckDB, FAISS или общем кэше. Состояние resolver не содержит результат предыдущего запроса.
+`SubscriptionResolver` читает только внедрённый общий `CacheProvider.read_manual_snapshot`: адресные параметризованные SELECT в DuckDB, без `workspace.utils.db.fetch`, собственных соединений GP и fallback. Одна блокировка связывает оба чтения с одной generation. Результаты читаются полностью, без `max_rows`; весь реестр не передаётся LLM. Результат не сохраняется между пользовательскими запросами.
 
-Идентичность берётся только из `RequestContext.sender_id` канала postgres: непустая строка из ASCII-цифр (1–32), без параметров tool или текста пользователя. PostgresChannel передаёт настоящий `user_id`; при отсутствии отправляет пустой sender_id, никогда chat_id. Бизнес-соответствие user_id=sudir_login ещё требует проверки оператором; `gateway.sql_subscriptions.identity_confirmed` по умолчанию false. До подтверждения generation/validate возвращают identity_unavailable, не проверяют подписки и не публикуют SQL. `catalog_mapping_confirmed=true` отражает подтверждённое пользователем правило meta_code=schema_name.
+Доверенная идентичность — только `RequestContext.sender_id` канала postgres, строка из 1–32 ASCII-цифр, полученная из настоящего user_id. Нет fallback на chat_id или ID из текста/tool. `gateway.sql_subscriptions.identity_confirmed=false` остаётся значением по умолчанию до проверки user_id=sudir_login на закрытом контуре. До подтверждения возвращается identity_unavailable без prx_-имён. `catalog_mapping_confirmed=true` отражает согласованное meta_code=schema_name.
 
-После подтверждения выполняется `sudir_login = %s AND lower(schema_name) = ANY(%s)`. Статус подписки отдельно не фильтруется: вьюха уже содержит только действующие. Один schema access покрывает все её таблицы. Среди действующих алиасов выбирается первый lowercase в сортировке; альтернативы сохраняются. Для отсутствующих схем каталог запрашивается по `lower(meta_code) = ANY(%s)`. Возвращаются все реальные варианты sub_name/sub_alias; они не используются в SQL до оформления.
+Два ручных ресурса общего кэша:
 
-Результаты: subscribed, not_subscribed (только успешное чтение active и найденные варианты catalog), identity_unavailable, catalog_unavailable, subscription_check_error, subscription_mapping_unknown (нет связи каталога или некорректные идентификаторы). Неизвестное состояние блокирует выдачу, не означает отсутствия подписки. Сообщаются проблемы всех выбранных источников.
+| Источник в s_grnplm_ld_audit_da_sandbox_oarb | Известные поля |
+|---|---|
+| dvb_kav_user_subs | ipa_login, sudir_login, schema_name, sub_alias |
+| dvb_kav_subs_list | meta_code, sub_alias, sub_name |
 
-`SubscriptionResolution.rewrite` изменяет scoped external tables AST и schema-qualified column references; литералы, комментарии и CTE-ссылки не заменяются текстом. Выход: `prx_<действующий alias>_<physical schema>.<table>` в lowercase. Чужие алиасы, catalog-qualified и неподтверждённые источники отклоняются. `public_to_physical` сохраняет соответствие с KB; валидатор получает копию KB-колонок и типов под разрешёнными public-ключами. Физические данные KB не меняются.
+Первый источник содержит только действующие подписки на момент загрузки. PK, ID и updated_at не предполагаются. `dvb_kav_repl_test` остаётся bootstrap-источником KB. Подписки зарегистрированы с `sync_mode=manual_snapshot` и отдельными label; они исключены из polling и BGE/FAISS. Три прежние KB-таблицы и глобальные интервалы синхронизации сохраняют прежнее поведение.
 
-Проверка выполняется до LLM и повторно при валидации/repair. Даже `generated=false` или отсутствие table_ids не позволяют обойти generated delivery gate. READY возвращает исходный SQL verbatim и не вызывает resolver.
+Адресные запросы внутри resolver (параметры `[login, schemas]` и `[schemas]`, где schemas — список lowercase схем):
+
+```sql
+SELECT schema_name, sub_alias
+FROM s_grnplm_ld_audit_da_sandbox_oarb.dvb_kav_user_subs
+WHERE sudir_login = ? AND lower(schema_name) = ANY(?);
+
+SELECT meta_code, sub_alias, sub_name
+FROM s_grnplm_ld_audit_da_sandbox_oarb.dvb_kav_subs_list
+WHERE lower(meta_code) = ANY(?);
+```
+
+Одна подписка покрывает все таблицы схемы. Алиас выбирается лексикографически среди lowercase-алиасов данного пользователя; чужие записи не участвуют. Допустим компонент `16_dea_unit_channel`: итоговое имя `prx_16_dea_unit_channel_<schema>.<table>` начинается с prx_. AST mapping и проверки колонок по физическим KB-метаданным сохраняются. Проверка выполняется до LLM и повторяется при validation/repair. READY возвращает исходный SQL verbatim без resolver. Assistant не исполняет бизнес-SQL.
+
+Статусы: subscribed, not_subscribed, identity_unavailable, subscription_cache_unavailable, subscription_check_error, subscription_mapping_unknown; catalog_unavailable сохранён в контракте. not_subscribed допустим только после успешной проверки полного снимка с реальными вариантами оформления. Сообщение: «По данным последнего обновления справочника подписок, подписка на указанную схему не найдена. Если вы уже оформили подписку, сведения могут обновиться после следующей загрузки данных». `subscriptions.snapshot.refreshed_at` и generation поступают из фактических метаданных; покажите время пользователю. При отсутствии/повреждении таблиц или manifest возвращается технический отказ без произвольных prx_-имён.
+
+### Первоначальная загрузка и ручное обновление
+
+Снимок хранится по общему `gateway.cache.local_path`, иначе `~/.cache/nanobot/duckdb/cache.duckdb` (резолвер `resolve_publish_path`). Это общий файл Nanobot, отдельная постоянная БД D1 не создаётся. Запускайте команды из корня нужной ветки с её окружением Python.
+
+1. Остановить **все** gateway/CLI-owner и reader-процессы, использующие этот файл. Убедиться, что супервизор их не перезапустит во время обслуживания. Сделать защищённую резервную копию существующего снимка. `--gateway-stopped` — явное подтверждение оператора, автоматического fencing живого gateway у команды нет.
+2. На разрешённом контуре проверить `information_schema.columns` и права SELECT на перечисленные поля. Локальные mock-тесты не подтверждают фактическую корпоративную схему. Начальная загрузка и последующие обновления выполняются одной командой:
+
+```bash
+python -m tools.refresh_d1_subscriptions --profile prod --gp --gateway-stopped
+```
+
+DSN берётся существующим `_pg_admin` resolver из настроек профиля, секреты в CLI не передаются. Оба источника читаются server-side курсорами в одной read-only REPEATABLE READ транзакции, с COUNT и контролем полноты. Это отдельная операторская операция, не runtime пользовательского диалога.
+
+3. Если GP недоступен загрузчику, получить полный разрешённый JSON-пакет и опубликовать офлайн:
+
+```bash
+python -m tools.refresh_d1_subscriptions --snapshot /secure/cache/cache.duckdb --offline-json /secure/input/subscriptions.json --gateway-stopped
+```
+
+Вместо `--snapshot` можно указать `--profile prod`, чтобы резолвить общий путь. Явный `--snapshot` вместе с offline не требует соединения GP. Формат пакета:
+
+```json
+{
+  "format_version": 1,
+  "complete": true,
+  "tables": {
+    "s_grnplm_ld_audit_da_sandbox_oarb.dvb_kav_user_subs": {
+      "columns": ["ipa_login", "sudir_login", "schema_name", "sub_alias"],
+      "rows": [], "row_count": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "s_grnplm_ld_audit_da_sandbox_oarb.dvb_kav_subs_list": {
+      "columns": ["meta_code", "sub_alias", "sub_name"],
+      "rows": [], "row_count": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    }
+  }
+}
+```
+
+Это только описание формата пустого пакета; **не загружайте его как замену реестра при ошибке экспорта**. `rows` — массив объектов с точным набором полей. SHA256 вычисляется `tools.refresh_d1_subscriptions.rows_digest(rows)` от UTF-8 JSON с sort_keys=True, ensure_ascii=False и separators=(",", ":"). Экспортёр обязан удостоверить полноту обоих наборов; checksum подтверждает целостность передачи, не подлинность источника. Применяйте ACL и доверенный канал доставки. Пустые данные допускаются только как явно подтверждённый полный снимок, ошибка чтения не становится пустым набором.
+
+4. Команда копирует **все** прежние таблицы общего снимка во временную БД в памяти, полностью заменяет два справочника в одной транзакции, записывает реальное UTC время, generation и row_count. Публикует через штатный `DuckDbCacheStore.publish` с временным файлом и атомарной заменой. Добавления и удаления отражаются целиком; остальные таблицы сохраняются. Ошибка источника/проверки/публикации возвращает exit 2 и сохраняет прежний файл. Lock-файл предотвращает параллельные ручные обновления; fingerprint проверяет изменение файла перед публикацией. После аварийного завершения stale lock удаляет оператор только после проверки отсутствия процесса и сохранности прежнего снимка.
+5. Проверить exit 0, status=published, оба row_count, generation и refreshed_at. Запустить gateway заново. Уже работающий in-memory owner не перечитывает новый снимок автоматически; перезапуск обязателен. При запуске ручные таблицы восстанавливаются из опубликованного файла и сохраняются при последующих обычных публикациях. Перестраивать KB и эмбеддинги из-за подписок не требуется; штатный startup векторов остаётся без изменений.
+
+### Операторская проверка и диагностика
+
+Только в доверенном административном DuckDB-сеансе, пока gateway остановлен, открыть общий файл READ_ONLY и выполнить:
+
+```sql
+SELECT table_schema, table_name FROM information_schema.tables
+WHERE table_schema = 's_grnplm_ld_audit_da_sandbox_oarb';
+SELECT COUNT(*) FROM s_grnplm_ld_audit_da_sandbox_oarb.dvb_kav_user_subs;
+SELECT COUNT(*) FROM s_grnplm_ld_audit_da_sandbox_oarb.dvb_kav_subs_list;
+SELECT generation, refreshed_at, resources
+FROM __nanobot_meta.manual_snapshots WHERE group_name='d1_subscriptions';
+```
+
+Для адресной проверки используйте два параметризованных запроса выше с тестовым доверенным ID. Не выгружайте сотрудников в журналы/чат. Generic `duckdb_query`, execute_readonly, explain и get_schema блокируют/скрывают ручные ресурсы; внутренний read_manual_snapshot доступен только детерминированному resolver. Файл содержит реестр всех сотрудников: ограничьте ACL, резервные копии и доступ к файловым/exec/admin-инструментам агента. API-защита SQL не заменяет файловые права.
+
+Если статус subscription_cache_unavailable: проверить общий путь, права, manifest и оба набора, counts и колонки. Восстановить последний корректный полный файл либо повторить разрешённый refresh; затем перезапустить gateway. Не включать GP fallback и не считать пользователя неподписанным. При вновь оформленной подписке сообщить дату используемой копии и запросить у оператора очередное полное обновление. До него прежний результат ожидаем.
+
+Для подтверждения отсутствия runtime GP включить аудит БД/соединений в закрытом контуре, выполнить generation, validation и повторный запрос двух пользователей, убедиться в отсутствии SELECT к двум справочникам от gateway. Отдельный штатный PG→DuckDB sync KB продолжает работать; проверять именно подписные таблицы. Локальные тесты подменяют `workspace.utils.db.fetch` аварийным mock и проверяют эти пути.
+
+Ручная актуализация может сохранять **отозванную** подписку до следующего refresh. D1 не является самостоятельной системой авторизации: фактические права контролируются целевой БД. Регламент частоты ручного обновления, доверие к экспорту и момент отзыва доступа определяет оператор. Автоматический TTL/GP refresh не вводится.
 
 ## Shared OSIRIS при интеграции
 
@@ -323,7 +406,7 @@ examples, but does not fabricate missing golden labels.
 1. Проверить `information_schema.columns` и права SELECT на dvb_kav_repl_test, dvb_kav_subs_list и dvb_kav_user_subs. Подтвердить реальные типы schema_name, sub_alias, sub_name, meta_code и строковый sudir_login; новые колонки не предполагаются. DDL из sql/sql_assistant поставляется для согласованного применения оператором, локальная разработка его не применяет.
 2. Отправить сообщение из двух тестовых корпоративных учётных записей и сопоставить настоящий agent_conversation_messages.user_id с RequestContext.sender_id и их sudir_login в dvb_kav_user_subs. Использовать известные учётные записи с разными активными алиасами одной схемы; числового формата самого по себе недостаточно для доказательства.
 3. Проверить сообщение с NULL user_id: sender_id пуст, результат identity_unavailable, chat_id не используется. Попытка указать чужой ID в тексте не меняет параметр SQL.
-4. Подтвердить meta_code=schema_name по реальным данным, варианты catalog и поведение при отказе SELECT. При неизвестной связи не утверждать отсутствие подписки.
-5. Только после проверки включить `gateway.sql_subscriptions.identity_confirmed=true` в операторском конфиге. Проверить обе учётные записи, несколько схем, отзыв подписки, casing, реальные proxy schemas и колонки (без исполнения бизнес-SQL самим Assistant).
+4. Подтвердить meta_code=schema_name по реальным данным, варианты catalog и поведение при неполном/недоступном снимке. При неизвестной связи не утверждать отсутствие подписки.
+5. Только после проверки включить `gateway.sql_subscriptions.identity_confirmed=true` в операторском конфиге. Проверить обе учётные записи, несколько схем, оформление и отзыв подписки до/после ручного refresh, casing, реальные proxy schemas и колонки (без исполнения бизнес-SQL самим Assistant).
 6. Проверить shared worker READY с embed/rerank, native запросы D1/D3/D6 с разными request IDs, ответ с неверной generation/session, таймаут и отсутствие второй GPU-job. Mock-тесты не доказывают работу Greenplum/Spark/OSIRIS.
 7. Проверить загрузку всех трёх KB-корпусов в cache и полную постраничную индексацию; затем end-to-end generation/validation и READY с CRLF/пробелами.

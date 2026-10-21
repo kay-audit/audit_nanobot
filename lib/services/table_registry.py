@@ -46,6 +46,7 @@ class TableResource:
         name: полное имя таблицы в формате ``schema.table``.
         tracking_column: колонка для инкрементального отслеживания изменений
             (обычно ``updated_at``). ``None`` → дефолт ``updated_at``.
+        sync_mode: incremental (по умолчанию) либо manual_snapshot без tracking/PK.
         label: opaque-метка. Если задана, таблица исключается из описания
             схемы для LLM (см. ``skill_config.get_db_tables()``) и доступна
             только через ``TableRegistry.resources_by_label()``.
@@ -54,8 +55,13 @@ class TableResource:
     name: str
     tracking_column: str | None = None
     label: str | None = None
+    sync_mode: str = "incremental"
 
     def __post_init__(self) -> None:
+        if self.sync_mode not in {"incremental", "manual_snapshot"}:
+            raise ValueError("Unknown resource sync_mode")
+        if self.sync_mode == "manual_snapshot" and (self.tracking_column is not None or not self.label):
+            raise ValueError("Manual snapshots require a label and no tracking column")
         if not self.name or "." not in self.name:
             raise ValueError(
                 f"TableResource.name должен быть в формате 'schema.table', "

@@ -922,7 +922,8 @@ def _make_sync_services(ctx: ApplicationContext) -> tuple:
     # ``remove-vector-index-store`` persisted FAISS-кеш удалён; FAISS-индекс
     # собирается в памяти из DuckDB-снапшота storage_table (preload_indexes
     # при старте gateway).
-    sync_tables = list(dict.fromkeys(all_table_names + vector_names))
+    manual_names = {r.name for r in table_registry.table_resources() if getattr(r, "sync_mode", "") == "manual_snapshot"}
+    sync_tables = [t for t in dict.fromkeys(all_table_names + vector_names) if t not in manual_names]
 
     store = DuckDbCacheStore(
         cache_path="",

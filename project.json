@@ -308,6 +308,9 @@
     "sql_assistant": {
       "enabled": true,
       "tables": [
+
+        {"name": "s_grnplm_ld_audit_da_sandbox_oarb.dvb_kav_user_subs", "label": "subscriptions_private", "sync_mode": "manual_snapshot"},
+        {"name": "s_grnplm_ld_audit_da_sandbox_oarb.dvb_kav_subs_list", "label": "subscriptions_catalog", "sync_mode": "manual_snapshot"},
         {"name": "s_grnplm_ld_audit_da_project_34.kb_tables", "label": "kb_tables", "tracking_column": "updated_at"},
         {"name": "s_grnplm_ld_audit_da_project_34.kb_columns", "label": "kb_columns", "tracking_column": "updated_at"},
         {"name": "s_grnplm_ld_audit_da_project_34.kb_examples", "label": "kb_examples", "tracking_column": "updated_at"}

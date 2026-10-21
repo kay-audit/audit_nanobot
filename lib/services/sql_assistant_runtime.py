@@ -53,7 +53,7 @@ class SqlAssistantRuntime:
         self.embedder = embedder
         self.reranker = reranker
         self.model_key = model_key
-        self.subscriptions = subscription_resolver or configured_resolver()
+        self.subscriptions = subscription_resolver or configured_resolver(provider)
 
     def ready(self, prompt: str) -> dict[str, Any]:
         hint = exact_hint(prompt)

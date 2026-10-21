@@ -22,11 +22,11 @@
 
 ### Requirement: различение ошибок
 
-Система SHALL различать subscribed, not_subscribed, identity_unavailable, catalog_unavailable, subscription_check_error и subscription_mapping_unknown.
+Система SHALL различать subscribed, not_subscribed, identity_unavailable, catalog_unavailable, subscription_check_error subscription_cache_unavailable и subscription_mapping_unknown.
 
 #### Scenario: каталог недоступен
 - **WHEN** чтение каталога подписок завершается ошибкой
-- **THEN** возвращается catalog_unavailable и SQL не публикуется.
+- **THEN** возвращается subscription_cache_unavailable для отсутствующего/неполного снимка либо subscription_check_error для ошибки чтения; SQL не публикуется.
 
 #### Scenario: отсутствующие подписки
 - **WHEN** для нескольких схем не найдены действующие подписки, но найдены реальные варианты каталога
@@ -49,6 +49,20 @@
 - **THEN** его SQL возвращается посимвольно без преобразования подписных схем.
 
 
+### Requirement: только локальный снимок
+SQL Assistant SHALL читать подписки из инъецированного общего DuckDB-кэша параметризованными запросами без GP fallback и без усечения результатов.
+
+#### Scenario: новая подписка после загрузки
+- **WHEN** подписка отсутствует в последнем успешном снимке
+- **THEN** ответ сообщает дату снимка и возможность появления подписки после ручного обновления.
+
+### Requirement: алиас с числовым началом
+SQL Assistant SHALL принимать безопасные sub_alias, начинающиеся с цифры, как компонент полного prx_-идентификатора.
+
+#### Scenario: реальный числовой алиас
+- **WHEN** действующий алиас равен 16_dea_unit_channel
+- **THEN** создаётся lowercase prx_16_dea_unit_channel_<schema> без изменения литералов SQL.
+
 ## Назначение
 
 Разрешение доступа текущего пользователя к физическим схемам KB.
@@ -59,7 +73,7 @@
 
 ## Граница
 
-Owns: SubscriptionResolution. Does not own: регистрацию tool, корпоративную идентификацию и lifecycle БД. May depend on: RequestContext, workspace.utils.db, sqlglot. Must not depend on: LLM-ответы и пользовательский текст для идентификации.
+Owns: SubscriptionResolution. Does not own: регистрацию tool, корпоративную идентификацию и lifecycle БД. May depend on: RequestContext, CacheProvider.read_manual_snapshot, sqlglot. Must not depend on: LLM-ответы и пользовательский текст для идентификации.
 
 ## Публичный контракт
 
@@ -67,11 +81,11 @@ SubscriptionResolver.resolve(table_names) асинхронно возвраща�
 
 ## Запрещённое поведение
 
-Чужие подписки, общий пользовательский кэш, бизнес-SQL execution, подстановка chat_id, изменение READY.
+Чужие подписки, runtime GP fallback, произвольный SQL к реестру, бизнес-SQL execution, подстановка chat_id, изменение READY.
 
 ## Зависимости
 
-Только существующий DB access layer и SQL AST; без новой схемы БД.
+Общий DuckDB manual snapshot и SQL AST; без runtime Greenplum.
 
 ## Реализация
 

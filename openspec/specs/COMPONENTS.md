@@ -13,11 +13,11 @@
 | architecture | 2 | 0 | 2 | 0 | 0 |
 | runtime | 1 | 0 | 1 | 0 | 0 |
 | configuration | 1 | 0 | 1 | 0 | 0 |
-| data | 2 | 0 | 2 | 0 | 0 |
+| data | 3 | 0 | 3 | 0 | 0 |
 | documentation | 1 | 0 | 0 | 1 | 0 |
 | validation | 1 | 0 | 0 | 1 | 0 |
 | skills | 2 | 0 | 2 | 0 | 0 |
-| **Итого** | **10** | **0** | **8** | **2** | **0** |
+| **Итого** | **11** | **0** | **9** | **2** | **0** |
 
 ## Компоненты
 
@@ -52,6 +52,7 @@
 
 | Компонент | Реализация | Спецификация | Статус |
 |-----------|------------|--------------|--------|
+| ManualSnapshots | `lib/services/manual_snapshots.py` | [`data/manual-snapshots`](data/manual-snapshots/spec.md) | partial |
 | CacheProvider | `lib/services/cache_provider.py:CacheProvider` | [`data/cache-provider`](data/cache-provider/spec.md) | partial |
 | VectorIndexService | `lib/services/vector_index_service.py:VectorIndexService` | [`data/vector-indexes`](data/vector-indexes/spec.md) | partial |
 

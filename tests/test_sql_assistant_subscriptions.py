@@ -24,8 +24,11 @@ def resolver(active=(), catalog=(), *, login="28901923", confirmed=True, mapping
             raise catalog
         return list(catalog)
 
-    result = SubscriptionResolver(identity_confirmed=confirmed, catalog_mapping_confirmed=mapping,
-                                  fetch=fetch, identity=lambda: login)
+    def read(group, queries):
+        return {"snapshot": {"generation": "test", "refreshed_at": "2026-10-21T00:00:00+00:00"},
+                "results": [fetch(sql, *params) for sql, params in queries]}
+    result = SubscriptionResolver(SimpleNamespace(read_manual_snapshot=read), identity_confirmed=confirmed,
+                                  catalog_mapping_confirmed=mapping, identity=lambda: login)
     result.calls = calls
     return result
 
@@ -43,9 +46,9 @@ async def test_schema_subscription_covers_many_tables_and_queries_only_required_
     service = resolver([active()])
     result = await service.resolve([f"DB.TABLE{i}" for i in range(500)])
     assert result.allowed and len(result.public_to_physical) == 500
-    assert len(service.calls) == 1
+    assert len(service.calls) == 2
     sql, params = service.calls[0]
-    assert "sudir_login = %s" in sql and params == ("28901923", ["db"])
+    assert "sudir_login = ?" in sql and params == ("28901923", ["db"])
     assert "28901923" not in sql and "status" not in sql and "CROSS JOIN" not in sql
     assert result.public_to_physical["prx_my_alias_db.table0"] == "db.table0"
 
@@ -78,7 +81,7 @@ async def test_all_missing_schemas_report_real_options_and_keep_available_source
     assert [row["status"] for row in result.sources] == ["subscribed", "not_subscribed", "not_subscribed"]
     assert result.sources[1]["options"] == [{"sub_alias": "a", "sub_name": "А"}, {"sub_alias": "b", "sub_name": "Б"}]
     assert set(result.public_to_physical) == {"prx_my_alias_db.t"}
-    assert service.calls[1][1] == (["x", "y"],)
+    assert service.calls[1][1] == (["db", "x", "y"],)
 
 
 @pytest.mark.asyncio
@@ -102,7 +105,7 @@ async def test_unconfirmed_identity_blocks_even_a_plausible_numeric_login():
     ([], [], True, "subscription_mapping_unknown"),
     ([], [option()], False, "subscription_mapping_unknown"),
     (RuntimeError("denied"), [], True, "subscription_check_error"),
-    ([], RuntimeError("missing column"), True, "catalog_unavailable"),
+    ([], RuntimeError("missing column"), True, "subscription_check_error"),
     ([active(alias="bad;alias")], [], True, "subscription_mapping_unknown"),
 ])
 async def test_failures_are_not_absent_subscriptions(rows, catalog, mapping, expected):
@@ -209,7 +212,7 @@ async def test_colliding_public_schemas_are_not_silently_overwritten():
 async def test_revoked_subscription_is_rechecked_after_llm(monkeypatch):
     service = resolver([active()])
     def reply(*args, **kwargs):
-        service.fetch = lambda *args: []
+        service.provider.read_manual_snapshot = lambda *args: {"snapshot": {"generation": "revoked", "refreshed_at": "2026-10-21T01:00:00+00:00"}, "results": [[], []]}
         return "SELECT id FROM db.t"
     monkeypatch.setattr("lib.services.llm_client.call_llm", reply)
     result = await runtime(service).generate(question="x", dialect="spark", table_ids=[1], llm_config={"model": "fake"})
