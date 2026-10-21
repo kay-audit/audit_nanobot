@@ -23,13 +23,13 @@
 | data | 4 | 0 | 4 | 0 | 0 |
 | infrastructure | 1 | 0 | 1 | 0 | 0 |
 | storage | 3 | 0 | 3 | 0 | 0 |
-| skills | 2 | 0 | 2 | 0 | 0 |
+| skills | 3 | 0 | 3 | 0 | 0 |
 | tools | 2 | 0 | 2 | 0 | 0 |
 | logging | 1 | 0 | 1 | 0 | 0 |
 | upgrade | 1 | 0 | 1 | 0 | 0 |
 | documentation | 1 | 0 | 0 | 1 | 0 |
 | validation | 1 | 0 | 0 | 1 | 0 |
-| **Итого** | **28** | **0** | **26** | **2** | **0** |
+| **Итого** | **29** | **0** | **27** | **2** | **0** |
 
 `Complete` не установлен ни у одного компонента: для этого статуса нужны все
 обязательные разделы `component-model`, а русский шаблон применён пока к одной
@@ -104,6 +104,7 @@
 | Компонент | Реализация | Спецификация | Статус |
 |-----------|------------|--------------|--------|
 | LegalSummarizerQuery | `workspace/tools/legal_summarizer_query.py` | [`skills/legal-summarizer-query`](skills/legal-summarizer-query/spec.md) | partial |
+| LegalDocumentHistory | `workspace/tools/legal_summarizer_history.py`, history pipeline | [`skills/legal-document-history`](skills/legal-document-history/spec.md) | partial |
 
 ### Tools
 
