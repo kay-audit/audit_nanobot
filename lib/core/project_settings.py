@@ -30,6 +30,7 @@ __all__ = [
     "SkillBriefContextSettings",
     "SkillCliSettings",
     "SkillLlmSettings",
+    "SkillHistorySettings",
     "SkillSettings",
     "SkillsSettings",
     "StartupSchemaValidationSettings",
@@ -614,6 +615,21 @@ class SkillExecutionSettings(_StrictOptional):
     context_batching: SkillExecutionContextBatchingSettings | None = None
 
 
+class SkillHistorySettings(BaseModel):
+    """Ограниченная policy независимых history-батчей D7."""
+
+    model_config = ConfigDict(extra="forbid", strict=True, allow_inf_nan=False)
+
+    batch_input_ratio: float = Field(default=0.45, gt=0, le=0.55)
+    max_output_tokens: int = Field(default=4096, ge=512, le=4096)
+    max_retries: int = Field(default=2, ge=0, le=3)
+    chars_per_token: float = Field(default=3.5, gt=0, le=4)
+    safety_margin_ratio: float = Field(default=0.15, ge=0.1, lt=0.5)
+    event_max_chars: int = Field(default=12000, ge=512, le=1000000)
+    timeout_sec: int = Field(default=120, ge=1, le=600)
+    temperature: float = Field(default=0.1, ge=0, le=1)
+
+
 class SkillSettings(BaseModel):
     """Универсальная декларация навыка в ``project.json::skills.<name>``.
 
@@ -658,6 +674,7 @@ class SkillSettings(BaseModel):
     chunking: SkillChunkingSettings | None = None
     brief_context: SkillBriefContextSettings | None = None
     execution: SkillExecutionSettings | None = None
+    history: SkillHistorySettings | None = None
 
 
 class SkillsSettings(_StrictOptional):
