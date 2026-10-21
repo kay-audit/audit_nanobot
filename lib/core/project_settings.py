@@ -441,6 +441,16 @@ class TableEntry(BaseModel):
     type: Literal["table", "vector"] = "table"
     label: str | None = None
     tracking_column: str | None = None
+    sync_mode: Literal["incremental", "manual_snapshot"] | None = None
+
+    @model_validator(mode="after")
+    def validate_manual_snapshot(self):
+        if self.sync_mode == "manual_snapshot" and (
+            self.type != "table" or not self.label or self.tracking_column is not None
+        ):
+            raise ValueError("Manual snapshots require a table label and no tracking column")
+        return self
+
 
 
 class VectorIndexEntry(BaseModel):
