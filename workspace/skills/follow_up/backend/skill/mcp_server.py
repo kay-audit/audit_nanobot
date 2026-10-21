@@ -60,8 +60,7 @@ DEFAULT_SESSION_KEY = "nanobot:shared"
 # `SKILL.md`, но по пути MCP никакого SKILL.md нет: агент видит только имя,
 # описание и схему. Значит единственные два места, куда его можно положить, —
 # описание инструмента и сам результат (`skill/render.RELAY_NOTE`).
-_VERBATIM = (" Ответ возвращается готовым текстом в поле answer_md — "
-             "выводить его пользователю дословно, без пересказа.")
+_VERBATIM = " Ответ — готовый текст в answer_md: выводить дословно."
 _TOOLS: List[Dict[str, Any]] = [
     {
         "name": "ask",
@@ -142,8 +141,9 @@ _TOOLS: List[Dict[str, Any]] = [
         "description": (
             "Запустить сборку карточки контроля исполнения по ответу "
             "профильного подразделения. Возвращает job_id сразу: карточка "
-            "строится минутами. Дальше звать card_status: он сам ждёт "
-            "готовности до 20 секунд, отдельная пауза не нужна."
+            "строится минутами. Дальше звать card_status. Если навык "
+            "попросил уточнить проверку (clarify со списком КМ) — спроси "
+            "пользователя и вызови снова с check_id."
         ),
         "schema": {
             "type": "object",
@@ -154,6 +154,9 @@ _TOOLS: List[Dict[str, Any]] = [
                                 "description": "путь к письму: .docx, .txt, .pdf"},
                 "letter_text": {"type": "string",
                                 "description": "или текст письма напрямую"},
+                "check_id": {"type": "string",
+                             "description": "КМ, выбранная пользователем после "
+                                            "уточнения; письмо навык помнит"},
                 "user_id": {"type": "string"},
             },
             "required": [],
@@ -162,19 +165,22 @@ _TOOLS: List[Dict[str, Any]] = [
     {
         "name": "card_status",
         "description": (
-            "Стадия и результат сборки карточки по job_id. Вызов САМ ждёт "
-            "готовности до 20 секунд — отдельную паузу делать не нужно и "
-            "нельзя. Пока done=false: показать пользователю stage и позвать "
-            "снова. Когда готово, карточка приходит текстом."
+            "Стадия и результат сборки карточки по job_id. Вызов сам ждёт "
+            "готовности до минуты. Пока done=false — ничего не выводи "
+            "пользователю и позови снова; после 8 вызовов без готовности "
+            "скажи, что карточка ещё собирается, и назови job_id. Готово — "
+            "карточка в answer_md; done=true с ok=false — передай reason."
             + _VERBATIM
         ),
         "schema": {
             "type": "object",
             "properties": {
                 "job_id": {"type": "string"},
+                "session_key": {"type": "string"},
+                "user_id": {"type": "string"},
                 "wait_sec": {"type": "number",
                              "description": "сколько ждать готовности, сек; "
-                                            "по умолчанию 20, максимум 60"},
+                                            "по умолчанию и максимум 60"},
             },
             "required": ["job_id"],
         },
@@ -188,8 +194,10 @@ _TOOLS: List[Dict[str, Any]] = [
         ),
         "schema": {
             "type": "object",
-            "properties": {"session_key": {"type": "string",
-                                           "description": "идентификатор беседы, как в ask"}},
+            "properties": {
+                "session_key": {"type": "string", "description": "идентификатор беседы, как в ask"},
+                "user_id": {"type": "string"},
+            },
             "required": [],
         },
     },
@@ -229,7 +237,8 @@ async def dispatch(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
             return await api.card_start(session_key,
                                         args.get("letter_path"),
                                         args.get("letter_text"),
-                                        args.get("user_id"))
+                                        args.get("user_id"),
+                                        check_id=args.get("check_id"))
         if name == "card_status":
             raw = args.get("wait_sec")
             # Потолок нужен: инструменты агента ждут ответа ограниченно
@@ -237,9 +246,10 @@ async def dispatch(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
             # ждать дольше, оборвётся на его стороне — задача останется
             # висеть, а агент решит, что она упала.
             wait = min(float(raw), 60.0) if raw is not None else None
-            return await api.card_status(args.get("job_id", ""), wait)
+            return await api.card_status(args.get("job_id", ""), wait,
+                                         session_key=session_key, user_id=args.get("user_id"))
         if name == "forget":
-            return api.forget(session_key)
+            return api.forget(session_key, args.get("user_id"))
         return {"ok": False, "reason": f"неизвестный инструмент «{name}»"}
     except Exception as e:                                      # noqa: BLE001
         logger.exception(f"[mcp] {name} упал")

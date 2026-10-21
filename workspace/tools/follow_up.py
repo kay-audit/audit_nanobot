@@ -394,6 +394,7 @@ class FollowUpTool(Tool):
     _server_tool: ClassVar[str] = ""
     _description: ClassVar[str] = ""
     _schema: ClassVar[dict[str, Any]] = {"type": "object", "properties": {}}
+    _inject: ClassVar[tuple[str, ...]] = ()     # что подставить из хода (tools.json)
 
     def __init__(self, *, timeout_sec: float = DEFAULT_TIMEOUT_SEC) -> None:
         self.timeout_sec = timeout_sec
@@ -444,28 +445,33 @@ class FollowUpTool(Tool):
     def _arguments(self, kwargs: dict[str, Any]) -> dict[str, Any]:
         props = self._schema.get("properties") or {}
         args = {k: v for k, v in kwargs.items() if k in props}
+        # Ключ беседы и отправитель — из хода, а не от модели: в схеме модели
+        # их нет вовсе (tools.json, поле inject). Старый tools.json без inject
+        # — по наличию поля в схеме.
+        inject = set(self._inject) | ({"session_key", "user_id"} & set(props))
         key, sender = _request_identity()
-        # Ключ беседы — из хода, а не от модели: модель свой ключ не видит, а
-        # придуманный ею («<КМ>-<дата>») совпал бы у двух аудиторов.
-        if key and "session_key" in props:
+        if key and "session_key" in inject:
             args["session_key"] = key
-        if sender and "user_id" in props:
+        if sender and "user_id" in inject:
             args["user_id"] = sender
         return args
 
     async def execute(self, **kwargs: Any) -> Any:
         args = self._arguments(kwargs)
+        if any(not args.get(key) for key in self._inject):
+            return ToolResult.error("Follow Up: доверенный контекст беседы недоступен. Не повторяй вызов автоматически.")
         try:
             is_error, text = await bridge().call(self._server_tool, args, self.timeout_sec)
         except TimeoutError:
             return ToolResult.error(
-                f"Follow Up не ответил за {int(self.timeout_sec)} с. Карточку "
-                f"исполнения собирать через card_start/card_status.")
+                f"Follow Up не ответил за {int(self.timeout_sec)} с. Не вызывай "
+                f"инструмент повторно с тем же запросом — сообщи пользователю. "
+                f"Карточку исполнения собирать через card_start/card_status.")
         except Exception as e:                              # noqa: BLE001
             logger.exception("follow_up: вызов {} не прошёл", self._server_tool)
             return ToolResult.error(
-                f"Follow Up сейчас недоступен ({_describe(e)}). Не отвечай по актам "
-                f"«из головы». Журнал сервера — workspace/skills/follow_up/logs/"
+                f"Follow Up сейчас недоступен ({_describe(e)}). Не вызывай его "
+                f"повторно и не отвечай по актам «из головы». Журнал сервера — workspace/skills/follow_up/logs/"
                 f"server.log, проверка — `python workspace/skills/follow_up/"
                 f"scripts/follow_up_mcp --check`.")
         return ToolResult.error(text) if is_error else text
@@ -484,6 +490,7 @@ def _make_tools() -> dict[str, type]:
             "_server_tool": server_name,
             "_description": str(spec.get("description") or ""),
             "_schema": dict(spec.get("schema") or {"type": "object", "properties": {}}),
+            "_inject": tuple(spec.get("inject") or ()),
             "_concrete": lambda self: None,
         })
     return made

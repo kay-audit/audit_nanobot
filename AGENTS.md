@@ -79,6 +79,9 @@
 
 ## Configuration
 
+- D5 Follow-up: skill-параметр `DB_ENV_MODE` по умолчанию `gp`; dev использует явно заданный `postgres`. Недоступный GP не переключает навык на V008. DSN и схемы не изменяются; регламент — docs/D5.md.
+
+
 - Настройки нано-агента (`channels.*`, `skills.*`, `cli`, `benchmark`, `streamlit`, `gateway`, `logging.db`) — в `project.json` (JSONC, с комментариями).
 - Очистка журнала событий `agent_gateway_logs` / `agent_question_runs`: подсекция `logging.db` (`logging.db.enabled` — вкл/выкл записи):
   - `logging.db.retention_days` (целое, дефолт `90`) — возраст в днях, старше которого события и question_runs удаляются фоновым пулом `DbLoggingService` (через `NOW() - (N || ' days')::interval`, совместимо с Greenplum 6.5). `0` или отсутствие — авто-удаление по возрасту выключено (события хранятся вечно).

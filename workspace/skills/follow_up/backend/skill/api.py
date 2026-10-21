@@ -21,17 +21,6 @@ from backend.skill import render
 
 logger = logging.getLogger(__name__)
 
-# Потолок текста ответа. У внешнего агента результат инструмента режется по
-# `maxToolResultChars` (16 000 у коллег), а всё, что длиннее
-# `persist_threshold`, уезжает файлом и в контекст приходит ссылкой. Режем
-# сами и говорим об этом вслух — молча обрезанный ответ выглядит как
-# законченный.
-#
-# 12 000, а не половина от их потолка: карточка контроля исполнения — шесть
-# блоков, и на пяти поручениях с цитатами она подходит к восьми тысячам
-# вплотную. Обрезанная посередине плана карточка хуже длинной. Остаток до
-# 16 000 уходит на прочие поля конверта (источники — около полутора тысяч).
-_ANSWER_MAX_CHARS = 12000
 _SOURCES_MAX = 12
 
 
@@ -55,13 +44,6 @@ def _parse_sse(chunk: str) -> Optional[Dict[str, Any]]:
     return {"event": event, "data": data or {}}
 
 
-def _clip(text: str) -> tuple:
-    if len(text) <= _ANSWER_MAX_CHARS:
-        return text, False
-    cut = text[:_ANSWER_MAX_CHARS].rsplit("\n", 1)[0]
-    return cut + "\n\n_(ответ показан не полностью)_", True
-
-
 async def _run_turn_collect(
     message: str,
     session_id: int,
@@ -77,6 +59,7 @@ async def _run_turn_collect(
 
     text_parts: List[str] = []
     answer_text = ""
+    resolve: Optional[Dict[str, Any]] = None
     out: Dict[str, Any] = {
         "ok": True, "answer_md": "", "sources": [], "coverage": "",
         "checks": [], "artifact": None, "insufficient": False, "reason": "",
@@ -116,9 +99,26 @@ async def _run_turn_collect(
         elif name == "card_done":
             out.setdefault("card", {}).update(
                 {k: v for k, v in data.items() if k != "payload"})
+        elif name == "resolve_card":
+            # Письмо не привязалось к проверке однозначно, и конвейер просит
+            # выбрать КМ. В веб-интерфейсе это карточка с кнопками, текста в
+            # событии нет. Пропущенное событие давало пустой ответ — «ход
+            # завершился без текста ответа», — и агент решал, что навык не
+            # подходит, хотя тот задал правильный вопрос.
+            resolve = data
         elif name == "error":
             out["ok"] = False
-            out["reason"] = data.get("message") or "ход не завершился"
+            if data.get("reason") == "deadline":
+                # Текст для веб-интерфейса («попробуйте повторить позже») агенту
+                # не годится: он понимает его буквально и зовёт инструмент
+                # снова — ещё 150 с и ещё порция контекста, и так до лимита
+                # итераций. Агенту — что делать вместо повтора.
+                out["reason"] = (
+                    "Навык не собрал ответ за отведённое время. Повторный вызов "
+                    "с тем же вопросом не поможет: сообщи пользователю и "
+                    "предложи сузить вопрос (номер КМ, конкретная тема).")
+            else:
+                out["reason"] = data.get("message") or "ход не завершился"
         elif name == "done":
             out["checks"] = data.get("km_numbers") or []
             out["status"] = data.get("status") or out["status"]
@@ -128,6 +128,9 @@ async def _run_turn_collect(
                 out["budget"] = data["budget"]
 
     body = answer_text or "".join(text_parts)
+    if not body.strip() and resolve is not None:
+        body, out["clarify"] = _resolve_for_agent(resolve)
+        out["status"] = "clarify"
     if not body.strip() and out.get("card"):
         # Карточка — ход без события `answer`: блоки приходят структурой и
         # рисуются своим интерфейсом. В общем чате рисовать нечем, поэтому
@@ -135,15 +138,33 @@ async def _run_turn_collect(
         # писать нельзя: он разойдётся с первым, и в чат поедет карточка
         # позапрошлой версии.
         body = _card_markdown(out["card"])
-    out["answer_md"], clipped = _clip(body.strip())
-    if clipped:
-        out["reason"] = ("ответ длиннее потолка — показана верхняя часть; "
-                         "уточните вопрос, чтобы получить нужную")
+    out["answer_md"] = body.strip()
     if not out["answer_md"] and out["ok"]:
         out["ok"] = False
         out["reason"] = out["reason"] or "ход завершился без текста ответа"
     out["insufficient"] = out["status"] in ("degraded", "refused")
     return out
+
+
+CARD_RESUME_NOTE = (
+    "Покажи варианты пользователю и дождись выбора. Затем вызови "
+    "mcp_follow_up_card_start с check_id выбранной проверки — письмо навык "
+    "помнит, передавать его снова не нужно.")
+
+
+def _resolve_for_agent(payload: Dict[str, Any]):
+    """Карточка уточнения → текст для чата и структура для агента."""
+    try:
+        from backend.agents.execution_control import _resolve_fallback_md
+        text = _resolve_fallback_md(payload)
+    except Exception:                                       # noqa: BLE001
+        text = "Не удалось однозначно определить проверку по письму."
+    candidates = [{"check_id": f"КМ-{k}", "title": (c.get("title") or "")[:200]}
+                  for c in payload.get("candidates") or [] for k in c.get("kms") or []]
+    if not candidates:
+        text += "\nНазовите номер КМ (99-XXXXX) или рег.номер поручения."
+    return text, {"mode": payload.get("mode"), "candidates": candidates,
+                  "next": CARD_RESUME_NOTE}
 
 
 def _card_markdown(card: Dict[str, Any]) -> str:
@@ -160,10 +181,14 @@ def _card_markdown(card: Dict[str, Any]) -> str:
                 f"{', '.join(sorted((card.get('payloads') or {}).keys())) or '—'}.")
 
 
+def _external_key(session_key: str, user_id: Optional[str]) -> str:
+    return "nanobot:v1:" + json.dumps([session_key, user_id], ensure_ascii=False, separators=(",", ":"))
+
+
 def _session(session_key: str, user_id: Optional[str]) -> int:
     from backend.storage.database import ExternalSessionRepo, get_db
     with get_db() as db:
-        return ExternalSessionRepo.resolve(db, session_key, user_id,
+        return ExternalSessionRepo.resolve(db, _external_key(session_key, user_id), user_id,
                                            source="nanobot")
 
 
@@ -277,56 +302,78 @@ async def status() -> Dict:
 async def card_start(session_key: str,
                      letter_path: Optional[str] = None,
                      letter_text: Optional[str] = None,
-                     user_id: Optional[str] = None) -> Dict:
+                     user_id: Optional[str] = None,
+                     check_id: Optional[str] = None) -> Dict:
     """Карточка контроля исполнения по ответу профильника.
 
     Возвращает идентификатор задачи сразу. Карточка строится минутами, а у
     внешнего агента на неё один воркер: дождавшись нас синхронно, он
     остановил бы очередь всего подразделения.
+
+    `check_id` — проверка, которую выбрал аудитор, когда письмо не
+    привязалось к ней само. Письмо тогда можно не передавать: конвейер
+    помнит его в этой беседе (так же продолжает кнопка в веб-интерфейсе).
     """
     bad = _need(session_key, "session_key")
     if bad:
         return bad
-    if not (letter_path or letter_text):
+    km = (check_id or "").strip()
+    if km:
+        from backend.core import identity
+        km = identity.normalize(km)
+        if km is None:
+            return {"ok": False, "reason": "Некорректный check_id: укажите номер КМ, выбранный пользователем."}
+    if not (letter_path or letter_text or km):
         return {"ok": False,
                 "reason": "передайте письмо профильника: letter_path (.docx, "
-                          ".txt, .pdf) или letter_text"}
+                          ".txt, .pdf) или letter_text; после уточнения "
+                          "проверки — check_id"}
 
     from backend.api.routes.files import extract_text_from_path, put_attachment
     from backend.skill import jobs
 
-    if letter_text:
-        text, name = letter_text, "letter.txt"
-    else:
-        p = Path(letter_path).expanduser()
+    attachments: Optional[List[str]] = None
+    name = km
+    if letter_text or letter_path:
+        if letter_text:
+            text, name = letter_text, "letter.txt"
+        else:
+            p = Path(letter_path).expanduser()
+            try:
+                text = extract_text_from_path(p)
+            except Exception as e:                          # noqa: BLE001
+                return {"ok": False, "reason": str(e)}
+            name = p.name
         try:
-            text = extract_text_from_path(p)
-        except Exception as e:                              # noqa: BLE001
+            attachments = [put_attachment(text, name)]
+        except ValueError as e:
             return {"ok": False, "reason": str(e)}
-        name = p.name
-    try:
-        aid = put_attachment(text, name)
-    except ValueError as e:
-        return {"ok": False, "reason": str(e)}
+
+    if km and attachments:
+        question = f"Проверь исполнение поручений по {km} по этому ответу профильника"
+    elif km:
+        question = f"Контроль исполнения по {km}"           # письмо — из беседы
+    else:
+        question = "Проверь исполнение поручений по этому ответу профильника"
 
     sid = _session(session_key, user_id)
 
     async def _work(progress: Callable[[str], None]) -> Dict:
         progress("разбираю письмо")
-        res = await _run_turn_collect(
-            "Проверь исполнение поручений по этому ответу профильника",
-            sid, attachment_ids=[aid], progress=progress)
+        res = await _run_turn_collect(question, sid, attachment_ids=attachments,
+                                      progress=progress)
         res["session_key"] = session_key
         return res
 
-    return await jobs.start(_work, label=f"карточка: {name}")
+    return await jobs.start(_work, label=f"карточка: {name}", owner=_external_key(session_key, user_id))
 
 
 async def card_status(job_id: str,
-                      wait_sec: Optional[float] = None) -> Dict:
+                      wait_sec: Optional[float] = None,
+                      session_key: Optional[str] = None, user_id: Optional[str] = None) -> Dict:
     """Как продвигается карточка и её результат, когда готова.
 
-    Вызов САМ ждёт готовности до `wait_sec` секунд (по умолчанию 20). Пауза
+    Вызов САМ ждёт готовности до `wait_sec` секунд (по умолчанию 60). Пауза
     между опросами должна быть у кого-то, и у агента нанобота её нет:
     получив «не готово», он зовёт снова немедленно и за секунды сжигает
     лимит итераций вместе с квотой модели.
@@ -339,7 +386,7 @@ async def card_status(job_id: str,
     bad = _need(job_id, "job_id")
     if bad:
         return bad
-    st = await jobs.wait(job_id, wait_sec)
+    st = await jobs.wait(job_id, wait_sec, owner=_external_key(session_key, user_id) if session_key else None)
     if not st.get("done"):
         return st
     result = st.get("result") or {}
@@ -356,7 +403,7 @@ async def card_status(job_id: str,
     return env
 
 
-def forget(session_key: str) -> Dict:
+def forget(session_key: str, user_id: Optional[str] = None) -> Dict:
     """Забыть диалог: следующий вопрос начнётся с чистого листа.
 
     Управление контекстом принадлежит аудитору так же, как выбор проверки:
@@ -367,5 +414,5 @@ def forget(session_key: str) -> Dict:
     if bad:
         return bad
     with get_db() as db:
-        found = ExternalSessionRepo.forget(db, session_key)
+        found = ExternalSessionRepo.forget(db, _external_key(session_key, user_id))
     return {"ok": True, "forgotten": found, "session_key": session_key}

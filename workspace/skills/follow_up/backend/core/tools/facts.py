@@ -270,6 +270,16 @@ _ALLOWED_FACETS = {
 }
 
 
+# Окончания прилагательных: модель пишет «критичные», в корпусе «критичное»
+_ADJ_END = re.compile(r"(ого|его|ому|ему|ыми|ими|ые|ое|ая|яя|ий|ый|ой|ие|ую|юю|их|ых|ее)$")
+
+
+def _stem(word: str) -> str:
+    w = (word or "").strip().lower()
+    stem = _ADJ_END.sub("", w)
+    return stem if len(stem) >= 3 else w
+
+
 async def query_deviations(check_id: Optional[str] = None,
                            min_rub: Optional[float] = None,
                            category: Optional[str] = None,
@@ -306,7 +316,7 @@ async def query_deviations(check_id: Optional[str] = None,
             if category:
                 q = q.filter(Deviation.category.ilike(f"%{category}%"))
             if severity:
-                q = q.filter(Deviation.severity.ilike(f"%{severity}%"))
+                q = q.filter(Deviation.severity.ilike(f"%{_stem(severity)}%"))
             if unit:
                 q = q.filter(Deviation.responsible_unit.ilike(f"%{unit}%"))
             rows = q.limit(max(1, min(limit, 500))).all()

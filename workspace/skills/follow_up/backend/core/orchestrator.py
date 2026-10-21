@@ -83,7 +83,8 @@ async def run_turn(question: str, session_id: int, *, model=None,
                    cancel=None, emit: Optional[Callable] = None,
                    focus: Optional[str] = None,
                    named_ids: Optional[set] = None,
-                   surface: str = "web") -> TurnResult:
+                   surface: str = "web",
+                   pin: Optional[str] = None) -> TurnResult:
     from backend.core import critic, interpreter, render, verify as verifier
     from backend.core.budget import TurnBudget
     from backend.core.contract import AnswerContract
@@ -116,7 +117,7 @@ async def run_turn(question: str, session_id: int, *, model=None,
     ledger = Ledger()
     escalations: Dict[str, int] = {}
     await say("searching", _plan_human(u.plan))
-    await _execute(u.plan, ledger, scope, cancel, say)
+    await _execute(u.plan, ledger, scope, cancel, say, pin=pin)
 
     # 4. Суд и заходы
     body_md, claims = render.render_body(c, ledger)
@@ -132,7 +133,7 @@ async def run_turn(question: str, session_id: int, *, model=None,
         escalations[v.action] = escalations.get(v.action, 0) + 1
         await say(v.action, v.suggestion or v.action)
         changed = await _escalate(v, u, c, ledger, scope, cancel, say, budget,
-                                  question)
+                                  question, pin=pin)
         if not changed:
             break
         body_md, claims = render.render_body(c, ledger)
@@ -202,15 +203,51 @@ async def run_turn(question: str, session_id: int, *, model=None,
 
 # ──────────────────────────────────────────────────────────────────
 
-async def _execute(plan, ledger, scope, cancel, say) -> None:
+# Параметр номера проверки у инструментов ядра.
+_KM_ARG = {"read_document": "check_id", "query_deviations": "check_id",
+           "search_passages": "km"}
+# Сравнение и профиль корпуса по смыслу охватывают несколько проверок.
+_UNPINNED = {"compare_checks", "corpus_profile"}
+
+
+def _same_check(check_id: Optional[str], pin: str, scope) -> bool:
+    """Та же проверка: сам номер или его «семья» (одна проверка под несколькими КМ)."""
+    if not check_id or check_id == pin:
+        return True
+    return any(pin in fam and check_id in fam
+               for fam in (getattr(scope, "family_of", None) or {}).values())
+
+
+def _narrow(res, name: str, pin: Optional[str], scope):
+    """Убрать из результата улики других проверок, если беседа об одной."""
+    if pin and name not in _UNPINNED and getattr(res, "evidence", None):
+        res.evidence = [e for e in res.evidence if _same_check(e.check_id, pin, scope)]
+    return res
+
+
+async def _execute(plan, ledger, scope, cancel, say, pin: Optional[str] = None) -> None:
+    """Шаги плана. `pin` — единственная проверка беседы (названа в вопросе или
+    подставлена из памяти).
+
+    План пишет модель, и номер в шаги она кладёт не всегда: «а какие из них
+    критичные?» превращалось в поиск по всему корпусу, и в ответ приезжали
+    чужие акты. С `pin` номер подставляется в инструменты, которые его
+    принимают, а из результатов охватных — убирается чужое.
+    """
     from backend.core import critic
     from backend.core.tools import registry
     body_seen = False
     for step in plan[:3]:
         name = step.get("tool")
+        raw = dict(step.get("args") or {})
+        km_arg = _KM_ARG.get(name)
+        # До проверки схемы: у read_document номер обязателен, и шаг без него
+        # иначе выпал бы целиком
+        if pin and km_arg and not raw.get(km_arg):
+            raw[km_arg] = pin
         try:
             spec, fn = registry.get(name)
-            args = registry.validate(name, step.get("args") or {})
+            args = registry.validate(name, raw)
         except (KeyError, ValueError) as e:
             logger.warning(f"[orchestrator] Шаг {name} пропущен: {e}")
             continue
@@ -221,7 +258,7 @@ async def _execute(plan, ledger, scope, cancel, say) -> None:
         except Exception as e:
             logger.warning(f"[orchestrator] {name}: {e}")
             continue
-        ledger.add(res)
+        ledger.add(_narrow(res, name, pin, scope))
         if spec.role == "body" and not body_seen:
             body_seen = True
             frozen = critic.freeze_scope(scope, ledger)
@@ -229,8 +266,12 @@ async def _execute(plan, ledger, scope, cancel, say) -> None:
 
 
 async def _escalate(v, u, c, ledger, scope, cancel, say, budget,
-                    question: str = "") -> bool:
-    """Бесплатные заходы. Возвращает True, если материал изменился."""
+                    question: str = "", pin: Optional[str] = None) -> bool:
+    """Бесплатные заходы. Возвращает True, если материал изменился.
+
+    Заходы охватные по природе; с `pin` из их результата берётся только
+    проверка беседы — иначе пустой ответ по одной КМ «расширялся» чужими.
+    """
     from backend.core.tools import registry
     if v.action == "widen":
         # Охватный поиск НЕ годится как добор для вопроса про упоминание:
@@ -258,7 +299,8 @@ async def _escalate(v, u, c, ledger, scope, cancel, say, budget,
         args["max_docs"] = int(args.get("max_docs") or 30) * 2
         try:
             _, fn = registry.get("search_coverage")
-            ledger.add(await fn(cancel=cancel, **args))
+            ledger.add(_narrow(await fn(cancel=cancel, **args),
+                               "search_coverage", pin, scope))
             return True
         except Exception:
             return False
@@ -269,7 +311,8 @@ async def _escalate(v, u, c, ledger, scope, cancel, say, budget,
                       if s.get("args", {}).get("query")), None) or question
             if not q:
                 return False
-            ledger.add(await fn(query=q, cancel=cancel))
+            ledger.add(_narrow(await fn(query=q, cancel=cancel),
+                               "semantic_deviations", pin, scope))
             return True
         except Exception:
             return False

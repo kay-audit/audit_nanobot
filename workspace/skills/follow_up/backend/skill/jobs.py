@@ -34,11 +34,13 @@ _MAX_RUNNING = 4
 # зовёт снова немедленно. Карточка строится минутами — значит агент сжёг бы
 # `maxToolIterations` (200 у коллег) за секунды, а каждая итерация это ещё и
 # вызов модели из общей квоты, то есть главный риск ёмкости из раздела 6.3
-# плана. Ждём мы, а не он: три минуты карточки превращаются в девять
-# вызовов вместо нескольких сотен.
+# плана. Ждём мы, а не он: три минуты карточки превращаются в три вызова
+# вместо нескольких сотен.
 #
-# 20 секунд — с большим запасом до таймаута инструментов агента (240 с).
-_POLL_WINDOW_SEC = 20.0
+# 60 секунд — с запасом до таймаута инструментов агента (240 с) и втрое
+# меньше итераций, чем при 20: каждая итерация агента — это ещё и рост его
+# контекста.
+_POLL_WINDOW_SEC = 60.0
 # Шаг внутреннего опроса. Не событие: `asyncio.Event` пришлось бы создавать
 # в том же цикле, где его ждут, а тут два входа — MCP-сервер и тесты.
 _POLL_STEP_SEC = 0.25
@@ -48,6 +50,7 @@ _POLL_STEP_SEC = 0.25
 class Job:
     id: str
     label: str
+    owner: Optional[str] = None
     stage: str = "принято"
     done: bool = False
     ok: bool = False
@@ -95,6 +98,7 @@ def running_count() -> int:
 async def start(
     work: Callable[[Callable[[str], None]], Awaitable[Dict]],
     label: str,
+    *, owner: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Запустить долгую работу и сразу вернуть её идентификатор.
 
@@ -107,7 +111,7 @@ async def start(
             return {"ok": False,
                     "reason": f"Уже выполняется {running_count()} длинных "
                               f"задач — дождитесь завершения"}
-        job = Job(id=uuid.uuid4().hex[:12], label=label)
+        job = Job(id=uuid.uuid4().hex[:12], label=label, owner=owner)
         _JOBS[job.id] = job
 
     def progress(stage: str) -> None:
@@ -133,14 +137,15 @@ async def start(
     job._task = asyncio.ensure_future(_run())
     return {"ok": True, "job_id": job.id, "stage": job.stage,
             "hint": "зовите card_status с этим job_id; вызов сам подождёт "
-                    "готовности до 20 секунд и вернёт стадию — повторяйте, "
-                    "пока не придёт done: true"}
+                    "готовности до минуты. Между вызовами ничего не выводите "
+                    "пользователю; после 8 вызовов без готовности скажите, что "
+                    "карточка ещё собирается"}
 
 
-def status(job_id: str) -> Dict[str, Any]:
+def status(job_id: str, *, owner: Optional[str] = None) -> Dict[str, Any]:
     _reap()
     job = _JOBS.get(job_id)
-    if job is None:
+    if job is None or (owner is not None and job.owner != owner):
         return {"ok": False,
                 "reason": f"Задача {job_id} не найдена: либо неверный "
                           f"идентификатор, либо результат уже забрали"}
@@ -148,7 +153,7 @@ def status(job_id: str) -> Dict[str, Any]:
 
 
 async def wait(job_id: str,
-               timeout_sec: Optional[float] = None) -> Dict[str, Any]:
+               timeout_sec: Optional[float] = None, *, owner: Optional[str] = None) -> Dict[str, Any]:
     """Статус задачи, но с ожиданием готовности.
 
     Готовая задача отвечает сразу. Неготовая — держит вызов до
@@ -159,7 +164,7 @@ async def wait(job_id: str,
     window = _POLL_WINDOW_SEC if timeout_sec is None else max(0.0, timeout_sec)
     deadline = time.monotonic() + window
     while True:
-        st = status(job_id)
+        st = status(job_id, owner=owner)
         # Нет такой задачи или уже готова — ждать нечего
         if not st.get("ok") or st.get("done"):
             return st

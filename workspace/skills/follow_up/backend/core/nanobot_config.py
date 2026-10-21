@@ -282,6 +282,21 @@ def resolve_llm(settings: Dict[str, Any],
     return out
 
 
+def hub_model_id(value: str) -> bool:
+    """`BAAI/bge-m3` — имя модели на HuggingFace Hub, а не путь.
+
+    sentence-transformers сам скачивает такую модель при первой загрузке, и
+    во внешнем контуре это законный способ. Во внутреннем интернета нет —
+    там нужен локальный каталог.
+    """
+    if not value or value.startswith((".", "/", "~")) or Path(value).exists():
+        return False
+    parts = value.split("/")
+    # models/<имя> — наш относительный путь по умолчанию, а не организация
+    return len(parts) == 2 and parts[0] != "models" and all(
+        part and all(ch.isalnum() or ch in "-_." for ch in part) for part in parts)
+
+
 def home() -> Optional[Path]:
     """Корень нанобота, если нас запустил он."""
     raw = (os.environ.get(HOME_ENV_VAR) or "").strip()
