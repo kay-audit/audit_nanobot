@@ -89,6 +89,9 @@
 
 ## Configuration
 
+- D5 Follow-up: skill-параметр `DB_ENV_MODE` по умолчанию `gp`; dev использует явно заданный `postgres`. Недоступный GP не переключает навык на V008. DSN и схемы не изменяются; регламент — docs/D5.md.
+
+
 - `tools.osiris.*` — native OSIRIS Tool: `enable`, `allowed_services`,
   `allowed_operations`, доверенные `profile_files`, `allow_stop` (дефолт false),
   `admin_session_keys`, `request_timeout_sec`, `max_result_chars`.

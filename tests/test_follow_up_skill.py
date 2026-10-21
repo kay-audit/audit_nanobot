@@ -2,7 +2,8 @@
 
 Что здесь закреплено:
 
-* SKILL.md разбирается фронтматтером и виден агенту всегда (``always: true``);
+* SKILL.md разбирается фронтматтером и **не** висит в каждом промпте
+  (без ``always``): агент видит его в списке навыков и читает по делу;
 * инструменты агента — ``workspace/tools/follow_up.py``: загрузчик проекта
   регистрирует ровно семь ``mcp_follow_up_*`` со схемами из ``tools.json``,
   а мост действительно поднимает MCP-сервер, передаёт вызовы и переживает
@@ -52,7 +53,8 @@ def test_skill_md_frontmatter_matches_the_directory_name():
     nanobot_meta = meta["metadata"]
     if isinstance(nanobot_meta, str):
         nanobot_meta = json.loads(nanobot_meta)
-    assert nanobot_meta["nanobot"]["always"] is True
+    # Навык — по запросу: always-навыки съедают окно агента на каждом ходе
+    assert not nanobot_meta["nanobot"].get("always")
 
 
 def test_skill_md_names_only_tools_the_server_exposes():
@@ -476,8 +478,10 @@ def test_unknown_arguments_are_not_forwarded(monkeypatch):
             return False, "ok"
 
     monkeypatch.setattr(mod, "bridge", lambda: FakeBridge())
-    out = asyncio.run(mod.FollowUpAskTool().execute(question="что в акте", _internal=1))
-    assert out == "ok" and seen == {"name": "ask", "args": {"question": "что в акте"}}
+    from nanobot.agent.tools.context import RequestContext, request_context
+    with request_context(RequestContext(channel="postgres", chat_id="test", session_key="postgres:test", sender_id="auditor")):
+        out = asyncio.run(mod.FollowUpAskTool().execute(question="что в акте", _internal=1))
+    assert out == "ok" and seen == {"name": "ask", "args": {"question": "что в акте", "session_key": "postgres:test", "user_id": "auditor"}}
 
 
 def _pid_alive(pid: int) -> bool:
@@ -625,12 +629,45 @@ def test_session_key_and_user_come_from_the_request_context():
 
     mod = _tool_module()
     tool = mod.FollowUpAskTool()
+    props = tool.parameters["properties"]
+    assert "session_key" not in props and "user_id" not in props
+    assert set(tool._inject) == {"session_key", "user_id"}
     with request_context(RequestContext(channel="postgres", chat_id="101",
                                         session_key="postgres:101", sender_id="alice")):
         args = tool._arguments({"question": "а по второму пункту?", "session_key": "КМ-дата",
                                 "user_id": "Иванов"})
     assert args == {"question": "а по второму пункту?", "session_key": "postgres:101",
                     "user_id": "alice"}
-    # Вне хода (тесты, отладка) — что передала модель.
-    assert tool._arguments({"question": "q", "session_key": "k"}) == {
-        "question": "q", "session_key": "k"}
+    # Вне хода (тесты, отладка) подставлять нечего — ключ по умолчанию у сервера.
+    assert tool._arguments({"question": "q", "session_key": "k"}) == {"question": "q"}
+
+
+def test_status_tool_gets_no_identity():
+    mod = _tool_module()
+    tool = mod.FollowUpStatusTool()
+    assert tool._inject == ()
+
+
+def test_missing_trusted_identity_never_uses_shared_backend_session(monkeypatch):
+    import asyncio
+
+    from nanobot.agent.tools.base import ToolResult
+    from nanobot.agent.tools.context import RequestContext, request_context
+    mod = _tool_module()
+    monkeypatch.setattr(mod, "bridge", lambda: pytest.fail("missing identity reached backend"))
+    for ctx in [None, RequestContext(channel="postgres", chat_id="same", session_key="postgres:same", sender_id="")]:
+        if ctx is None:
+            result = asyncio.run(mod.FollowUpAskTool().execute(question="q", session_key="invented", user_id="invented"))
+        else:
+            with request_context(ctx):
+                result = asyncio.run(mod.FollowUpAskTool().execute(question="q"))
+        assert isinstance(result, ToolResult) and "контекст" in str(result)
+
+
+def test_original_user_question_from_context_is_not_paraphrased():
+    from nanobot.agent.tools.context import RequestContext, request_context
+    tool = _tool_module().FollowUpAskTool()
+    original = "  Какие отклонения?\nСохрани формулировку и пробелы.  "
+    with request_context(RequestContext(channel="postgres", chat_id="one", session_key="postgres:one", sender_id="alice", original_user_text=original)):
+        args = tool._arguments({"question": "перефразированный вопрос", "user_id": "bob", "session_key": "foreign"})
+    assert args == {"question": original, "session_key": "postgres:one", "user_id": "alice"}

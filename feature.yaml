@@ -192,6 +192,7 @@ tests:
 - path: workspace/skills/ior-analyzer/tests/test_source_planner.py
 - path: tests/test_follow_up_llm_centralization.py
 - path: tests/test_follow_up_skill.py
+- path: tests/test_follow_up_turn_guards.py
 - path: tests/test_prepare_outbound_suppressed.py
 - path: tests/test_appeals_production_contracts.py
 - path: tests/test_appeals_hybrid_contracts.py

@@ -23,13 +23,13 @@
 | data | 4 | 0 | 4 | 0 | 0 |
 | infrastructure | 1 | 0 | 1 | 0 | 0 |
 | storage | 3 | 0 | 3 | 0 | 0 |
-| skills | 1 | 0 | 1 | 0 | 0 |
+| skills | 2 | 0 | 2 | 0 | 0 |
 | tools | 2 | 0 | 2 | 0 | 0 |
 | logging | 1 | 0 | 1 | 0 | 0 |
 | upgrade | 1 | 0 | 1 | 0 | 0 |
 | documentation | 1 | 0 | 0 | 1 | 0 |
 | validation | 1 | 0 | 0 | 1 | 0 |
-| **Итого** | **27** | **0** | **25** | **2** | **0** |
+| **Итого** | **28** | **0** | **26** | **2** | **0** |
 
 `Complete` не установлен ни у одного компонента: для этого статуса нужны все
 обязательные разделы `component-model`, а русский шаблон применён пока к одной
@@ -179,3 +179,9 @@
 |---|---|---|---|
 | SqlAssistantIntegration | `lib/services/sql_assistant_runtime.py` | [`skills/sql-assistant-integration`](skills/sql-assistant-integration/spec.md) | partial |
 | SubscriptionResolver | `lib/services/subscription_resolver.py` | [`skills/sql-subscriptions`](skills/sql-subscriptions/spec.md) | partial |
+
+### D5 Follow-up
+
+| Компонент | Реализация | Спецификация | Статус |
+|---|---|---|---|
+| FollowUpTurns | `workspace/tools/follow_up.py` | [`skills/follow-up-turns`](skills/follow-up-turns/spec.md) | partial |

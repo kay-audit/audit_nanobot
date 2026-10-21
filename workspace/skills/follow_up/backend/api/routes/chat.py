@@ -78,6 +78,49 @@ def _save_user_turn(session_id: int, message: str, has_attachment: bool) -> None
         logger.warning(f"[Chat] Вопрос не сохранён в историю: {e}")
 
 
+def unknown_km_refusal(km_numbers) -> Optional[str]:
+    """Текст отказа, если ВСЕ названные аудитором номера неизвестны.
+
+    Без этой сверки общий поиск подмешивал чужие акты, и на вопрос про одну
+    КМ приходил рассказ о других — подмена проверки, которой в аудите быть
+    не может. Справочник неполон (Greenplum недоступен) — не отказываем:
+    промолчать о «такой проверки нет» честнее, чем ошибиться. Короткий
+    номер с несколькими кандидатами и «есть в витрине, акт ещё не загружен»
+    идут прежним путём.
+    """
+    if not km_numbers:
+        return None
+    from backend.core import identity
+    reg = identity.registry()
+    if reg.degraded_sources:
+        return None
+    unknown = []
+    for km in km_numbers:
+        v = identity.validate(km, reg)
+        if v.outcome != "Unknown":
+            return None
+        unknown.append(v.check_id or km)
+    names = ", ".join(unknown)
+    if not reg.known:
+        return (f"{names}: корпус актов пока пуст — отвечать не по чему. "
+                f"Состояние корпуса показывает mcp_follow_up_status.")
+    where = ("ни в корпусе актов, ни в витрине поручений" if reg.vitrina
+             else "в корпусе актов")
+    return (f"Проверки {names} нет {where}. Проверьте номер: материалы других "
+            f"проверок вместо неё не подставляю. В корпусе проверок: "
+            f"{len(reg.hydrated)}.")
+
+
+def _save_text_answer(session_id: int, text: str, agent_type: str) -> None:
+    try:
+        with get_db() as db:
+            MessageRepo.add(db, session_id=session_id, role="assistant",
+                            content=text, agent_type=agent_type, contexts=[],
+                            followups=[])
+    except Exception as e:
+        logger.warning(f"[Chat] Ответ не сохранён: {e}")
+
+
 def _save_core_answer(session_id: int, core, question: str) -> None:
     """Ответ ядра в историю. Не должен ронять ход: без записи ответ уже показан."""
     try:
@@ -257,6 +300,19 @@ async def _stream_agent_response(
             "resolved_from_history": query_ctx.resolved_from_history,
         })
 
+        # 1в. НЕСУЩЕСТВУЮЩАЯ КМ — отказ до поиска, ноль вызовов модели.
+        # Только для номеров из самого вопроса: фокус из памяти уже сверен.
+        if not resumed and not query_ctx.resolved_from_history:
+            refusal = unknown_km_refusal(query_ctx.km_numbers)
+            if refusal:
+                yield _sse_event("answer", {"text": refusal, "status": "refused"})
+                _save_text_answer(session_id, refusal, "identity")
+                yield _sse_event("done", {
+                    "agent_type": "identity", "intent": query_ctx.intent,
+                    "km_numbers": [], "needs_clarification": False,
+                    "followups": [], "turn_id": turn_id, "status": "refused"})
+                return
+
         # 1г. ТУПИК KM_DETAIL. Прогон регексов показывает: «какие системы
         # упоминались по теме кредитных карт» матчится _KM_DETAIL_KEYWORDS
         # раньше FOLLOWUP, номера в запросе нет, фокуса нет — и агент отвечает
@@ -297,9 +353,11 @@ async def _stream_agent_response(
                 else:
                     await progress_q.put({"step": step, "text": text})
 
+            kms = query_ctx.km_numbers or []
             core_task = asyncio.ensure_future(orchestrator.run_turn(
                 effective_message, session_id, model=model, cancel=cancel,
-                emit=_emit, focus=(query_ctx.km_numbers or [None])[0],
+                emit=_emit, focus=(kms or [None])[0],
+                pin=kms[0] if len(kms) == 1 else None,
                 surface=surface))
             while not core_task.done():
                 if time.monotonic() > deadline_at or cancel.cancelled:

@@ -67,7 +67,7 @@ def report() -> Dict[str, Any]:
         return out
 
     from backend.config import get_settings
-    from backend.core import boot
+    from backend.core import boot, nanobot_config
 
     llm = boot.adopt_agent_llm()
     gp_taken = boot.adopt_agent_gp()
@@ -125,7 +125,15 @@ def report() -> Dict[str, Any]:
     out["models"] = {}
     for label, field in (("эмбеддер", "bge_model_path"),
                          ("реранкер", "reranker_model_path")):
-        path = Path(str(getattr(cfg, field)))
+        raw = str(getattr(cfg, field))
+        if nanobot_config.hub_model_id(raw):
+            out["models"][label] = {
+                "path": raw, "ok": True, "hub": True,
+                "from_nanobot": field in models,
+                "note": "имя модели на HuggingFace Hub — скачается при первой "
+                        "загрузке; во внутреннем контуре нужен локальный каталог"}
+            continue
+        path = Path(raw)
         ok = path.exists()
         out["models"][label] = {"path": str(path), "ok": ok,
                                 "from_nanobot": field in models}

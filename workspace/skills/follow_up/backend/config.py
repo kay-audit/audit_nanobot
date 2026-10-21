@@ -281,7 +281,10 @@ class Settings(BaseSettings):
     #   gp        — Greenplum (прод);
     #   postgres  — public.t_fu_poruch_data в локальной Postgres (dev/тест);
     #   auto      — gp если gp_enabled=True иначе postgres (см. также: AGENTS.md d5_followup).
-    db_env_mode: Literal["gp", "postgres", "auto"] = "auto"
+    # По умолчанию gp: tools/migrate.py накатывает V008 и на проде, и при
+    # недоступном GP режим auto молча читал бы эту таблицу вместо витрины. Dev-стенд
+    # задаёт DB_ENV_MODE=postgres явно (feature.yaml, dev_env).
+    db_env_mode: Literal["gp", "postgres", "auto"] = "gp"
     gp_host: str = ""
     gp_port: int = 5432
     gp_db: str = ""

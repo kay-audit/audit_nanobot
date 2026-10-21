@@ -27,12 +27,13 @@ from backend.core.render import CHAT_ALLOWED_TAGS
 
 # Инструкция агенту. Лежит первым ключом конверта: модель читает результат
 # инструмента сверху вниз, и указание должно попасться раньше текста.
-RELAY_NOTE = (
-    "Текст в answer_md уже готов к показу и проверен построчно. "
-    "Выведи его пользователю ДОСЛОВНО: не пересказывай, не сокращай, "
-    "не дополняй своими словами и не меняй нумерацию источников. "
-    "Свой комментарий, если он нужен, добавляй отдельным абзацем после."
-)
+RELAY_NOTE = ("answer_md готов к показу: выведи дословно, без пересказа и "
+              "сокращений; свой комментарий — отдельным абзацем после.")
+
+# Отказ инструмента агент склонен повторять теми же словами — и каждый
+# повтор стоит времени и контекста. Повтор того же запроса ответа не меняет.
+NO_RETRY_NOTE = ("Не вызывай инструмент повторно с тем же запросом — передай "
+                 "причину пользователю.")
 
 _TAG_RE = re.compile(r"</?([a-zA-Z][a-zA-Z0-9]*)\b[^>]*>")
 # HTML-комментарии. В своём интерфейсе ими помечен фокус диалога
@@ -154,7 +155,7 @@ def envelope(result: Dict[str, Any], *,
     if text:
         out["answer_md"] = text
 
-    for key in ("sources", "coverage", "checks", "artifact", "session_key"):
+    for key in ("sources", "coverage", "checks", "artifact", "session_key", "status"):
         val = result.get(key)
         if val:
             out[key] = val
@@ -162,6 +163,8 @@ def envelope(result: Dict[str, Any], *,
         out["insufficient"] = True
     if result.get("reason"):
         out["reason"] = result["reason"]
+    if not out["ok"]:
+        out["next"] = NO_RETRY_NOTE
     if result.get("clarify"):
         out["clarify"] = result["clarify"]
     if extra:
