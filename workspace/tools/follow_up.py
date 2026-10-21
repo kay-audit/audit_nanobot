@@ -454,6 +454,11 @@ class FollowUpTool(Tool):
             args["session_key"] = key
         if sender and "user_id" in inject:
             args["user_id"] = sender
+        if self._server_tool == "ask":
+            from nanobot.agent.tools.context import current_request_context
+            original = getattr(current_request_context(), "original_user_text", None)
+            if isinstance(original, str) and original.strip():
+                args["question"] = original
         return args
 
     async def execute(self, **kwargs: Any) -> Any:

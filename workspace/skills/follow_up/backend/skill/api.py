@@ -188,8 +188,13 @@ def _external_key(session_key: str, user_id: Optional[str]) -> str:
 def _session(session_key: str, user_id: Optional[str]) -> int:
     from backend.storage.database import ExternalSessionRepo, get_db
     with get_db() as db:
-        return ExternalSessionRepo.resolve(db, _external_key(session_key, user_id), user_id,
-                                           source="nanobot")
+        key = _external_key(session_key, user_id)
+        if user_id and ExternalSessionRepo.get(db, key) is None:
+            legacy = ExternalSessionRepo.get(db, session_key)
+            if legacy is not None and legacy.user_id == user_id:
+                legacy.key = key
+                db.flush()
+        return ExternalSessionRepo.resolve(db, key, user_id, source="nanobot")
 
 
 def _need(value: Optional[str], name: str) -> Optional[Dict[str, Any]]:

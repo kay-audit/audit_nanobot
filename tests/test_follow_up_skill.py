@@ -662,3 +662,12 @@ def test_missing_trusted_identity_never_uses_shared_backend_session(monkeypatch)
             with request_context(ctx):
                 result = asyncio.run(mod.FollowUpAskTool().execute(question="q"))
         assert isinstance(result, ToolResult) and "контекст" in str(result)
+
+
+def test_original_user_question_from_context_is_not_paraphrased():
+    from nanobot.agent.tools.context import RequestContext, request_context
+    tool = _tool_module().FollowUpAskTool()
+    original = "  Какие отклонения?\nСохрани формулировку и пробелы.  "
+    with request_context(RequestContext(channel="postgres", chat_id="one", session_key="postgres:one", sender_id="alice", original_user_text=original)):
+        args = tool._arguments({"question": "перефразированный вопрос", "user_id": "bob", "session_key": "foreign"})
+    assert args == {"question": original, "session_key": "postgres:one", "user_id": "alice"}

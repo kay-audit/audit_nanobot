@@ -456,3 +456,32 @@ def test_card_clarify_then_selected_check_delivers_full_text_with_saved_letter(m
         assert ec._recall_pending_letter(2) is None
 
     asyncio.run(go())
+
+
+@pytest.mark.parametrize("old_owner", ["alice", None])
+def test_legacy_history_is_adopted_only_by_confirmed_owner(monkeypatch, old_owner):
+    from contextlib import contextmanager
+
+    from backend.skill import api
+    from backend.storage import database
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+    engine = create_engine("sqlite://")
+    database.Base.metadata.create_all(engine)
+
+    @contextmanager
+    def db():
+        with Session(engine) as session:
+            yield session
+            session.commit()
+
+    monkeypatch.setattr(database, "get_db", db)
+    try:
+        with db() as session:
+            old = database.ExternalSessionRepo.resolve(session, "old-chat", old_owner)
+        assert api._session("old-chat", "bob") != old
+        alice = api._session("old-chat", "alice")
+        assert (alice == old) == (old_owner == "alice")
+        assert api._session("old-chat", "alice") == alice
+    finally:
+        engine.dispose()
