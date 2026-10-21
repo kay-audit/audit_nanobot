@@ -11,3 +11,5 @@
 Проверка: исходная ветка — 457 passed, 2 skipped и 22 subtests; финальный операторский набор — 16 passed. Интеграционная ветка — 458 passed и 22 subtests D1/DuckDB; runtime — 189 passed, 1 skipped. D3/D5/D6 — шесть прежних failures подтверждены на d5d710b; дополнительный transient Windows lock failure прошёл отдельный повтор. Protected components и прежние значения конфига не изменены.
 
 Canonical specs синхронизированы вручную и проверены strict; архивирование использует --skip-specs. Корпоративная identity/schema/GP проверка остаётся операторской, identity_confirmed=false.
+
+Дополнительная standalone CLI-регрессия очищает PYTHONPATH и запускает полный offline refresh отдельным процессом; bootstrap workspace исправлен. Финальный manual/operator набор: 17 passed в обеих ветках.
