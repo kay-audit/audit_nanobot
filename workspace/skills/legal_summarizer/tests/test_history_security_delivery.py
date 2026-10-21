@@ -280,3 +280,23 @@ def test_checkpoint_retries_transient_windows_replace(tmp_path, monkeypatch):
     write(tmp_path / "state.json", {"status": "completed"})
     assert len(attempts) == 3
     assert json.loads((tmp_path / "state.json").read_text())["status"] == "completed"
+
+
+def test_real_uploaded_names_preserve_automatic_overview_match(tmp_path):
+    from application.history import analyze
+    from test_doc_history import REVIEW, TARGET, docx, sample
+
+    from workspace.utils.session_file_store import SessionFileStore
+    original = tmp_path / "original"
+    original.mkdir()
+    (original / TARGET).write_bytes(docx([TARGET[:-5]]))
+    (original / REVIEW).write_bytes(docx(sample()))
+    store = SessionFileStore(tmp_path / "workspace/data_store")
+    law = store.save_attachment("test", str(original / TARGET))
+    review = store.save_attachment("test", str(original / REVIEW))
+    assert law and review
+    assert Path(law["path"]).name != TARGET
+    inputs = tmp_path / "workspace/data_store/cache/sessions/test/attachments"
+    result = analyze([str(inputs)], target=Path(law["path"]).name, _full=True)
+    assert result["status"] == "ok"
+    assert result["total_changes"] == 2
