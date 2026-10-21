@@ -36,6 +36,8 @@ def run_query(
     """Выполнить запрос на DuckDB-соединении, вернуть нормализованный результат."""
     duck_sql = rewrite_duck_sql(sql)
     try:
+        from lib.services.manual_snapshots import guard_public_sql
+        guard_public_sql(conn, sql)
         if params:
             result = conn.execute(duck_sql, params)
         else:
@@ -59,6 +61,8 @@ def explain_query(conn: Any, sql: str) -> dict[str, Any]:
     """EXPLAIN на DuckDB — синтаксическая проверка без выполнения."""
     duck_sql = rewrite_duck_sql(sql)
     try:
+        from lib.services.manual_snapshots import guard_public_sql
+        guard_public_sql(conn, sql)
         result = conn.execute(f"EXPLAIN {duck_sql}")
         columns = [desc[0] for desc in result.description]
         plan = [dict(zip(columns, r, strict=False)) for r in result.fetchall()]
@@ -104,8 +108,12 @@ def build_schema(
         val = meta.get((table, column))
         return val[idx] if val else None
 
+    from lib.services.manual_snapshots import private_tables
+    hidden = private_tables(conn)
     result: dict[str, Any] = {}
     for row in rows:
+        if f"{schema}.{row[0]}" in hidden:
+            continue
         tbl = row[0]
         if tbl not in result:
             result[tbl] = {"comment": meta_value(tbl, None, 0), "columns": {}}

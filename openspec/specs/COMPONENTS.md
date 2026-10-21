@@ -20,7 +20,7 @@
 | architecture | 2 | 0 | 2 | 0 | 0 |
 | runtime | 9 | 0 | 9 | 0 | 0 |
 | configuration | 1 | 0 | 1 | 0 | 0 |
-| data | 3 | 0 | 3 | 0 | 0 |
+| data | 4 | 0 | 4 | 0 | 0 |
 | infrastructure | 1 | 0 | 1 | 0 | 0 |
 | storage | 3 | 0 | 3 | 0 | 0 |
 | skills | 1 | 0 | 1 | 0 | 0 |
@@ -29,7 +29,7 @@
 | upgrade | 1 | 0 | 1 | 0 | 0 |
 | documentation | 1 | 0 | 0 | 1 | 0 |
 | validation | 1 | 0 | 0 | 1 | 0 |
-| **Итого** | **26** | **0** | **24** | **2** | **0** |
+| **Итого** | **27** | **0** | **25** | **2** | **0** |
 
 `Complete` не установлен ни у одного компонента: для этого статуса нужны все
 обязательные разделы `component-model`, а русский шаблон применён пока к одной
@@ -68,6 +68,7 @@
 
 | Компонент | Реализация | Спецификация | Статус |
 |-----------|------------|--------------|--------|
+| ManualSnapshots | `lib/services/manual_snapshots.py` | [`data/manual-snapshots`](data/manual-snapshots/spec.md) | partial |
 | CacheProvider | `lib/services/cache_provider.py:CacheProvider` | [`data/cache-provider`](data/cache-provider/spec.md) | partial |
 | AppealsStructuralCache | `workspace/utils/appeals_structural_cache.py` | [`data/appeals-structural-cache`](data/appeals-structural-cache/spec.md) | partial |
 | VectorIndexBuildService | `lib/services/vector_index_service.py:VectorIndexBuildService` | [`data/vector-indexes`](data/vector-indexes/spec.md) | partial |

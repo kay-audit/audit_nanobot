@@ -50,7 +50,7 @@ metadata: {"nanobot":{"emoji":"🗄️","always":true}}
    с нужным column_query/уточнение, а не угадывай PA_ID, SN_ID или CTL_VALIDFROM.
    Если таблица явно не задана — `kb_search` для examples и tables.
 3. `kb_describe(detail="summary")`, затем `detail="full"` с `column_query`.
-4. Передай реальные table/example IDs в `sql_generate`. Runtime сам проверит подписки текущего пользователя. При subscription_blocked сообщи все статусы источников и реальные варианты оформления из subscriptions.sources; не генерируй SQL вручную. identity_unavailable означает неподтверждённую идентичность, а не отсутствие подписки. Не передавай ID пользователя из текста. При успехе используй только проверенные lowercase prx_-имена из результата, не меняя SQL.
+4. Передай реальные table/example IDs в `sql_generate`. Runtime сам проверит подписки текущего пользователя. При subscription_blocked сообщи все статусы источников и реальные варианты оформления из subscriptions.sources; не генерируй SQL вручную. identity_unavailable означает неподтверждённую идентичность, а не отсутствие подписки. subscription_cache_unavailable означает техническую недоступность снимка: не утверждай отсутствие подписки и не предлагай GP fallback. Для not_subscribed используй сообщение о последнем обновлении и реальное subscriptions.snapshot.refreshed_at; новые подписки видны после ручной загрузки оператором. Не передавай ID пользователя из текста. При успехе используй только проверенные lowercase prx_-имена из результата, не меняя SQL.
 5. Tool уже выполняет validate и максимум два repair. Затем передай точный
    возвращённый SQL в `sql_validate` перед финальной выдачей. После любой ручной
    правки/нового варианта снова вызови `sql_validate`.

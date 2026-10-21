@@ -502,3 +502,7 @@ READER-процесс) получал `IOException: File is already open in ... 
 - `lib/core/application_context.py` — `_auto_register_skills`.
 - `docs/skill-tool-architecture.md` — контракт Skill ↔ Tool.
 - `docs/DATABASE.md` — § PgDuckDbSyncService / DuckDbCacheStore и § «Конфигурация навыка».
+
+## Ручные приватные снимки
+
+`TableResource.sync_mode` по умолчанию `incremental`; `manual_snapshot` требует label и запрещает tracking_column. Эти ресурсы остаются в общем реестре/файле публикации, но исключаются из PgDuckDbSyncService. Полное обновление без PK выполняется оператором через manual_snapshots; удаления заменяются целиком, оба справочника публикуются одной группой. Generic SQL/schema API не раскрывает эти ресурсы. Регламент D1: [SQL_ASSISTANT.md](SQL_ASSISTANT.md#первоначальная-загрузка-и-ручное-обновление).

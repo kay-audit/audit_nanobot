@@ -70,7 +70,9 @@ class PgDuckDbSyncService:
     ) -> None:
         self._dsn = dsn
         self._schema = schema
-        self._tables = [t for t in (tables or []) if t]
+        from lib.services.table_registry import table_registry
+        manual_names = {r.name for r in table_registry.table_resources() if getattr(r, "sync_mode", "") == "manual_snapshot"}
+        self._tables = [t for t in (tables or []) if t and t not in manual_names]
         self._vector_table = vector_table
         # Все параметры — обязательны, передаются явно из settings (project.json).
         # Никаких defaults в коде (TARGET: конфигурация только в settings).

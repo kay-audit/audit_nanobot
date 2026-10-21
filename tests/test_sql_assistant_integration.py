@@ -37,7 +37,8 @@ async def test_fake_end_to_end_retrieval_generation_validation_facts(monkeypatch
     monkeypatch.setattr("lib.services.sql_assistant_runtime._default_llm_config",lambda: {"model":"fake","api_base":"http://fake","api_key":"","max_tokens":100,"temperature":0})
     docs=prepare_from_frame([TABLE],text_fields=("description","columns_summary","table_name"),group_field="group_key")
     monkeypatch.setattr("lib.services.sql_assistant_runtime.load_index",lambda *_a,**_k:(HybridIndex(docs),{"build_id":"test","source_signature":"{\"max_updated_at\":\"now\",\"row_count\":1}"}))
-    subscriptions = SubscriptionResolver(identity_confirmed=True, identity=lambda: "1", fetch=lambda *_a: [{"schema_name": "db", "sub_alias": "test"}])
+    from types import SimpleNamespace
+    subscriptions = SubscriptionResolver(SimpleNamespace(read_manual_snapshot=lambda *a: {"snapshot": {"generation": "test", "refreshed_at": "2026-10-21T00:00:00+00:00"}, "results": [[{"schema_name": "db", "sub_alias": "test"}], []]}), identity_confirmed=True, identity=lambda: "1")
     runtime=SqlAssistantRuntime(Provider(),index_root="unused",score_floor=0.1,subscription_resolver=subscriptions)
     search=runtime.search("orders amount",corpus="tables")
     result=await runtime.generate(question="total amount",dialect="spark",table_ids=[1],example_ids=[101,999])

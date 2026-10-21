@@ -416,6 +416,8 @@ class DuckDbCacheStore:
         if not self._duckdb_read_only:
             conn.execute(f'CREATE SCHEMA IF NOT EXISTS "{self._schema}"')
         self._conn = conn
+        from lib.services.manual_snapshots import restore_manual
+        restore_manual(self)
 
     @classmethod
     def open(
@@ -1090,7 +1092,14 @@ class DuckDbCacheStore:
         with self._lock:
             if self._conn is None or (not self._dirty and not force):
                 return True
+            if getattr(self, "_manual_restore_failed", False):
+                from lib.services.manual_snapshots import restore_manual
+                restore_manual(self)
+                if self._manual_restore_failed:
+                    return False
             out = [t for t in (tables or self._tables or []) if t]
+            from lib.services.manual_snapshots import snapshot_tables
+            out = list(dict.fromkeys(out + snapshot_tables(self._conn)))
             # Навык работает только со своим снимком — ему нужны и векторные
             # данные (``vector_db_table``; см. ``gateway.vector.index.storage_table``),
             # чтобы строить FAISS-индекс локально.
@@ -1464,6 +1473,11 @@ class DuckDbCacheStore:
 
             return explain_query(self._conn, sql)
 
+    def read_manual_snapshot(self, group: str, queries: list) -> dict:
+        """Internal capability; public SQL cannot access manual private resources."""
+        from lib.services.manual_snapshots import read_group
+        return read_group(self, group, queries)
+
     def execute_readonly(
         self,
         sql: str,
@@ -1479,6 +1493,8 @@ class DuckDbCacheStore:
             if self._conn is None:
                 return {"error": "DuckDbCacheStore is not ready"}
             try:
+                from lib.services.manual_snapshots import guard_public_sql
+                guard_public_sql(self._conn, sql)
                 cur = self._conn.cursor()
                 try:
                     if params:

@@ -524,7 +524,7 @@ class TestNoLegacyFieldsOnTableResource:
 
     def test_only_documented_fields(self) -> None:
         """Только name, tracking_column, label — никаких других атрибутов."""
-        expected = {"name", "tracking_column", "label"}
+        expected = {"name", "tracking_column", "label", "sync_mode"}
         actual = set(TableResource.__dataclass_fields__.keys())
         assert actual == expected, (
             f"ожидались только {expected}, фактически {actual}"

@@ -5,6 +5,8 @@
 
 ## Project Layout
 
+- `lib/services/manual_snapshots.py` — полные ручные группы общего DuckDB-снимка, manifest/UTC/generation, восстановление и приватный адресный API; `tools/refresh_d1_subscriptions.py` — операторская атомарная публикация двух справочников из GP/offline при остановленном gateway.
+
 - `lib/` — кастомные сервисы поверх библиотеки `nanobot 0.3.0` (core/cli/lifecycle/services/session/channels/utils + hooks).
   - `lib/hooks/` — фреймворковые хуки: `tool_audit_hook.py` (`ToolAuditHook` — аудит вызовов tool'ов, всегда в `ctx.hooks`), `terminal_tool_print_hook.py` (`TerminalToolPrintHook` — живой вывод результатов, подключается **после** `ToolAuditHook`), `database_logging_hook.py` (`DatabaseLoggingHook` — per-turn инстансы через `hook_factories`, только при наличии `DbLoggingService`). Плагины из `workspace/hooks/` идут **перед** `ToolAuditHook`. Провязываются явно через `AgentFactory`/`ApplicationContext`.
   - `lib/core/agent_factory.py` — фабрика AgentLoop с хуками; `lib/core/bus_factory.py` — создание MessageBus.
@@ -506,4 +508,4 @@ chore(bench): удалить устаревшие отчёты прогонов 
 
 ## SQL Assistant D1
 
-`workspace/skills/sql_assistant/`, шесть native tools sql_analyzer/kb_search/kb_describe/sql_generate/sql_validate/sql_facts; runtime в `lib/services/sql_assistant_runtime.py`, KB в kb_store.py, статическая проверка sql_static.py, dialect rules sql_dialects/, retrieval hybrid_search/. `lib/services/subscription_resolver.py` выполняет адресные проверки без кэша пользовательских данных. `gateway.sql_subscriptions.identity_confirmed=false` до проверки user_id=sudir_login; `catalog_mapping_confirmed=true` подтверждает meta_code=schema_name. Postgres sender_id не подменяется chat_id. D1 использует shared OSIRIS appeals embed/rerank, без создания GPU-job. Документация — docs/SQL_ASSISTANT.md.
+`workspace/skills/sql_assistant/`, шесть native tools sql_analyzer/kb_search/kb_describe/sql_generate/sql_validate/sql_facts; runtime в `lib/services/sql_assistant_runtime.py`, KB в kb_store.py, статическая проверка sql_static.py, dialect rules sql_dialects/, retrieval hybrid_search/. `lib/services/subscription_resolver.py` выполняет адресные проверки через приватный API общего DuckDB manual snapshot без runtime GP. `gateway.sql_subscriptions.identity_confirmed=false` до проверки user_id=sudir_login; `catalog_mapping_confirmed=true` подтверждает meta_code=schema_name. Postgres sender_id не подменяется chat_id. D1 использует shared OSIRIS appeals embed/rerank, без создания GPU-job. Документация — docs/SQL_ASSISTANT.md.

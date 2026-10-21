@@ -52,6 +52,7 @@ def build_resources_for_skill(skill_cfg: dict) -> list:
                     name=name,
                     tracking_column=entry.get("tracking_column"),
                     label=entry.get("label"),
+                    sync_mode=entry.get("sync_mode", "incremental"),
                 ))
             seen_names.add(name)
 
