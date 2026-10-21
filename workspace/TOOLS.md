@@ -299,6 +299,21 @@ JSON-string. Изменение формы данных требует отде�
   есть `legal_summarizer_query`. Это и быстрее, и кириллица не сломается.
 - Не передавай в `field` значения вне списка — будет отказ с понятной ошибкой.
 
+## legal_summarizer_history — история изменений одного закона
+
+`start(inputs, target, overview?)` запускает фон по паре DOCX закон/обзор или ZIP
+текущей сессии. `target` — явное точное имя/key закона; без выбора вернётся
+needs_input. `status(operation_id)` проверяет состояние, `resume(operation_id)`
+продолжает прерванный/частичный анализ с сохранёнными пояснениями.
+Сессия и пользователь берутся из RequestContext; передавать их аргументами нельзя.
+Статусы: needs_input/running/completed/partial/interrupted/error.
+При running сохраняй operation_id и соблюдай poll_after_seconds.
+Tool сам отправляет MD/JSON через MessageTool(media=...). При delivery.status=sent
+не дублируй message. При delivery.status=error сообщи о проблеме и повтори status
+после устранения причины. Полный отчёт/base64 в контекст не загружай.
+Стандартные tool audit события формируются общими hooks; отдельного event store нет.
+Policy: skills.legal_summarizer.history; dispatch timeout: tools.legal_summarizer_history.timeout_sec.
+
 ## audit_analyzer — доступ через tool'ы (не через CLI)
 
 Данные capability агент берёт **двумя tool'ами**, которые исполняются

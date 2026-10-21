@@ -1,10 +1,22 @@
 ---
 name: legal_summarizer
-description: Юридический анализ PDF/DOCX/TXT — вызывай ТОЛЬКО через `python workspace/skills/legal_summarizer/scripts/cli.py --file <path>`. Skill сам решает, нужен ли пользовательский confirm; для длинных документов (оценка > 2 минут) сначала вернёт confirmation_required. `office_files.extract_metadata()` (раньше `summarize()`) — это НЕ саммари, а метаданные; не подменяй cli.
+description: Юридический анализ PDF/DOCX/TXT через `python workspace/skills/legal_summarizer/scripts/cli.py --file <path>`; история изменений одного закона по паре DOCX закон/обзор через native tool legal_summarizer_history. Для длинной суммаризации сначала confirmation_required. office_files.extract_metadata() — только метаданные, не саммари.
 metadata: {"nanobot":{"emoji":"📄","always":true}}
 ---
 
 # Legal Summarizer — единственный путь: `cli.py`
+
+## История изменений закона
+
+Для запроса истории изменений используй **legal_summarizer_history**, см.
+[references/doc_history.md](references/doc_history.md). Нужны явно выбранный
+закон и соответствующий DOCX-обзор ConsultantPlus текущей сессии; ZIP допустим.
+При неоднозначности уточни цель. Не выбирай самый большой файл.
+`start` возвращает operation_id; `status` проверяет фон и доставляет MD/JSON
+через MessageTool. При interrupted/partial используй `resume`. Не читай
+полный отчёт в контекст; не используй debug offset/limit/field.
+При delivery.status=sent повторно message не вызывай; при error сообщи об ошибке.
+Обычная суммаризация ниже сохраняет прежний CLI и пользовательский confirm.
 
 > ⚠️ **ПРАВИЛО #1 (нарушать нельзя):** саммари делает ТОЛЬКО
 > `python workspace/skills/legal_summarizer/scripts/cli.py --file <path>`. Никаких

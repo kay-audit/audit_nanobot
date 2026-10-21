@@ -41,6 +41,7 @@ class TestCanonical:
             "compact_context",
             "duckdb_query",
             "history_search",
+            "legal_summarizer_history",
             "legal_summarizer_query",
             "vector_search",
         }
@@ -256,6 +257,7 @@ class TestDiffProjectTools:
                 "compact_context",
                 "duckdb_query",
                 "history_search",
+                "legal_summarizer_history",
                 "legal_summarizer_query",
                 "vector_search",
             ],

@@ -69,6 +69,8 @@
 
 ## File Storage Policy
 
+- D7 history: `workspace/tools/legal_summarizer_history.py` — доверенный dispatcher и media-доставка; новые `scripts/{application,cache,document,llm,output}/history.py`, `document/history_archive.py`, `cli_history.py` внутри legal_summarizer. Policy `skills.legal_summarizer.history` валидируется `SkillHistorySettings`; `tools.legal_summarizer_history` задаёт enable/timeout_sec. Background worker использует общий LLM и SessionFileStore; OSIRIS/GPU job не создаётся. Контракт — `references/doc_history.md` навыка.
+
 - Новые файлы, создаваемые в рамках сессии, сохраняй под `workspace/data_store/cache/sessions/<session_key>/`
   (политика `workspace/AGENTS.md`). Не пиши напрямую в корень проекта.
 - Кэш документов legal_summarizer: `workspace/data_store/cache/sessions/<safe_session_key>/documents/<document_id>/`
