@@ -49,6 +49,11 @@ def norm(value: str) -> str:
     return unicodedata.normalize("NFC", value)
 
 
+def is_overview_name(value: str) -> bool:
+    display = re.sub(r"^[0-9a-f]{12}_", "", norm(value), flags=re.I)
+    return display.lower().startswith("обзор изменений")
+
+
 def inventory(inputs: list[str]) -> list[Attachment]:
     found = {}
     for value in inputs:
@@ -96,7 +101,7 @@ def analyze(inputs: list[str], *, target: str | None = None, overview: str | Non
     if len(chosen) != 1:
         return clarify("Укажите точный key одного исследуемого DOCX из attachments")
     chosen = chosen[0]
-    if norm(chosen.name).lower().startswith("обзор изменений"):
+    if is_overview_name(chosen.name):
         return clarify("Исследуемым должен быть сам закон, а не обзор изменений")
     ident = identity(norm(chosen.name))
     if ident is None:
@@ -106,7 +111,7 @@ def analyze(inputs: list[str], *, target: str | None = None, overview: str | Non
     undated = []
     for f in files:
         name = norm(f.name)
-        if name.lower().startswith("обзор изменений") or identity(name) != ident:
+        if is_overview_name(name) or identity(name) != ident:
             continue
         match = re.search(r"ред\. от (\d{2}\.\d{2}\.\d{4})", name)
         if match:
@@ -126,7 +131,7 @@ def analyze(inputs: list[str], *, target: str | None = None, overview: str | Non
     target_meta = metadata(target_lines)
     if target_meta["identity"] != ident or target_meta["is_overview"] or (revisions and target_meta["revision_date"] != newest):
         return clarify("Название последней редакции не соответствует реквизитам внутри DOCX")
-    candidates = [f for f in files if norm(f.name).lower().startswith("обзор изменений")
+    candidates = [f for f in files if is_overview_name(f.name)
                   and identity(norm(f.name)) == ident]
     if overview:
         candidates = [f for f in files if norm(overview) in (norm(f.name), norm(f.key))]

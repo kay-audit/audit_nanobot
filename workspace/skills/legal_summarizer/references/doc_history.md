@@ -134,6 +134,8 @@ python workspace/skills/legal_summarizer/scripts/cli_history.py --input "/path/l
 ```
 
 Имена должны содержать реквизиты закона, как в исходных выгрузках Консультант+.
+UUID-префикс, добавленный SessionFileStore при загрузке вложения, поддерживается;
+выбирать target можно по фактическому имени сохранённого файла.
 В примере law.docx — обозначение реального имени, а не совет переименовать файл.
 По умолчанию выполняется весь pipeline. stdout — один JSON, diagnostics — stderr.
 Без nanobot CLI работает, но для semantic режима нужны зависимости проекта
