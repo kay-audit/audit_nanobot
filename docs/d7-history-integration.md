@@ -256,3 +256,34 @@
 | `tests/manual/input/.gitignore` | new | Добавить | Новый history-сценарий; интеграция безопасности, lifecycle, config и media проверена отдельно. |
 | `prompts/section_reduce_system.md` | base_only | retain base | Файл отсутствует в архиве; сохранён без изменений. |
 | `tests/test_manifest_diagnose.py` | base_only | retain base | Файл отсутствует в архиве; сохранён без изменений. |
+
+## Проверки интеграции
+
+- Исходная база: origin/vllm_fix `9b0a314dbd3c0423c2d7a010dad0e04beb1c9d49`.
+- Ветка D7 не содержит обратного merge finalize или истории других feature-веток.
+- Baseline D7: 762 passed, 24 failed, 1 skipped. После переноса и UUID compatibility: 835 passed,
+  те же 24 failed, 4 skipped. Новых падений старой реализации не обнаружено.
+- Итоговый focused D7/native/config/query/schema: 399 passed, 3 skipped.
+- Gateway/PostgresChannel startup/lifecycle/media: 129 passed.
+- D1/D3/D5/D6/shared OSIRIS: 336 passed.
+- Production project_tool_loader зарегистрировал 22 инструмента без ошибок,
+  включая legal_summarizer_history с инъекцией MessageTool.
+- Отдельно проверен UUID-префикс настоящего SessionFileStore, bounded retry
+  Windows checkpoint replace и освобождение OS lock после убийства процесса.
+- Реальные ConsultantPlus fixtures и real-model E2E не выполнялись.
+- Сравнение JSONC до/после подтверждает только две новые секции:
+  skills.legal_summarizer.history и tools.legal_summarizer_history.
+- В finalize отдельно исправлена прежняя несовместимость TableEntry startup
+  schema с существующим sync_mode=manual_snapshot. Контракт реестра и D1
+  runtime не изменены; schema/D1 проверки: 92 passed.
+- Тестовые XML, JSON-доказательства и полный локальный отчёт находятся в
+  workspace/data_store/cache/sessions/d7_20261021/ (не публикуются в Git).
+
+## Проверки закрытого контура
+
+Проверить подлинные RequestContext.session_key/sender_id, реальные пары
+ConsultantPlus DOCX/ZIP, качество пояснений Qwen/vLLM и фактический бюджет
+контекста, resume при рестарте процесса, Linux fcntl lock, доставку двух файлов
+через Postgres/frontend. Старые 24 baseline-падения требуют отдельного
+разбора legacy тестовых ожиданий; они не отключены.
+Глобальные LLM лимиты не менялись, новые OSIRIS/GPU jobs не добавлены.

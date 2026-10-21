@@ -22,7 +22,7 @@ integration:
     sha: 4fa10d27da83ac9b9ac9b588dfc0cae0c5c4b24a
     manifest: workspace/data_store/cache/sessions/finalize_nanobot_20261015/evidence/feature-osiris.yaml
   - branch: feature/d7_finalizer
-    sha: 8c89e232f51b3409bb892631b80efe09673b08e6
+    sha: de8fc5c90d5d37e2502628fe473b3bcf14f3bb72
     inventory: docs/d7-history-integration.md
 requires:
   nanobot_version: '>=2.5.4'
@@ -219,6 +219,9 @@ legal_summarizer_history_integration:
   source_commits:
   - b23cef21ce397bad4800b0c28e2f9eaefbb46452
   - 8c89e232f51b3409bb892631b80efe09673b08e6
+  - afe2dd09059ee9de05b12b1b6db88e17b0679527
+  - de8fc5c90d5d37e2502628fe473b3bcf14f3bb72
+  startup_schema_fix: 7b8536d5e23c8def53f5744fd139d07fe10c77b3
   apply_method: reviewed_cherry_pick
   old_skill_tree: ff2869ae985d52322ec8c19175908b47bbc53e3d
   real_model_e2e: not_executed
