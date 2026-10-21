@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock
@@ -280,3 +283,28 @@ def test_operator_gp_stream_is_complete_repeatable_read_and_releases_connection(
     conn.set_session.assert_called_once_with(readonly=True, isolation_level="REPEATABLE READ")
     conn.rollback.assert_called_once()
     conn.close.assert_called_once()
+
+
+def test_offline_cli_standalone_bootstrap_and_failure_retains_file(tmp_path):
+    package = {"format_version": 1, "complete": True, "tables": {}}
+    for name, (columns, batches) in resources().items():
+        rows = list(batches)[0]
+        package["tables"][name] = {"columns": columns, "rows": rows, "row_count": len(rows), "sha256": rows_digest(rows)}
+    path = tmp_path / "complete.json"
+    snapshot = tmp_path / "published.duckdb"
+    path.write_text(json.dumps(package), encoding="utf-8")
+    env = os.environ.copy()
+    env.pop("PYTHONPATH", None)
+    env["PYTHONUTF8"] = "1"
+    command = [sys.executable, "-m", "tools.refresh_d1_subscriptions", "--snapshot", str(snapshot),
+               "--offline-json", str(path), "--gateway-stopped"]
+    result = subprocess.run(command, cwd=Path(__file__).resolve().parents[1], env=env, capture_output=True, text=True, encoding="utf-8", timeout=30)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert json.loads(result.stdout.splitlines()[-1])["status"] == "published"
+    previous = fingerprint(snapshot)
+    package["tables"][ACTIVE]["sha256"] = "invalid"
+    path.write_text(json.dumps(package), encoding="utf-8")
+    result = subprocess.run(command, cwd=Path(__file__).resolve().parents[1], env=env, capture_output=True, text=True, encoding="utf-8", timeout=30)
+    assert result.returncode == 2
+    assert json.loads(result.stdout.splitlines()[-1])["status"] == "refresh_failed"
+    assert fingerprint(snapshot) == previous

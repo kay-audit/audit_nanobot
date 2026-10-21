@@ -10,6 +10,7 @@ import hashlib
 import inspect
 import json
 import os
+import sys
 import uuid
 from contextlib import contextmanager
 from pathlib import Path
@@ -131,6 +132,9 @@ def refresh(path: Path, resources: dict) -> dict:
 
 
 def main(argv=None) -> int:
+    workspace = str(Path(__file__).resolve().parents[1] / "workspace")
+    if workspace not in sys.path:
+        sys.path.insert(0, workspace)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--snapshot", type=Path)
     parser.add_argument("--profile", choices=("prod", "test"))
