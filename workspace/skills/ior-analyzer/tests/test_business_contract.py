@@ -632,3 +632,41 @@ def test_merged_agent_endpoint_and_reasoning_are_used(monkeypatch,provider,extra
     assert kwargs['headers']['Authorization'] == 'Bearer fixture-key'
     for key,value in extra_body.items():
         assert kwargs['json'][key] == value
+
+
+def test_financial_threshold_deduplicates_sid_before_scope_sum():
+    from types import SimpleNamespace
+    from unittest.mock import patch
+    con = duckdb.connect()
+    con.execute("CREATE TABLE main(incdnt_id BIGINT, incdnt_entry_dt DATE)")
+    con.execute("INSERT INTO main VALUES (1,'2026-01-01'),(2,'2026-01-01'),(3,'2026-01-01')")
+    fields = {"incdnt_id": "BIGINT", "fin_impact_id": "BIGINT", "fin_impact_sid": "VARCHAR", "fin_impact_rub_amt": "DECIMAL(20,2)"}
+    for name in ["fin_impact_type_name","fin_impact_kind_name","fin_impact_monitoring_flag","fin_impact_crncy_code","fin_impact_local_crncy_code","fin_impact_detection_dt","fin_impact_creation_dttm","fin_impact_reg_dt","fin_impact_account_num","fin_impact_docum_num","fi_busn_area_id","fi_org_struct_id","fin_impact_ccy_amt","fin_impact_local_ccy_amt"]:
+        fields[name] = "VARCHAR"
+    con.execute("CREATE TABLE fin("+','.join(k+' '+v for k,v in fields.items())+")")
+    con.execute("INSERT INTO fin(incdnt_id,fin_impact_id,fin_impact_sid,fin_impact_rub_amt) VALUES (1,10,'same',600000),(1,10,'same',600000),(2,20,'a',600000),(2,21,'b',600001),(3,30,NULL,600000),(3,31,NULL,600001)")
+    threshold = SimpleNamespace(sql=lambda expression: expression+">1000000")
+    plan = SimpleNamespace(preset="financial_consequences_ior",money=[threshold],predicates=lambda:[])
+    with patch.object(reports,"build_plan",return_value=plan), patch.object(reports,"main_projection",return_value="ior.incdnt_id"):
+        sql = reports.build_dynamic_sql_from_prompt("financial",tables={"ior":"main","financial_impact":"fin"})
+    rows = con.execute(sql).fetchall()
+    assert {r[0] for r in rows} == {2,3}
+    con.close()
+
+
+def test_previous_selection_wording_routes_to_followup():
+    assert explicit_followup("Из предыдущей выборки найди ИОРы, где произошёл сбой мобильного банка")
+    assert not explicit_followup("Выведи ИОРы за 2026 год")
+
+
+@pytest.mark.parametrize("query,column,value",[
+    ("Покажи ИОРы по Рискам как функциональному блоку за 2026 год",ground.RESPONSIBILITY,"Риски"),
+    ("Выведи ИОРы по Сети продаж за 2026 год Уточнение: по направлению деятельности",ground.PROCESS_DIRECTION,"Сеть продаж"),
+])
+def test_inflected_full_name_beats_partial_negative_control(monkeypatch,query,column,value):
+    catalog={field:[] for field in ground.FIELDS}
+    for field in [ground.ORIGIN,ground.RESPONSIBILITY,ground.PROCESS_DIRECTION]:
+        catalog[field]=[value,value+" — синтетический контроль"]
+    monkeypatch.setattr(ground,"load_catalog",lambda:catalog)
+    hits=ground.ground_query(query)
+    assert [(h["column"],h["value"]) for h in hits]==[(column,value)]

@@ -609,7 +609,21 @@ def build_dynamic_sql_from_prompt(
             financial_scope_join = f"""
             INNER JOIN (
                 SELECT incdnt_id AS fin_scope_incdnt_id
-                FROM {fin_table}
+                FROM (
+                    SELECT incdnt_id, fin_impact_rub_amt
+                    FROM (
+                        SELECT incdnt_id, fin_impact_rub_amt,
+                               ROW_NUMBER() OVER (
+                                   PARTITION BY incdnt_id, fin_impact_sid
+                                   ORDER BY fin_impact_id, fin_impact_rub_amt NULLS LAST
+                               ) AS entity_rank
+                        FROM {fin_table}
+                        WHERE fin_impact_sid IS NOT NULL AND TRIM(fin_impact_sid) <> ''
+                    ) AS keyed_fin WHERE entity_rank = 1
+                    UNION ALL
+                    SELECT incdnt_id, fin_impact_rub_amt FROM {fin_table}
+                    WHERE fin_impact_sid IS NULL OR TRIM(fin_impact_sid) = ''
+                ) AS unique_fin
                 GROUP BY incdnt_id
                 HAVING {having}
             ) AS fin_scope ON ior.incdnt_id = fin_scope.fin_scope_incdnt_id

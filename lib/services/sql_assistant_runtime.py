@@ -224,6 +224,12 @@ class SqlAssistantRuntime:
         resolution = await self.subscriptions.resolve(schema)
         if not resolution.allowed:
             return _subscription_failure(resolution.report())
+        selected_sources = {str(name).casefold() for name in schema}
+        selected_sources.update(name.casefold() for name in resolution.public_to_physical)
+        if _requested_sources("", selected_sources) - selected_sources:
+            return {"status": "grounding_error", "valid": False, "sql": "",
+                    "issues": [{"code": "requested_source_not_selected", "message": "Preserve explicitly requested sources; clarify instead of substituting another KB table"}],
+                    "warnings": []}
         try:
             from lib.services.sql_dialects.sanitize import sanitize_sql
             public_sql = resolution.rewrite(sanitize_sql(sql, dialect=dialect), dialect=dialect)
@@ -269,6 +275,16 @@ class SqlAssistantRuntime:
         resolution = await self.subscriptions.resolve(row["table_name"] for row in resolved_tables)
         if not resolution.allowed:
             return _delivery_gate(_subscription_failure(resolution.report()))
+
+        selected_sources = {str(row["table_name"]).casefold() for row in resolved_tables}
+        selected_sources.update(name.casefold() for name in resolution.public_to_physical)
+        explicit_sources = _requested_sources(question, selected_sources)
+        ungrounded_sources = sorted(name for name in explicit_sources if name.casefold() not in selected_sources)
+        if ungrounded_sources:
+            return {"status": "grounding_error", "error_type": "requested_source_not_selected",
+                    "valid": False, "publishable": False, "sql": "",
+                    "requested_sources": ungrounded_sources,
+                    "error": "Explicitly requested sources are absent from the selected KB tables; clarify instead of substituting a different source"}
 
         requested_example_ids = _normalized_ids(example_ids)
         resolved_examples = self.store.examples_by_ids(requested_example_ids) if requested_example_ids else []
@@ -440,3 +456,15 @@ def _default_llm_config() -> dict[str, Any]:
 
 def structured_error(exc: Exception) -> dict[str, Any]:
     return {"status": getattr(exc, "code", "error"), "error": str(exc), "error_type": type(exc).__name__}
+
+
+def _requested_sources(question: str, selected_sources: set[str]) -> set[str]:
+    from nanobot.agent.tools.context import current_request_context
+    context = current_request_context()
+    original = getattr(context, "original_user_text", None)
+    text = question + "\n" + (original if isinstance(original, str) else "")
+    qualified = r"[a-z_][\w$]*\.[a-z_][\w$]*"
+    contextual = re.findall(r'(?i)(?:\bтаблиц[а-яё]*|\bисточник[а-яё]*|\bfrom|\bjoin)\s+[`"]?(' + qualified + ")", text)
+    schemas = {name.split(".")[0] for name in selected_sources}
+    mentioned = [name for name in re.findall(qualified, text, re.I) if name.split(".")[0].casefold() in schemas]
+    return {name.casefold() for name in contextual + mentioned}

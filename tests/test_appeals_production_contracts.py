@@ -1037,7 +1037,8 @@ class NativeDeliveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(right, [self.root / "right/new.xlsx"])
 
     async def test_testing_branch_does_not_load_production(self):
-        runner = types.SimpleNamespace(run_testing_report=AsyncMock(return_value="testing report"))
+        runner = types.SimpleNamespace(run_testing_report=AsyncMock(return_value="testing report"),
+            export_selected=Mock(return_value=None))
         with patch.object(self.native, "log_skill_runtime", return_value="testing"), patch.object(
             self.native, "current_tool_session_id", return_value="testing-session",
         ), patch.object(self.native, "load_testing_module", return_value=runner), patch.object(
@@ -1045,6 +1046,7 @@ class NativeDeliveryTests(unittest.IsolatedAsyncioTestCase):
         ):
             self.assertEqual(await self.tool.execute(prompt="test"), "testing report")
         runner.run_testing_report.assert_awaited_once_with(session_id="testing-session", user_prompt="test")
+        runner.export_selected.assert_called_once_with("testing-session")
 
 
 class StandaloneBackendTests(unittest.TestCase):

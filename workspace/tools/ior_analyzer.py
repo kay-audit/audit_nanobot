@@ -108,6 +108,7 @@ class IORAnalyzerTool(Tool):
 
     config_key: ClassVar[str] = "ior_analyzer"
     _plugin_discoverable: ClassVar[bool] = False
+    _terminal_result: ClassVar[bool] = True
 
     @classmethod
     def config_cls(cls):
@@ -165,6 +166,8 @@ class IORAnalyzerTool(Tool):
             "Если результат содержит уточняющий вопрос, задай его пользователю "
             "и повтори вызов с ответом пользователя; инструмент сам сохранит исходный запрос "
             "и добавит «Уточнение: <ответ>». "
+            "Любой ответ на уточнение, включая только выбор категории или поля, сразу передай этому инструменту. "
+            "Не запрашивай название процесса самостоятельно: исходный бизнес-объект уже сохранён инструментом. "
             "Место происхождения и зона ответственности — разные фильтры. "
             "Для конкретных видов потерь направь пользователя во вкладку специального анализа ИОР."
             " Ошибка follow-up является окончательным результатом текущего оборота: "
@@ -371,7 +374,9 @@ class IORAnalyzerTool(Tool):
                 pending_path.unlink(missing_ok=True)
             return report
         except Exception as exc:
-            logger.error("IOR analysis failed: %s", type(exc).__name__)
+            logged = exc if isinstance(exc, KeyError) else RuntimeError(type(exc).__name__)
+            logger.error("IOR analysis failed: %s", type(exc).__name__,
+                         exc_info=(type(logged), logged, exc.__traceback__))
             return ToolResult.error(
                 f"Не удалось выполнить анализ ИОР ({type(exc).__name__}). "
                 "Подробности записаны в журнал."

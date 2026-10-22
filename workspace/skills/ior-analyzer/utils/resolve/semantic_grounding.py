@@ -12,6 +12,7 @@ RESPONSIBILITY='funct_block_lvl_3_name'
 ORIGIN_DETAIL='org_struct_lvl_4_name'
 PROCESS_DIRECTION='process_lvl_3_name'
 PROCESS='process_lvl_4_name'
+RESPONSIBILITY_FIELD_HINT=r'функциональн\w*\s+блок|направлен\w*\s+деятельност|конкретн\w*\s+процесс'
 FIELDS=(ORIGIN,ORIGIN_DETAIL,RESPONSIBILITY,PROCESS_DIRECTION,PROCESS)
 CATEGORIES={ORIGIN:'origin',ORIGIN_DETAIL:'origin',RESPONSIBILITY:'responsibility',
             PROCESS_DIRECTION:'responsibility',PROCESS:'responsibility',
@@ -60,11 +61,11 @@ def _choice(text,value,names=()):
         before=tail[previous:start].rsplit(';',1)[-1]
         if re.match(r'\s*[-–—:]',after):
             tail=after
-        elif re.search(r'ответствен|происхожд|возникл|отвечает|владел|произошл',before):
+        elif re.search(r'ответствен|происхожд|возникл|отвечает|владел|произошл',before) or re.search(RESPONSIBILITY_FIELD_HINT,before):
             tail=before
         elif len({name for _,_,name in found})>1:
             return None
-    if re.search(r'зон\w*\s+ответствен|за\s+которые|отвечает|ответственност|владел\w*\s+процесс',tail):
+    if re.search(r'зон\w*\s+ответствен|за\s+которые|отвечает|ответственност|владел\w*\s+процесс',tail) or re.search(RESPONSIBILITY_FIELD_HINT,tail):
         return 'responsibility'
     if re.search(r'мест\w*\s+(?:происхожд|где)|возникл|возникшие|произошл|источник.*подраздел',tail):
         return 'origin'
@@ -77,12 +78,12 @@ def _stem(word):
     return reduced if len(reduced)>=4 else word
 
 
-_NOISE=('и или по в на за с из к о об от до для где они их этих нужно нужны получить '
+_NOISE=('как и или по в на за с из к о об от до для где они их этих нужно нужны получить '
         'выведи выгрузи найди покажи сделай сформируй проанализируй анализ отчет иор иоры '
         'инцидент инциденты операционный финансовый нефинансовый последствия возмещения '
         'блок подразделение дивизион управление дирекция процесс направление деятельность владелец '
         'функциональный структура клиентский сервис '
-        'место происхождение ответственность конкретный крупный организационный '
+        'место месту происхождение ответственность конкретный крупный организационный направлению '
         'владельца произошли возникли которые которым '
         'год квартал месяц первый второй третий четвертый текущий прошлый предыдущий '
         'рубль рублей сумма свыше более меньше утвержден черновик закрыт исследование '
@@ -250,7 +251,8 @@ def ground_query(user_query,max_hits=100, *, pao_scope=False):
                     selected=[{**h,'match':'exact'} for h in explicit]
                     break
             exact=[h for h in selected if h['match']=='exact']
-            selected=exact or selected
+            normalized=[h for h in selected if h['match']=='normalized']
+            selected=exact or normalized or selected
             if len(selected)>1 and not exact:
                 labels='; '.join('«'+h['value']+'»' for h in selected[:10])
                 raise ClarificationRequired('Уточните конкретное подразделение: '+labels+'. Укажите полное название.',stage='object',category=category,column=column)

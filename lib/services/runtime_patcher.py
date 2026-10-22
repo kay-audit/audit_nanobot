@@ -253,6 +253,14 @@ class PatchSpec:
 
 
 _PATCH_SPECS: dict[str, PatchSpec] = {
+    "ior_terminal_result": PatchSpec(
+        name="ior_terminal_result",
+        purpose="завершать оборот после окончательного результата native IOR",
+        nanobot_target="nanobot.agent.runner.AgentRunner._run_core",
+        reason="upstream повторяет LLM-вызов даже после терминальной ошибки tool",
+        alternatives_checked="AgentHook.after_iteration не имеет публичного stop API",
+        risk="high", nanobot_version="0.3.5",
+    ),
     "context_governor": PatchSpec(
         name="context_governor",
         purpose="выгружать большие результаты инструментов в data_store/ "
@@ -623,6 +631,7 @@ class RuntimePatcher:
             ``PatchReport`` со списками ``applied`` / ``skipped`` (с причиной).
         """
         report = PatchReport()
+        self._record(report, "ior_terminal_result", self.patch_ior_terminal_result())
         self._record(report, "context_governor", self.patch_context_governor(
             config, settings, workspace_dir))
         self._record(report, "save_turn", self.patch_save_turn(
@@ -1400,6 +1409,58 @@ class RuntimePatcher:
     # ------------------------------------------------------------------
     # Патч 1d: лимиты read_file / grep / list_dir (конфигурируемые)
     # ------------------------------------------------------------------
+
+    def patch_ior_terminal_result(self) -> tuple[bool, str]:
+        """Enforce the existing native IOR final-result contract per runner invocation."""
+        from nanobot.agent.hook import AgentHook, CompositeHook
+        from nanobot.agent.runner import AgentRunner, AgentRunResult
+        from nanobot.agent.tools.context import current_request_context
+
+        original = AgentRunner._run_core
+        if getattr(original, '_ior_terminal_result', False):
+            return True, 'already patched'
+
+        class TerminalIOR(Exception):
+            def __init__(self, content, failed):
+                self.content, self.failed = content, failed
+
+        async def patched(runner, spec, hook, messages, compaction):
+            usage = None
+            rounds, events, used = [], [], []
+
+            class TerminalHook(AgentHook):
+                async def after_iteration(self, ctx):
+                    nonlocal usage
+                    rounds.append(ctx.usage)
+                    usage = runner._merge_usage(usage, ctx.usage)
+                    events.extend(ctx.tool_events)
+                    for call, result, event in zip(ctx.tool_calls, ctx.tool_results, ctx.tool_events):
+                        if event.get('status') == 'ok':
+                            used.append(call.name)
+                        tool = spec.tools.get(call.name)
+                        if not getattr(tool, '_terminal_result', False):
+                            continue
+                        if current_request_context() is None or not isinstance(result, str) or not result.strip():
+                            continue
+                        failed = event.get('status') == 'error'
+                        suffix = '\n\n[Analyze the error above and try a different approach.]'
+                        content = result.removesuffix(suffix) if failed else result
+                        raise TerminalIOR(content, failed)
+
+            terminal = TerminalHook(reraise=True)
+            try:
+                return await original(runner, spec, CompositeHook([hook, terminal]), messages, compaction)
+            except TerminalIOR as final:
+                runner._append_final_message(messages, final.content)
+                logger.info('Native IOR terminal result: error={}; no further model/tool calls', final.failed)
+                return AgentRunResult(final_content=final.content, messages=messages,
+                    tools_used=used, usage=usage, round_usages=rounds,
+                    stop_reason='tool_error' if final.failed else 'completed',
+                    error=final.content if final.failed else None, tool_events=events)
+
+        patched._ior_terminal_result = True
+        AgentRunner._run_core = patched
+        return True, 'native IOR terminal results stop the current turn'
 
     def patch_tool_limits(self, settings: Any) -> tuple[bool, str]:
         """Поднять потолки инструментов, которые усекают вывод с маркером.
