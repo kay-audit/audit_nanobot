@@ -1157,8 +1157,8 @@ class TestPatchSpecs:
             f"only in canonical={canonical_names - patch_specs_names}",
         )
 
-    def test_inventory_size_is_13(self):
-        """Sanity check для этой change: ровно 13 patches во всех трёх множествах.
+    def test_inventory_size_is_14(self):
+        """Sanity check для этой change: ровно 14 patches во всех трёх множествах.
 
         Этот тест не защищает архитектурный контракт (его защищает
         ``test_inventory_is_exact``); он фиксирует текущее количество
@@ -1170,9 +1170,9 @@ class TestPatchSpecs:
         from lib.services.runtime_inventory import canonical_runtime_patches
 
         apply_all_names = self._extract_apply_all_names()
-        assert len(apply_all_names) == 13
-        assert len(RuntimePatcher.patch_specs()) == 13
-        assert len(canonical_runtime_patches()) == 13
+        assert len(apply_all_names) == 14
+        assert len(RuntimePatcher.patch_specs()) == 14
+        assert len(canonical_runtime_patches()) == 14
 
     def test_specs_have_required_fields(self):
         from lib.services.runtime_patcher import RuntimePatcher
@@ -1201,6 +1201,7 @@ class TestPatchSpecs:
                         "_assemble_outbound",
                         "_prepare_outbound",
                         "_SubagentHook",
+                        "_run_core",
                     )
                 ), (
                     f"{name}: marked high risk but target '{target}' is not "

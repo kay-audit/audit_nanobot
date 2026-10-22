@@ -82,6 +82,10 @@ def _resolve_sfs_base(media_cache_dir: str | Path) -> Path:
     p = Path(media_cache_dir)
     if not p.is_absolute():
         p = _WORKSPACE_DIR / media_cache_dir
+    if p.name == "sessions" and p.parent.name == "cache":
+        return p.parent.parent
+    if p.name == "cache":
+        return p.parent
     return p.parent if p.name == "sessions" else p
 
 

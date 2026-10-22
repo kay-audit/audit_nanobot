@@ -38,7 +38,7 @@ runtime patch'ом — это отдельный loader
 ## Сводная таблица (nanobot-ai 0.3.5)
 
 Финальный inventory после `runtime-patcher-composition-cleanup`:
-**ровно 12 patches** в `apply_all()` / `_PATCH_SPECS` /
+**ровно 14 patches** в `apply_all()` / `_PATCH_SPECS` /
 `canonical_runtime_patches()` (попарно равны — exact-match тест
 [`tests/test_runtime_patcher.py::TestPatchSpecs::test_inventory_is_exact`](../../tests/test_runtime_patcher.py)).
 
@@ -56,6 +56,17 @@ runtime patch'ом — это отдельный loader
 | 10 | `turn_delivery_fail` | `TurnDelivery.fail` (private, класса) | MEDIUM | — | KEEP |
 | 11 | `session_content_cleanup` | `Session.add_message` | LOW | — | KEEP |
 | 12 | `document_text_threshold` | `reference_non_image_attachments` | MEDIUM | — | KEEP |
+| 13 | `prepare_outbound_suppressed` | `agent._prepare_outbound_suppressed` | HIGH | — | KEEP |
+| 14 | `ior_terminal_result` | `AgentRunner._run_core` | HIGH | — | ISOLATE+TESTS |
+
+`ior_terminal_result` (nanobot-ai 0.3.5) завершает native IOR turn после
+результата инструмента, включая ошибку и уточнение. Реализация читает только
+внутренний marker `_terminal_result` зарегистрированного инструмента и не
+импортирует project tools. Upstream hook не имеет stop API; после tool error
+upstream добавляет retry hint и вызывает LLM снова. Обёртка создаёт отдельный
+hook на каждый run, сохраняет полный текст, tool events и token usage;
+остальные tools и standalone-вызовы без RequestContext не меняются.
+Reasoning остаётся включённым. Тесты: `tests/test_ior_local_gateway_regression.py`.
 
 `Required = ✓` (4 патча: `assemble_outbound`, `save_turn`,
 `subagent_logging`, `context_governor`) — критичность для
