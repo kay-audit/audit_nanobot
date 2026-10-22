@@ -319,7 +319,9 @@ def main() -> int:
             "chunks": chunks,
         }
     else:  # "all"
-        payload = {"status": "ok", "field": field, "manifest": manifest}
+        from cache.manifest import read_result
+        payload = {"status": "ok", "field": field, "manifest": manifest,
+                   "result": read_result(args.operation_id, workspace_root)}
 
     _emit(payload)
     return 0

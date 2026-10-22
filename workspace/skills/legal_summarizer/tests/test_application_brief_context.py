@@ -629,3 +629,13 @@ def test_compression_allocate_budget_returns_tuple():
         assert isinstance(section, BriefSection)
         assert isinstance(text, str)
         assert isinstance(was_truncated, bool)
+
+
+def test_unstructured_contract_keeps_actual_terms():
+    blocks = [_b(0, "DEMO_SYNTHETIC договор"), _b(1, "Цена 125000 рублей. Оплата 5 рабочих дней. Неустойка 0,1 процента.")]
+    root = _node("n_0000", node_type="document", level=0, parent_id=None, start_block=0, end_block=1)
+    struct = DocumentStructure(document_id="d", title=None, nodes={"n_0000": root},
+                               root_id="n_0000", preamble_node_id=None, numbering=(), total_blocks=2)
+    chunk = build_brief_chunk(_make_analysis(blocks, struct))
+    assert "125000" in chunk.text and "5 рабочих дней" in chunk.text and "0,1" in chunk.text
+    assert chunk.block_indices == (0, 1)

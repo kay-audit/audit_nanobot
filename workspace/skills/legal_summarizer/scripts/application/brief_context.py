@@ -414,6 +414,15 @@ def build_brief_chunk(
                 continue
             used_ordinals.append(ordinal)
 
+    if not used_ordinals:
+        unstructured = [block for _, block in sorted(blocks_by_ord.items()) if block.content.strip()]
+        if unstructured:
+            section_blocks = [BriefSection(
+                heading="[Document body]",
+                text="\n\n".join(block.content for block in unstructured),
+            )]
+            used_ordinals.extend(block.ordinal for block in unstructured)
+
     content_budget = max(
         0, max_chars - len(section_outline) - len("\n\nDOCUMENT CONTENT\n\n"),
     )
