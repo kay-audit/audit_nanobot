@@ -223,3 +223,31 @@ async def test_revoked_subscription_is_rechecked_after_llm(monkeypatch):
 async def test_unknown_validation_ids_do_not_bypass_grounding():
     result = await runtime(resolver([active()])).validate("SELECT id FROM db.t", dialect="spark", table_ids=[1, 999])
     assert result["status"] == "grounding_error" and not result["publishable"]
+
+
+@pytest.mark.asyncio
+async def test_generation_rejects_unrelated_kb_candidate_for_explicit_table(monkeypatch):
+    llm = Mock()
+    monkeypatch.setattr("lib.services.llm_client.call_llm", llm)
+    result = await runtime(resolver([active()])).generate(
+        question="Сгенерируй запрос к таблице db.absent", dialect="spark", table_ids=[1],
+        llm_config={"model": "fake"},
+    )
+    assert result["error_type"] == "requested_source_not_selected"
+    assert not result["publishable"] and result["sql"] == ""
+    assert result["requested_sources"] == ["db.absent"]
+    llm.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_generation_cannot_replace_trusted_original_source(monkeypatch):
+    monkeypatch.setattr("nanobot.agent.tools.context.current_request_context",
+                        lambda: SimpleNamespace(original_user_text="Сгенерируй запрос к неизвестной db.absent"))
+    llm = Mock()
+    monkeypatch.setattr("lib.services.llm_client.call_llm", llm)
+    obj = runtime(resolver([active()]))
+    result = await obj.generate(question="Построй сводку", dialect="spark", table_ids=[1], llm_config={"model":"fake"})
+    assert result["error_type"] == "requested_source_not_selected" and not result["publishable"]
+    llm.assert_not_called()
+    validated = await obj.validate("SELECT id FROM db.t", dialect="spark", table_ids=[1])
+    assert not validated["publishable"] and validated["sql"] == ""
