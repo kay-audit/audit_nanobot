@@ -60,6 +60,11 @@ class AppealsAnalyzerTool(Tool):
     config_key: ClassVar[str] = "appeals_analyzer"
     _plugin_discoverable: ClassVar[bool] = False
 
+    @property
+    def _terminal_result(self):
+        from workspace.utils.skill_runtime_mode import is_testing_runtime
+        return is_testing_runtime("appeals-analyzer")
+
     @classmethod
     def config_cls(cls):
         return AppealsAnalyzerToolConfig
@@ -185,14 +190,27 @@ class AppealsAnalyzerTool(Tool):
         try:
             runtime = log_skill_runtime("appeals-analyzer", logger)
             if runtime == "testing":
+                context = current_request_context()
+                original = getattr(context, 'original_user_text', None)
+                if isinstance(original, str) and original.strip():
+                    prompt = original
                 resolved_session = current_tool_session_id(
                     None if session_id == "webui_session" else session_id
                 )
                 runner = load_testing_module("appeals-analyzer", "runner")
-                return await runner.run_testing_report(
+                report = await runner.run_testing_report(
                     session_id=resolved_session,
                     user_prompt=prompt,
                 )
+                if context is not None and self._message_tool is not None:
+                    path = runner.export_selected(resolved_session)
+                    if path is not None:
+                        from lib.utils.verbatim_report import verbatim_report_context
+                        with verbatim_report_context(context, 'appeals_analyzer', report):
+                            delivery = await self._message_tool.execute(content=report, media=[str(path)])
+                        if getattr(delivery, "is_error", False):
+                            raise RuntimeError("Appeals testing artifact delivery failed")
+                return report
             runner = self._load_runner()
             context = current_request_context()
             original = getattr(context, "original_user_text", None)
@@ -238,7 +256,7 @@ class AppealsAnalyzerTool(Tool):
                 _request_state["complete"] = True
             return report
         except Exception as exc:
-            logger.error("Appeals analysis failed: %s", type(exc).__name__)
+            logger.exception("Appeals analysis failed: %s", type(exc).__name__)
             from workspace.utils.appeals_structural_cache import AppealsStructuralCacheError
             if isinstance(exc, AppealsStructuralCacheError):
                 return ToolResult.error(str(exc))

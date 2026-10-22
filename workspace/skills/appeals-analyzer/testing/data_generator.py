@@ -259,9 +259,17 @@ def load_records(dsn: str | None = None) -> list[dict]:
             SELECT s.app_row_id,
                    to_char(s.req_reg_date, 'YYYY-MM-DD') AS req_reg_date,
                    s.prd, s.s_prd, s.chnl,
-                   b.body
+                   b.body, d.dialogue, t.tasks
             FROM {TEST_SCHEMA}.appeals_structural s
             JOIN {TEST_SCHEMA}.appeal_body b USING (app_row_id)
+            LEFT JOIN (
+                SELECT app_row_id, string_agg(coalesce(speaker,'') || ': ' || coalesce(text,''), E'\n' ORDER BY turn_no) AS dialogue
+                FROM {TEST_SCHEMA}.appeal_dialogs GROUP BY app_row_id
+            ) d USING (app_row_id)
+            LEFT JOIN (
+                SELECT app_row_id, string_agg(coalesce(task_text,''), E'\n' ORDER BY task_no) AS tasks
+                FROM {TEST_SCHEMA}.appeal_task GROUP BY app_row_id
+            ) t USING (app_row_id)
             ORDER BY s.app_row_id
             """
         )
@@ -275,7 +283,9 @@ def load_records(dsn: str | None = None) -> list[dict]:
             "prd": row[2],
             "s_prd": row[3],
             "chnl": row[4],
-            "text": row[5],
+            "text": "Описание обращения:\n" + (row[5] or "")
+                    + ("\n\nДиалог:\n" + row[6] if row[6] else "")
+                    + ("\n\nЗадачи:\n" + row[7] if row[7] else ""),
         }
         for row in rows
     ]

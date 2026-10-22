@@ -59,7 +59,7 @@ def render_report(query: str, selected: list[dict], provenance: str | None = Non
     return (
         "# Тестовый отчёт по обращениям\n\n"
         f"Запрос: {query}\n\nНайдено обращений: **{len(selected)}**\n\n"
-        "## Summary\nРезультат сформирован на синтетических данных после детерминированных фильтров и LLM relevance-проверки.\n\n"
+        "## Summary\nРезультат сформирован на синтетических данных после детерминированных фильтров и LLM relevance-проверки. Показана ограниченная выборка: до 60 кандидатов, до 50 результатов; это не число всех релевантных обращений в БД. Native OSIRIS в testing-режиме не используется.\n\n"
         + (provenance if provenance is not None else source_provenance()) + "\n"
         "## Evidence\n" + evidence + "\n\n## Гипотезы\n" + hypothesis_text
     )
