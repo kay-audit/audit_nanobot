@@ -485,3 +485,27 @@ def test_legacy_history_is_adopted_only_by_confirmed_owner(monkeypatch, old_owne
         assert api._session("old-chat", "alice") == alice
     finally:
         engine.dispose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kms,expected_query,expected_id", [
+    ([KM_A], "", KM_A),
+    ([], "контроль сверки", None),
+])
+async def test_hypothesis_explicit_km_does_not_text_search_its_number(monkeypatch,kms,expected_query,expected_id):
+    from contextlib import nullcontext
+    from backend.agents import hypothesis_agent as mod
+    class MaterialCollected(Exception):
+        pass
+    seen = []
+    def search(db, *, query, check_id):
+        seen.append((query, check_id))
+        raise MaterialCollected
+    monkeypatch.setattr(mod, "get_db", lambda: nullcontext(object()))
+    monkeypatch.setattr(mod, "build_context", lambda chunks: "")
+    monkeypatch.setattr(mod.DeviationRepo, "search", search)
+    agent = object.__new__(mod.HypothesisAgent)
+    ctx = SimpleNamespace(topic="контроль сверки",raw_query="вопрос",km_numbers=kms)
+    with pytest.raises(MaterialCollected):
+        await agent._generate(ctx, [])
+    assert seen == [(expected_query, expected_id)]

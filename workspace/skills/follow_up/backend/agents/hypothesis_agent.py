@@ -406,7 +406,7 @@ class HypothesisAgent(BaseAgent):
         # ── ШАГ 0: сбор материала (без LLM) ──
         with get_db() as db:
             km_filter = query_ctx.km_numbers[0] if query_ctx.km_numbers else None
-            devs = DeviationRepo.search(db, query=topic[:100], check_id=km_filter)
+            devs = DeviationRepo.search(db, query="" if km_filter else topic[:100], check_id=km_filter)
             devs_data = [_deviation_to_dict(d) for d in devs[:_MAX_DEVS]]
             available_km = DocumentRepo.list_check_ids(db)
 
