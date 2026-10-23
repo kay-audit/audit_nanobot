@@ -113,7 +113,11 @@ def extra_body_for(provider: str | None) -> Dict[str, Any]:
         return {"chat_template_kwargs": {"enable_thinking": enabled}}
     if name in _THINKING_TYPE_PROVIDERS:
         return {"thinking": {"type": "enabled" if enabled else "disabled"}}
-    return {"reasoning_split": enabled}
+    result = {"reasoning_split": enabled}
+    effort = os.getenv("LOCAL_STAND_MINIMAX_REASONING_EFFORT", "").strip()
+    if os.getenv("LOCAL_STAND_ROOT") and name == "minimax" and effort in {"low", "medium", "high"}:
+        result["reasoning_effort"] = effort
+    return result
 
 
 def apply_to_payload(payload: Dict[str, Any], provider: str | None = None) -> Dict[str, Any]:

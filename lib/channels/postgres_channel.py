@@ -1576,6 +1576,35 @@ class PostgresChannel(BaseChannel):
         meta = dict(msg.metadata or {})
         msg_id = meta.get("origin_message_id") or meta.get("message_id")
 
+        if (os.environ.get('LOCAL_STAND_ROOT') and os.environ.get('LOCAL_STAND_PRIORITY_WRITEBACK') == '1'
+                and meta.get('priority') and msg_id and msg.event is None):
+            from lib.channels.priority_commands import get_priority_commands
+            async with transaction() as conn:
+                source = await conn.fetchrow(
+                    f"SELECT content, chat_id, status FROM {self._fq_table} "
+                    "WHERE id = %s AND role = 'user' FOR UPDATE", msg_id,
+                )
+                if source and source['content'] in get_priority_commands() and str(source['chat_id']) == str(msg.chat_id):
+                    if source['status'] in {'cancelled', 'completed'}:
+                        return
+                    answer = await conn.fetchval(
+                        f"SELECT id FROM {self._fq_table} WHERE reply_to = %s AND role = 'assistant' ORDER BY created_at LIMIT 1", msg_id,
+                    )
+                    if answer:
+                        await conn.execute(
+                            f"UPDATE {self._fq_table} SET content = %s, status = 'completed', updated_at = NOW() WHERE id = %s", msg.content or '', answer,
+                        )
+                    else:
+                        await conn.execute(
+                            f"INSERT INTO {self._fq_table}(chat_id,user_id,role,content,reply_to,status) "
+                            "VALUES (%s,'assistant','assistant',%s,%s,'completed')", msg.chat_id, msg.content or '', msg_id,
+                        )
+                    await conn.execute(
+                        f"UPDATE {self._fq_table} SET status = 'completed', updated_at = NOW() WHERE id = %s", msg_id,
+                    )
+                    await self._delete_claim(conn, str(msg_id))
+                    return
+
         # v0.3.0: runtime-события (прогресс тулов, рассуждения, стриминг)
         # переносятся типизированным полем OutboundMessage.event, а не
         # legacy-флагами в metadata. Такие события обрабатываются отдельными

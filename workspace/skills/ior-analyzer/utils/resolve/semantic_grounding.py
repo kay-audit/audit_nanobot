@@ -1,5 +1,6 @@
 """Origin and responsibility are independent business constraints."""
 import json
+import os
 import logging
 import re
 from difflib import SequenceMatcher
@@ -27,6 +28,8 @@ TB={ 'срб':'Среднерусский банк','мб':'Московский
 def load_catalog():
     root=Path(__file__).resolve().parents[2]
     path=root/'utils/schema/kb_value_catalog.json'
+    if os.environ.get('LOCAL_STAND_ROOT') and os.environ.get('LOCAL_STAND_IOR_CATALOG'):
+        path=Path(os.environ['LOCAL_STAND_IOR_CATALOG'])
     try:
         data=json.loads(path.read_text(encoding='utf-8'))
         columns=data['columns']

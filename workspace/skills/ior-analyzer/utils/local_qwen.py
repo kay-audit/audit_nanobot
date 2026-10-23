@@ -129,6 +129,9 @@ def _endpoint() -> Dict[str, Any]:
         "extra_body": dict(ep["extra_body"]),
         "is_vllm": ep["provider"].strip().lower() in {"vllm", "sglang"},
     }
+    effort = os.environ.get('LOCAL_STAND_MINIMAX_REASONING_EFFORT')
+    if os.environ.get('LOCAL_STAND_ROOT') and ep['provider'] == 'minimax' and effort in {'low', 'medium', 'high'}:
+        endpoint['extra_body']['reasoning_effort'] = effort
     if _ENV_GENERATE_URL:
         endpoint["generate_url"] = _ENV_GENERATE_URL
     elif endpoint["is_vllm"]:
